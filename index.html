@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI-Generated Web Tools</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg: #050816;
+      --bg-card: #0b1020;
+      --bg-card-hover: #141a30;
+      --border: #222a45;
+      --accent: #ff9a4b;
+      --accent-soft: rgba(255, 154, 75, 0.12);
+      --text: #f8fafc;
+      --text-muted: #9ca3af;
+      --chip-bg: #111827;
+      --chip-border: #1f2937;
+      --radius-lg: 16px;
+      --radius-md: 10px;
+      --radius-sm: 6px;
+      --shadow-soft: 0 20px 40px rgba(0,0,0,0.55);
+      --shadow-chip: 0 8px 20px rgba(0,0,0,0.45);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top left, #1f2937 0, #020617 50%, #000 100%);
+      color: var(--text);
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+
+    .shell {
+      width: 100%;
+      max-width: 1100px;
+      background: rgba(3, 7, 18, 0.9);
+      border-radius: 24px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      box-shadow: var(--shadow-soft);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      backdrop-filter: blur(18px);
+    }
+
+    header {
+      padding: 18px 24px;
+      border-bottom: 1px solid rgba(15, 23, 42, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.09), transparent 50%);
+    }
+
+    .title-block {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 20%, #f97316, #ec4899);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #0b1120;
+      font-weight: 800;
+      font-size: 18px;
+      box-shadow: 0 10px 25px rgba(236, 72, 153, 0.55);
+    }
+
+    h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    h1 span.sub {
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip {
+      font-size: 11px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: var(--chip-bg);
+      border: 1px solid var(--chip-border);
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: var(--shadow-chip);
+    }
+
+    .chip span.icon {
+      font-size: 13px;
+    }
+
+    main {
+      padding: 20px 20px 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 840px) {
+      main {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .intro {
+      padding: 16px 18px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      background: radial-gradient(circle at top, rgba(56, 189, 248, 0.14), rgba(15, 23, 42, 0.98));
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .intro h2 {
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    .intro p {
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+
+    .intro ul {
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text-muted);
+      padding-left: 18px;
+      margin-top: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .ai-note {
+      font-size: 12px;
+      padding: 8px 10px;
+      border-radius: var(--radius-md);
+      background: var(--accent-soft);
+      border: 1px solid rgba(249, 115, 22, 0.4);
+      color: #fed7aa;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ai-note strong {
+      font-weight: 600;
+    }
+
+    .ai-note span.icon {
+      font-size: 15px;
+    }
+
+    .cards {
+      display: grid;
+      gap: 10px;
+    }
+
+    .card {
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      background: linear-gradient(135deg, #020617, #020617 55%, #020617);
+      padding: 14px 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 20px 30px rgba(15, 23, 42, 0.9);
+      border-color: rgba(148, 163, 184, 0.7);
+      background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.15), #020617);
+    }
+
+    .card-tag {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+    }
+
+    .card h3 {
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card h3 span.emoji {
+      font-size: 16px;
+    }
+
+    .card p {
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .pill {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      background: rgba(15, 23, 42, 0.9);
+      color: #e5e7eb;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pill span.icon {
+      font-size: 13px;
+    }
+
+    .card-actions {
+      margin-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .buttons {
+      display: flex;
+      gap: 6px;
+    }
+
+    a.btn-link {
+      text-decoration: none;
+      font-size: 11px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      background: rgba(15, 23, 42, 0.9);
+      color: #e5e7eb;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+    }
+
+    a.btn-link span.icon {
+      font-size: 13px;
+    }
+
+    a.btn-link.primary {
+      border-color: rgba(251, 191, 36, 0.85);
+      background: radial-gradient(circle at top, rgba(250, 204, 21, 0.2), rgba(15, 23, 42, 0.98));
+    }
+
+    a.btn-link:hover {
+      background: rgba(15, 23, 42, 1);
+      border-color: rgba(148, 163, 184, 0.9);
+      transform: translateY(-1px);
+    }
+
+    a.btn-link.primary:hover {
+      border-color: rgba(251, 191, 36, 1);
+    }
+
+    footer {
+      padding: 10px 18px 14px;
+      border-top: 1px solid rgba(15, 23, 42, 0.85);
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .small {
+      opacity: 0.85;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 11px;
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(30, 64, 175, 0.6);
+      color: #bfdbfe;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="title-block">
+        <div class="logo">AI</div>
+        <h1>
+          AI-Generated Web Tools
+          <span class="sub">Tiny experiments · Mostly made with Claude</span>
+        </h1>
+      </div>
+      <div class="chips">
+        <div class="chip">
+          <span class="icon">🤖</span>
+          AI-assisted code
+        </div>
+        <div class="chip">
+          <span class="icon">🧪</span>
+          Sandbox projects
+        </div>
+        <div class="chip">
+          <span class="icon">💻</span>
+          Pure HTML / JS
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="intro">
+        <div>
+          <h2>What is this?</h2>
+          <p>
+            This repo is a small playground for tiny web apps and visual experiments.
+            Most of them were created with the help of AI models, mainly <strong>Claude</strong>.
+          </p>
+          <ul>
+            <li>Each idea lives in its own folder.</li>
+            <li>Everything is static – just HTML, CSS and JavaScript.</li>
+            <li>Perfect for quick demos and prototypes.</li>
+          </ul>
+        </div>
+        <div class="ai-note">
+          <span class="icon">⚙️</span>
+          <span>
+            <strong>Note:</strong> All tools here are AI-assisted. Code was generated and edited using
+            language models (primarily Claude, sometimes others).
+          </span>
+        </div>
+      </section>
+
+      <section class="cards">
+        <!-- N5 Kanji Drill -->
+        <article class="card">
+          <div class="card-tag">Tool · Language learning</div>
+          <h3><span class="emoji">🔤</span> JLPT N5 Kanji Drill</h3>
+          <p>
+            Simple kanji practice page for JLPT N5 learners. Designed for quick drills,
+            browsing characters and testing yourself.
+          </p>
+          <div class="meta">
+            <div class="pill"><span class="icon">🎯</span>Beginner Japanese</div>
+            <div class="pill"><span class="icon">📄</span>Single-page app</div>
+          </div>
+          <div class="card-actions">
+            <div class="buttons">
+              <a class="btn-link primary" href="./n5-kanji-drill/" target="_blank" rel="noopener noreferrer">
+                <span class="icon">▶</span>
+                <span>Open demo</span>
+              </a>
+              <a class="btn-link" href="https://github.com/<USERNAME>/ai-generated-web-tools/tree/main/n5-kanji-drill" target="_blank" rel="noopener noreferrer">
+                <span class="icon">💾</span>
+                <span>Source</span>
+              </a>
+            </div>
+            <span class="small">AI-assisted • Claude</span>
+          </div>
+        </article>
+
+        <!-- Boids + Predator–Prey -->
+        <article class="card">
+          <div class="card-tag">Tool · Simulation</div>
+          <h3><span class="emoji">🦅</span> Boids + Predator–Prey</h3>
+          <p>
+            Interactive flocking simulation with predators, reproduction and starvation.
+            Tune parameters live and watch the ecosystem evolve.
+          </p>
+          <div class="meta">
+            <div class="pill"><span class="icon">📈</span>Flocking + ecology</div>
+            <div class="pill"><span class="icon">🎛️</span>Real-time controls</div>
+          </div>
+          <div class="card-actions">
+            <div class="buttons">
+              <a class="btn-link primary" href="./boids-predator-prey/" target="_blank" rel="noopener noreferrer">
+                <span class="icon">▶</span>
+                <span>Open demo</span>
+              </a>
+              <a class="btn-link" href="https://github.com/<USERNAME>/ai-generated-web-tools/tree/main/boids-predator-prey" target="_blank" rel="noopener noreferrer">
+                <span class="icon">💾</span>
+                <span>Source</span>
+              </a>
+            </div>
+            <span class="small">AI-assisted • Claude</span>
+          </div>
+        </article>
+
+        <!-- LocalNotes -->
+        <article class="card">
+          <div class="card-tag">Tool · Productivity</div>
+          <h3><span class="emoji">📓</span> LocalNotes – Notion-like</h3>
+          <p>
+            Local, Notion-inspired editor with blocks, slash commands, multiple choice
+            questions, math support and light/dark theme.
+          </p>
+          <div class="meta">
+            <div class="pill"><span class="icon">🧱</span>Block editor</div>
+            <div class="pill"><span class="icon">💡</span>LocalStorage</div>
+          </div>
+          <div class="card-actions">
+            <div class="buttons">
+              <a class="btn-link primary" href="./localnotes/" target="_blank" rel="noopener noreferrer">
+                <span class="icon">▶</span>
+                <span>Open demo</span>
+              </a>
+              <a class="btn-link" href="https://github.com/<USERNAME>/ai-generated-web-tools/tree/main/localnotes" target="_blank" rel="noopener noreferrer">
+                <span class="icon">💾</span>
+                <span>Source</span>
+              </a>
+            </div>
+            <span class="small">AI-assisted • Claude</span>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <footer>
+      <span>New ideas will appear here whenever I feel like building another tiny tool.</span>
+      <span>To add a new tool, just create a folder with an <code>index.html</code>.</span>
+    </footer>
+  </div>
+</body>
+</html>

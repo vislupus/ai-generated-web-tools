@@ -1,0 +1,3642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LocalNotes - Notion-like App</title>
+  <!-- KaTeX for math equations -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <style>
+    /* ===========================
+       CSS Variables & Themes
+       =========================== */
+    :root {
+      /* Light theme (default) */
+      --bg-primary: #ffffff;
+      --bg-secondary: #f7f7f5;
+      --bg-tertiary: #f1f1ef;
+      --bg-hover: #ebebea;
+      --text-primary: #37352f;
+      --text-secondary: #6b6b6b;
+      --text-muted: #9b9a97;
+      --border-color: #e3e2e0;
+      --accent-color: #2383e2;
+      --accent-hover: #1a6bc2;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.15);
+      --code-bg: #f7f6f3;
+      --quote-border: #e3e2e0;
+      --drag-indicator: #2383e2;
+      --checkbox-border: #c4c4c4;
+      --checkbox-checked: #2383e2;
+      --menu-bg: #ffffff;
+      --transition-speed: 0.2s;
+      
+      /* Notion Text Colors */
+      --color-text-default: #37352f;
+      --color-text-gray: #787774;
+      --color-text-brown: #9f6b53;
+      --color-text-orange: #d9730d;
+      --color-text-yellow: #cb912f;
+      --color-text-green: #448361;
+      --color-text-blue: #337ea9;
+      --color-text-purple: #9065b0;
+      --color-text-pink: #c14c8a;
+      --color-text-red: #d44c47;
+      
+      /* Notion Background Colors */
+      --color-bg-default: transparent;
+      --color-bg-gray: #f1f1ef;
+      --color-bg-brown: #f4eeee;
+      --color-bg-orange: #fbecdd;
+      --color-bg-yellow: #fbf3db;
+      --color-bg-green: #edf3ec;
+      --color-bg-blue: #e7f3f8;
+      --color-bg-purple: #f6f3f9;
+      --color-bg-pink: #faf1f5;
+      --color-bg-red: #fdebec;
+    }
+
+    [data-theme="dark"] {
+      --bg-primary: #191919;
+      --bg-secondary: #202020;
+      --bg-tertiary: #2a2a2a;
+      --bg-hover: #333333;
+      --text-primary: #e3e3e3;
+      --text-secondary: #9b9b9b;
+      --text-muted: #6b6b6b;
+      --border-color: #333333;
+      --accent-color: #529cca;
+      --accent-hover: #6db3dd;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+      --code-bg: #2a2a2a;
+      --quote-border: #444444;
+      --drag-indicator: #529cca;
+      --checkbox-border: #555555;
+      --checkbox-checked: #529cca;
+      --menu-bg: #252525;
+      
+      /* Notion Text Colors - Dark */
+      --color-text-default: #e3e3e3;
+      --color-text-gray: #9b9b9b;
+      --color-text-brown: #ba856f;
+      --color-text-orange: #ffa344;
+      --color-text-yellow: #ffdc49;
+      --color-text-green: #4dab9a;
+      --color-text-blue: #529cca;
+      --color-text-purple: #9a6dd7;
+      --color-text-pink: #e255a1;
+      --color-text-red: #ff7369;
+      
+      /* Notion Background Colors - Dark */
+      --color-bg-default: transparent;
+      --color-bg-gray: #363636;
+      --color-bg-brown: #433126;
+      --color-bg-orange: #5c3b23;
+      --color-bg-yellow: #564328;
+      --color-bg-green: #2b4137;
+      --color-bg-blue: #28456c;
+      --color-bg-purple: #3d2e50;
+      --color-bg-pink: #4e2c42;
+      --color-bg-red: #522e2a;
+    }
+
+    /* ===========================
+       Base Styles & Reset
+       =========================== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.5;
+      transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
+      min-height: 100vh;
+    }
+
+    /* ===========================
+       Top Bar / Header
+       =========================== */
+    .top-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 45px;
+      background-color: var(--bg-primary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      z-index: 100;
+      transition: background-color var(--transition-speed) ease;
+    }
+
+    .logo {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 22px;
+      height: 22px;
+      background: var(--text-primary);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--bg-primary);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .top-bar-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn {
+      padding: 4px 8px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 400;
+      cursor: pointer;
+      transition: background 20ms ease-in;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-secondary);
+      background: transparent;
+    }
+
+    .btn:hover {
+      background: var(--bg-hover);
+    }
+
+    .btn-danger {
+      color: var(--color-text-red);
+    }
+
+    .btn-danger:hover {
+      background: var(--color-bg-red);
+    }
+
+    .btn-primary {
+      color: var(--color-text-blue);
+    }
+
+    .btn-primary:hover {
+      background: var(--color-bg-blue);
+    }
+
+    .theme-toggle {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      transition: background 20ms ease-in;
+    }
+
+    .theme-toggle:hover {
+      background: var(--bg-hover);
+    }
+
+    /* ===========================
+       Main Content Area
+       =========================== */
+    .main-container {
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 96px 96px 30vh;
+      min-height: 100vh;
+    }
+
+    .page-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      outline: none;
+      border: none;
+      width: 100%;
+      line-height: 1.2;
+      padding: 3px 2px;
+      white-space: break-spaces;
+      word-break: break-word;
+      caret-color: var(--text-primary);
+    }
+
+    .page-title:empty:before {
+      content: "Untitled";
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    /* ===========================
+       Block Container
+       =========================== */
+    .blocks-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    /* ===========================
+       Individual Block Styles
+       =========================== */
+    .block {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      padding: 3px 0;
+      border-radius: 3px;
+      transition: background 20ms ease-in;
+    }
+
+    .block.dragging {
+      opacity: 0.5;
+      background: var(--bg-tertiary);
+    }
+
+    .block.drag-over-top::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--drag-indicator);
+      border-radius: 2px;
+    }
+
+    .block.drag-over-bottom::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--drag-indicator);
+      border-radius: 2px;
+    }
+
+    /* Block Controls Container */
+    .block-controls {
+      position: absolute;
+      left: -62px;
+      top: 0;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      height: calc(1.5em + 6px);
+      padding-top: 3px;
+    }
+
+    .block:hover .block-controls {
+      opacity: 1;
+    }
+
+    /* Add Block Button - 30% bigger */
+    .block-add-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      border: none;
+      background: transparent;
+      font-size: 20px;
+      user-select: none;
+      transition: background 20ms ease-in;
+    }
+
+    .block-add-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+    }
+
+    /* Drag Handle - 30% bigger */
+    .block-handle {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 20ms ease-in;
+      font-size: 14px;
+      user-select: none;
+    }
+
+    .block-handle:hover {
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+    }
+
+    .block-handle.dragging {
+      cursor: grabbing;
+    }
+
+    /* Block Menu (on handle click) */
+    .block-menu {
+      position: absolute;
+      background: var(--menu-bg);
+      border-radius: 6px;
+      box-shadow: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px, rgba(15, 15, 15, 0.2) 0px 9px 24px;
+      padding: 4px;
+      min-width: 220px;
+      max-height: 70vh;
+      overflow-y: auto;
+      z-index: 1000;
+      animation: menuFadeIn 0.15s ease;
+    }
+
+    .block-menu-section {
+      padding: 6px 8px 6px 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      line-height: 120%;
+    }
+
+    .block-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 20ms ease-in;
+      font-size: 14px;
+      color: var(--text-primary);
+      min-height: 28px;
+    }
+
+    .block-menu-item:hover {
+      background: var(--bg-hover);
+    }
+
+    .block-menu-item.danger {
+      color: var(--color-text-red);
+    }
+
+    .block-menu-item.danger:hover {
+      background: var(--color-bg-red);
+    }
+
+    .block-menu-item-icon {
+      width: 20px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .block-menu-divider {
+      height: 1px;
+      background: var(--border-color);
+      margin: 4px 12px;
+    }
+
+    .block-type-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 2px;
+      padding: 4px;
+    }
+
+    .block-type-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 20ms ease-in;
+      border: none;
+      background: transparent;
+      color: var(--text-primary);
+    }
+
+    .block-type-btn:hover {
+      background: var(--bg-hover);
+    }
+
+    .block-type-btn.active {
+      background: var(--accent-color);
+      color: white;
+    }
+
+    .block-type-btn-icon {
+      font-size: 16px;
+      margin-bottom: 2px;
+    }
+
+    .block-type-btn-label {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .block-type-btn.active .block-type-btn-label {
+      color: rgba(255,255,255,0.8);
+    }
+
+    /* Color Picker Grid */
+    .color-picker-section {
+      padding: 4px;
+    }
+
+    .color-picker-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 2px;
+      padding: 4px 8px;
+    }
+
+    .color-swatch {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 20ms ease-in;
+      border: none;
+      position: relative;
+      box-shadow: inset 0 0 0 1px rgba(15, 15, 15, 0.1);
+    }
+
+    .color-swatch:hover {
+      box-shadow: inset 0 0 0 1px rgba(15, 15, 15, 0.2);
+    }
+
+    .color-swatch.active::after {
+      content: '✓';
+      position: absolute;
+      font-size: 12px;
+    }
+
+    /* Text color swatches */
+    .color-swatch[data-color="default"] { background: var(--bg-tertiary); color: var(--text-primary); }
+    .color-swatch[data-color="gray"] { background: var(--color-bg-gray); color: var(--color-text-gray); }
+    .color-swatch[data-color="brown"] { background: var(--color-bg-brown); color: var(--color-text-brown); }
+    .color-swatch[data-color="orange"] { background: var(--color-bg-orange); color: var(--color-text-orange); }
+    .color-swatch[data-color="yellow"] { background: var(--color-bg-yellow); color: var(--color-text-yellow); }
+    .color-swatch[data-color="green"] { background: var(--color-bg-green); color: var(--color-text-green); }
+    .color-swatch[data-color="blue"] { background: var(--color-bg-blue); color: var(--color-text-blue); }
+    .color-swatch[data-color="purple"] { background: var(--color-bg-purple); color: var(--color-text-purple); }
+    .color-swatch[data-color="pink"] { background: var(--color-bg-pink); color: var(--color-text-pink); }
+    .color-swatch[data-color="red"] { background: var(--color-bg-red); color: var(--color-text-red); }
+
+    /* Block color classes */
+    .block[data-text-color="gray"] .block-content { color: var(--color-text-gray); }
+    .block[data-text-color="brown"] .block-content { color: var(--color-text-brown); }
+    .block[data-text-color="orange"] .block-content { color: var(--color-text-orange); }
+    .block[data-text-color="yellow"] .block-content { color: var(--color-text-yellow); }
+    .block[data-text-color="green"] .block-content { color: var(--color-text-green); }
+    .block[data-text-color="blue"] .block-content { color: var(--color-text-blue); }
+    .block[data-text-color="purple"] .block-content { color: var(--color-text-purple); }
+    .block[data-text-color="pink"] .block-content { color: var(--color-text-pink); }
+    .block[data-text-color="red"] .block-content { color: var(--color-text-red); }
+
+    .block[data-bg-color="gray"] { background: var(--color-bg-gray); border-radius: 3px; }
+    .block[data-bg-color="brown"] { background: var(--color-bg-brown); border-radius: 3px; }
+    .block[data-bg-color="orange"] { background: var(--color-bg-orange); border-radius: 3px; }
+    .block[data-bg-color="yellow"] { background: var(--color-bg-yellow); border-radius: 3px; }
+    .block[data-bg-color="green"] { background: var(--color-bg-green); border-radius: 3px; }
+    .block[data-bg-color="blue"] { background: var(--color-bg-blue); border-radius: 3px; }
+    .block[data-bg-color="purple"] { background: var(--color-bg-purple); border-radius: 3px; }
+    .block[data-bg-color="pink"] { background: var(--color-bg-pink); border-radius: 3px; }
+    .block[data-bg-color="red"] { background: var(--color-bg-red); border-radius: 3px; }
+
+    /* Block Content - Editable Area */
+    .block-content {
+      flex: 1;
+      outline: none;
+      padding: 3px 2px 3px 8px;
+      min-height: calc(1.5em + 6px);
+      word-break: break-word;
+      white-space: break-spaces;
+      caret-color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    /* Placeholder only shows when focused */
+    .block-content:empty:before {
+      content: "";
+    }
+    
+    .block-content:focus:empty:before {
+      content: attr(data-placeholder);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    /* Paragraph */
+    .block[data-type="paragraph"] .block-content {
+      font-size: 1rem;
+    }
+
+    /* Font size variations */
+    .block[data-font-size="small"] .block-content { font-size: 0.875rem; }
+    .block[data-font-size="normal"] .block-content { font-size: 1rem; }
+    .block[data-font-size="large"] .block-content { font-size: 1.125rem; }
+    .block[data-font-size="xlarge"] .block-content { font-size: 1.25rem; }
+    .block[data-font-size="xxlarge"] .block-content { font-size: 1.5rem; }
+
+    /* Headings - Notion style */
+    .block[data-type="h1"] {
+      margin-top: 2em;
+      margin-bottom: 4px;
+    }
+    
+    .block[data-type="h1"] .block-content {
+      font-size: 1.875em;
+      font-weight: 600;
+      line-height: 1.3;
+      padding: 3px 2px;
+    }
+
+    .block[data-type="h2"] {
+      margin-top: 1.4em;
+      margin-bottom: 1px;
+    }
+    
+    .block[data-type="h2"] .block-content {
+      font-size: 1.5em;
+      font-weight: 600;
+      line-height: 1.3;
+      padding: 3px 2px;
+    }
+
+    .block[data-type="h3"] {
+      margin-top: 1em;
+      margin-bottom: 1px;
+    }
+    
+    .block[data-type="h3"] .block-content {
+      font-size: 1.25em;
+      font-weight: 600;
+      line-height: 1.3;
+      padding: 3px 2px;
+    }
+
+    /* To-do / Checkbox */
+    .block[data-type="todo"] {
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .todo-checkbox {
+      width: 16px;
+      height: 16px;
+      min-width: 16px;
+      border: 1.5px solid var(--checkbox-border);
+      border-radius: 3px;
+      margin-left: 8px;
+      margin-right: 6px;
+      margin-top: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease-out;
+      background: transparent;
+      flex-shrink: 0;
+    }
+
+    .todo-checkbox:hover {
+      border-color: var(--checkbox-checked);
+    }
+
+    .todo-checkbox.checked {
+      background: var(--checkbox-checked);
+      border-color: var(--checkbox-checked);
+    }
+
+    .todo-checkbox.checked::after {
+      content: '✓';
+      color: white;
+      font-size: 11px;
+      font-weight: bold;
+    }
+
+    .block[data-type="todo"][data-checked="true"] .block-content {
+      text-decoration: line-through;
+      color: var(--text-muted);
+    }
+
+    /* Bulleted List */
+    .block[data-type="bullet"] {
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .bullet-marker {
+      width: 24px;
+      min-width: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-primary);
+      margin-left: 8px;
+      flex-shrink: 0;
+      padding-top: 3px;
+      height: 24px;
+    }
+    
+    .bullet-marker::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      background: currentColor;
+      border-radius: 50%;
+    }
+
+    /* Numbered List */
+    .block[data-type="numbered"] {
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .number-marker {
+      min-width: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 6px;
+      margin-left: 8px;
+      color: var(--text-primary);
+      font-size: 1rem;
+      flex-shrink: 0;
+      padding-top: 3px;
+      height: 24px;
+      line-height: 1.5;
+    }
+
+    /* Quote Block */
+    .block[data-type="quote"] .block-content {
+      border-left: 3px solid currentColor;
+      padding-left: 14px;
+      padding-top: 3px;
+      padding-bottom: 3px;
+    }
+
+    /* Code Block */
+    .block[data-type="code"] .block-content {
+      font-family: "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace;
+      font-size: 85%;
+      background: var(--code-bg);
+      padding: 32px 16px 32px 20px;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      overflow-x: auto;
+      tab-size: 2;
+      line-height: 1.5;
+    }
+
+    /* Divider */
+    .block[data-type="divider"] {
+      padding: 12px 0;
+      cursor: pointer;
+    }
+
+    .block[data-type="divider"]:hover {
+      background: var(--bg-hover);
+      border-radius: 4px;
+    }
+
+    .divider-line {
+      width: 100%;
+      height: 1px;
+      background: var(--border-color);
+      pointer-events: none;
+    }
+
+    /* Toggle List */
+    .block[data-type="toggle"],
+    .block[data-type="toggle-h1"],
+    .block[data-type="toggle-h2"],
+    .block[data-type="toggle-h3"] {
+      flex-direction: column;
+    }
+
+    .toggle-header {
+      display: flex;
+      align-items: flex-start;
+      width: 100%;
+    }
+
+    .toggle-arrow {
+      width: 24px;
+      min-width: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: transform 0.2s ease;
+      margin-left: 8px;
+      flex-shrink: 0;
+      font-size: 10px;
+      padding-top: 6px;
+    }
+
+    .toggle-arrow:hover {
+      background: var(--bg-hover);
+      border-radius: 4px;
+    }
+
+    .toggle-arrow.open {
+      transform: rotate(90deg);
+    }
+
+    .toggle-children {
+      margin-left: 32px;
+      padding-left: 12px;
+      border-left: 1px solid var(--border-color);
+      margin-top: 4px;
+      display: none;
+    }
+
+    .toggle-children.open {
+      display: block;
+    }
+    
+    /* Reset font size for nested blocks */
+    .toggle-children .block .block-content {
+      font-size: 1rem !important;
+      font-weight: normal !important;
+    }
+    
+    .toggle-children .block[data-type="h1"] .block-content { font-size: 1.875em !important; font-weight: 600 !important; }
+    .toggle-children .block[data-type="h2"] .block-content { font-size: 1.5em !important; font-weight: 600 !important; }
+    .toggle-children .block[data-type="h3"] .block-content { font-size: 1.25em !important; font-weight: 600 !important; }
+    
+    /* Column nested blocks also reset */
+    .column .block .block-content {
+      font-size: 1rem;
+      font-weight: normal;
+    }
+    
+    .column .block[data-type="h1"] .block-content { font-size: 1.5em; font-weight: 600; }
+    .column .block[data-type="h2"] .block-content { font-size: 1.25em; font-weight: 600; }
+    .column .block[data-type="h3"] .block-content { font-size: 1.125em; font-weight: 600; }
+
+    .toggle-children-placeholder {
+      color: var(--text-muted);
+      font-size: 13px;
+      padding: 4px 8px;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.15s ease;
+      pointer-events: auto;
+    }
+
+    .toggle-children-placeholder:hover {
+      color: var(--text-secondary);
+      background: var(--bg-hover);
+    }
+    
+    /* Drop zone indicators for nested containers */
+    .toggle-children.drag-over,
+    .column.drag-over {
+      background: rgba(35, 131, 226, 0.1);
+      border-color: var(--accent-color);
+    }
+
+    /* Toggle Heading */
+    .block[data-type="toggle-h1"] > .toggle-header > .block-content,
+    .block[data-type="toggle-h2"] > .toggle-header > .block-content,
+    .block[data-type="toggle-h3"] > .toggle-header > .block-content {
+      font-weight: 600;
+    }
+
+    .block[data-type="toggle-h1"] > .toggle-header > .block-content { font-size: 1.875em; }
+    .block[data-type="toggle-h2"] > .toggle-header > .block-content { font-size: 1.5em; }
+    .block[data-type="toggle-h3"] > .toggle-header > .block-content { font-size: 1.25em; }
+
+    /* Columns Container */
+    .columns-container {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+      padding: 4px 0;
+    }
+
+    .column {
+      flex: 1;
+      min-width: 0;
+      min-height: 60px;
+      border: 1px dashed var(--border-color);
+      border-radius: 4px;
+      padding: 8px;
+      background: var(--bg-secondary);
+      transition: all 0.15s ease;
+    }
+
+    .column:hover {
+      border-color: var(--text-muted);
+      background: var(--bg-tertiary);
+    }
+
+    .column-placeholder {
+      color: var(--text-muted);
+      font-size: 13px;
+      text-align: center;
+      padding: 8px;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.15s ease;
+    }
+
+    .column-placeholder:hover {
+      color: var(--text-secondary);
+      background: var(--bg-hover);
+    }
+
+    .column .block {
+      margin-bottom: 2px;
+    }
+
+    .column .block-controls {
+      left: -50px;
+    }
+
+    .block[data-type^="columns-"] {
+      width: 100%;
+    }
+
+    /* Equation Block */
+    .block[data-type="equation"] {
+      padding: 8px 0;
+    }
+
+    .equation-display {
+      padding: 16px;
+      background: var(--bg-secondary);
+      border-radius: 4px;
+      text-align: center;
+      cursor: pointer;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .equation-display:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .equation-display .katex {
+      font-size: 1.2em;
+    }
+
+    .equation-input {
+      width: 100%;
+      padding: 12px;
+      font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 14px;
+      border: 2px solid var(--accent-color);
+      border-radius: 4px;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      outline: none;
+    }
+
+    .equation-placeholder {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* Multiple Choice Block */
+    .block[data-type="mcq"] {
+      padding: 8px 0;
+      width: 100%;
+    }
+
+    .mcq-container {
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      padding: 20px;
+      border: 1px solid var(--border-color);
+      width: 100%;
+    }
+
+    .mcq-container.editing {
+      border-color: var(--accent-color);
+    }
+
+    .mcq-question {
+      font-weight: 600;
+      font-size: 1.1em;
+      margin-bottom: 16px;
+      outline: none;
+      min-height: 1.5em;
+      padding: 4px;
+    }
+
+    .mcq-question:empty:before {
+      content: "Enter question...";
+      color: var(--text-muted);
+    }
+
+    .mcq-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .mcq-option {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--bg-primary);
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .mcq-option:hover {
+      border-color: var(--text-muted);
+    }
+
+    .mcq-option.selected {
+      border-color: var(--accent-color);
+      background: rgba(35, 131, 226, 0.05);
+    }
+
+    .mcq-option.correct {
+      border-color: var(--color-text-green);
+      background: var(--color-bg-green);
+    }
+
+    .mcq-option.incorrect {
+      border-color: var(--color-text-red);
+      background: var(--color-bg-red);
+    }
+
+    .mcq-option-letter {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--bg-tertiary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+
+    .mcq-option.selected .mcq-option-letter {
+      background: var(--accent-color);
+      color: white;
+    }
+
+    .mcq-option-text {
+      flex: 1;
+      outline: none;
+      min-height: 1.2em;
+    }
+
+    .mcq-option-text:empty:before {
+      content: "Option...";
+      color: var(--text-muted);
+    }
+
+    .mcq-correct-marker {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border-color);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+
+    .mcq-correct-marker:hover {
+      border-color: var(--color-text-green);
+    }
+
+    .mcq-correct-marker.is-correct {
+      background: var(--color-text-green);
+      border-color: var(--color-text-green);
+      color: white;
+    }
+
+    .mcq-correct-marker.is-correct::after {
+      content: '✓';
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .mcq-view-mode .mcq-correct-marker {
+      display: none;
+    }
+
+    .mcq-view-mode .mcq-option-text {
+      pointer-events: none;
+    }
+
+    .mcq-view-mode .mcq-question {
+      pointer-events: none;
+    }
+
+    .mcq-result {
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 6px;
+      font-weight: 500;
+      text-align: center;
+      display: none;
+    }
+
+    .mcq-result.show {
+      display: block;
+    }
+
+    .mcq-result.correct {
+      background: var(--color-bg-green);
+      color: var(--color-text-green);
+    }
+
+    .mcq-result.incorrect {
+      background: var(--color-bg-red);
+      color: var(--color-text-red);
+    }
+
+    /* Indent Levels for Lists */
+    .block[data-indent="1"] { padding-left: 24px; }
+    .block[data-indent="2"] { padding-left: 48px; }
+    .block[data-indent="3"] { padding-left: 72px; }
+    .block[data-indent="4"] { padding-left: 96px; }
+
+    /* ===========================
+       Slash Command Menu
+       =========================== */
+    .slash-menu {
+      position: fixed;
+      background: var(--menu-bg);
+      border-radius: 6px;
+      box-shadow: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px, rgba(15, 15, 15, 0.2) 0px 9px 24px;
+      padding: 6px 4px;
+      min-width: 260px;
+      max-height: 320px;
+      overflow-y: auto;
+      z-index: 1000;
+    }
+
+    @keyframes menuFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .slash-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 20ms ease-in;
+      min-height: 28px;
+    }
+
+    .slash-menu-item:hover,
+    .slash-menu-item.selected {
+      background: var(--bg-hover);
+    }
+
+    .slash-menu-item-icon {
+      width: 46px;
+      height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 1.3rem;
+      color: var(--text-primary);
+      box-shadow: rgba(15, 15, 15, 0.1) 0px 0px 0px 1px;
+    }
+
+    .slash-menu-item-text {
+      flex: 1;
+    }
+
+    .slash-menu-item-title {
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--text-primary);
+    }
+
+    .slash-menu-item-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .slash-menu-empty {
+      padding: 16px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    /* ===========================
+       Formatting Toolbar
+       =========================== */
+    .format-toolbar {
+      position: absolute;
+      background: var(--menu-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: var(--shadow-md);
+      padding: 4px;
+      display: flex;
+      gap: 2px;
+      z-index: 1000;
+      animation: menuFadeIn 0.15s ease;
+    }
+
+    .format-btn {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.1s ease;
+    }
+
+    .format-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .format-btn.active {
+      background: var(--accent-color);
+      color: white;
+    }
+
+    /* ===========================
+       Add Block Button
+       =========================== */
+    .add-block-btn {
+      display: none; /* Hidden - using click area instead */
+    }
+
+    /* Click area below blocks */
+    .blocks-click-area {
+      min-height: 300px;
+      cursor: text;
+    }
+
+    /* ===========================
+       Scrollbar Styling
+       =========================== */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+
+    /* ===========================
+       Selection Styling
+       =========================== */
+    ::selection {
+      background: rgba(35, 131, 226, 0.3);
+    }
+
+    /* ===========================
+       Responsive Adjustments
+       =========================== */
+    @media (max-width: 1200px) {
+      .main-container {
+        padding: 96px 60px 30vh;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .main-container {
+        padding: 70px 24px 30vh;
+      }
+
+      .block-controls {
+        left: -48px;
+      }
+
+      .top-bar {
+        padding: 0 8px;
+      }
+
+      .page-title {
+        font-size: 2rem;
+      }
+      
+      .keyboard-hint {
+        display: none;
+      }
+    }
+
+    /* ===========================
+       Toast Notifications
+       =========================== */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      padding: 10px 16px;
+      border-radius: 4px;
+      font-size: 14px;
+      box-shadow: rgba(15, 15, 15, 0.1) 0px 0px 0px 1px, rgba(15, 15, 15, 0.2) 0px 5px 10px, rgba(15, 15, 15, 0.4) 0px 15px 40px;
+      z-index: 1001;
+      animation: toastIn 0.2s ease;
+    }
+
+    .toast.hide {
+      animation: toastOut 0.3s ease forwards;
+    }
+
+    @keyframes toastIn {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+
+    @keyframes toastOut {
+      from {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+      to {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+      }
+    }
+
+    /* Help indicator */
+    .keyboard-hint {
+      position: fixed;
+      bottom: 12px;
+      right: 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      opacity: 0.6;
+      transition: opacity 0.2s ease;
+    }
+
+    .keyboard-hint:hover {
+      opacity: 1;
+    }
+
+    .kbd {
+      background: var(--bg-tertiary);
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-family: inherit;
+      font-size: 11px;
+      box-shadow: inset 0 0 0 1px rgba(15, 15, 15, 0.1);
+    }
+  </style>
+</head>
+<body data-theme="light">
+  <!-- ===========================
+       Top Bar / Header
+       =========================== -->
+  <header class="top-bar">
+    <div class="logo">
+      <div class="logo-icon">L</div>
+      <span>LocalNotes</span>
+    </div>
+    <div class="top-bar-actions">
+      <button class="btn btn-primary" id="exportBtn" title="Export as Markdown">
+        <span>📄</span>
+        <span>Export</span>
+      </button>
+      <button class="btn btn-danger" id="clearBtn" title="Clear all content">
+        <span>🗑️</span>
+        <span>Clear</span>
+      </button>
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+        🌙
+      </button>
+    </div>
+  </header>
+
+  <!-- ===========================
+       Main Content Area
+       =========================== -->
+  <main class="main-container">
+    <h1 class="page-title" contenteditable="true" id="pageTitle"></h1>
+    <div class="blocks-container" id="blocksContainer"></div>
+    <div class="blocks-click-area" id="blocksClickArea"></div>
+  </main>
+
+  <!-- ===========================
+       Keyboard Hint
+       =========================== -->
+  <div class="keyboard-hint">
+    <span class="kbd">/</span> commands • <span class="kbd">#</span> heading • <span class="kbd">Del</span> delete block
+  </div>
+
+  <script>
+    /**
+     * ===========================
+     * LocalNotes - Notion-like App
+     * ===========================
+     * 
+     * BLOCK DATA STRUCTURE:
+     * {
+     *   id: string,        // Unique identifier
+     *   type: string,      // Block type: paragraph, h1, h2, h3, todo, bullet, numbered, quote, code, divider
+     *   content: string,   // HTML content of the block
+     *   checked: boolean,  // For todo items - whether checked
+     *   indent: number     // Indentation level (0-4)
+     * }
+     * 
+     * STORAGE:
+     * - Blocks are stored in localStorage under 'localNotes_blocks'
+     * - Page title stored under 'localNotes_title'
+     * - Theme preference stored under 'localNotes_theme'
+     */
+
+    // ===========================
+    // Configuration & Constants
+    // ===========================
+    const STORAGE_KEYS = {
+      blocks: 'localNotes_blocks',
+      title: 'localNotes_title',
+      theme: 'localNotes_theme'
+    };
+
+    // Block type definitions with metadata for slash menu
+    const BLOCK_TYPES = [
+      { type: 'paragraph', name: 'Text', desc: 'Plain text paragraph', icon: '📝', shortcut: null },
+      { type: 'h1', name: 'Heading 1', desc: 'Large section heading', icon: 'H1', shortcut: '#' },
+      { type: 'h2', name: 'Heading 2', desc: 'Medium section heading', icon: 'H2', shortcut: '##' },
+      { type: 'h3', name: 'Heading 3', desc: 'Small section heading', icon: 'H3', shortcut: '###' },
+      { type: 'todo', name: 'To-do', desc: 'Checkbox item', icon: '☑️', shortcut: '[]' },
+      { type: 'bullet', name: 'Bulleted List', desc: 'Simple bullet point', icon: '•', shortcut: '-' },
+      { type: 'numbered', name: 'Numbered List', desc: 'Numbered list item', icon: '1.', shortcut: '1.' },
+      { type: 'toggle', name: 'Toggle List', desc: 'Collapsible content', icon: '▶', shortcut: null },
+      { type: 'toggle-h1', name: 'Toggle H1', desc: 'Collapsible heading 1', icon: '▶H1', shortcut: null },
+      { type: 'toggle-h2', name: 'Toggle H2', desc: 'Collapsible heading 2', icon: '▶H2', shortcut: null },
+      { type: 'toggle-h3', name: 'Toggle H3', desc: 'Collapsible heading 3', icon: '▶H3', shortcut: null },
+      { type: 'quote', name: 'Quote', desc: 'Capture a quote', icon: '❝', shortcut: '>' },
+      { type: 'code', name: 'Code', desc: 'Code snippet', icon: '<>', shortcut: '```' },
+      { type: 'equation', name: 'Equation', desc: 'Math formula (KaTeX)', icon: '∑', shortcut: '$$' },
+      { type: 'columns-2', name: '2 Columns', desc: 'Two column layout', icon: '▐▐', shortcut: null },
+      { type: 'columns-3', name: '3 Columns', desc: 'Three column layout', icon: '▐▐▐', shortcut: null },
+      { type: 'columns-4', name: '4 Columns', desc: 'Four column layout', icon: '▐▐▐▐', shortcut: null },
+      { type: 'columns-5', name: '5 Columns', desc: 'Five column layout', icon: '▐▐▐▐▐', shortcut: null },
+      { type: 'mcq', name: 'Multiple Choice', desc: 'Quiz question', icon: '❓', shortcut: null },
+      { type: 'divider', name: 'Divider', desc: 'Visual separator', icon: '—', shortcut: '---' }
+    ];
+
+    // Font size options
+    const FONT_SIZES = [
+      { id: 'small', name: 'Small', size: '0.875rem' },
+      { id: 'normal', name: 'Normal', size: '1rem' },
+      { id: 'large', name: 'Large', size: '1.125rem' },
+      { id: 'xlarge', name: 'X-Large', size: '1.25rem' },
+      { id: 'xxlarge', name: 'XX-Large', size: '1.5rem' }
+    ];
+
+    // ===========================
+    // State Management
+    // ===========================
+    let blocks = [];
+    let slashMenuVisible = false;
+    let slashMenuIndex = 0;
+    let slashMenuBlockId = null;
+    let slashMenuFilter = '';
+    let draggedBlockId = null;
+
+    // DOM References
+    const blocksContainer = document.getElementById('blocksContainer');
+    const pageTitle = document.getElementById('pageTitle');
+    const themeToggle = document.getElementById('themeToggle');
+    const clearBtn = document.getElementById('clearBtn');
+    const addBlockBtn = document.getElementById('addBlockBtn');
+
+    // ===========================
+    // Utility Functions
+    // ===========================
+    
+    /** Generate unique ID */
+    function generateId() {
+      return 'block_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    /** Get caret position in contenteditable */
+    function getCaretPosition(element) {
+      const selection = window.getSelection();
+      if (selection.rangeCount === 0) return 0;
+      const range = selection.getRangeAt(0);
+      const preRange = range.cloneRange();
+      preRange.selectNodeContents(element);
+      preRange.setEnd(range.startContainer, range.startOffset);
+      return preRange.toString().length;
+    }
+
+    /** Set caret position in contenteditable */
+    function setCaretPosition(element, position) {
+      if (!element) return;
+      element.focus();
+      const range = document.createRange();
+      const selection = window.getSelection();
+      
+      let currentPos = 0;
+      let found = false;
+
+      function walkNodes(node) {
+        if (found) return;
+        if (node.nodeType === Node.TEXT_NODE) {
+          const len = node.textContent.length;
+          if (currentPos + len >= position) {
+            range.setStart(node, position - currentPos);
+            range.collapse(true);
+            found = true;
+          } else {
+            currentPos += len;
+          }
+        } else {
+          for (const child of node.childNodes) {
+            walkNodes(child);
+            if (found) break;
+          }
+        }
+      }
+
+      walkNodes(element);
+      
+      if (!found) {
+        range.selectNodeContents(element);
+        range.collapse(false);
+      }
+
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    /** Set caret to end of element */
+    function setCaretToEnd(element) {
+      if (!element) return;
+      element.focus();
+      const range = document.createRange();
+      const selection = window.getSelection();
+      range.selectNodeContents(element);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    /** Set caret to start of element */
+    function setCaretToStart(element) {
+      if (!element) return;
+      element.focus();
+      const range = document.createRange();
+      const selection = window.getSelection();
+      range.selectNodeContents(element);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    /** Show toast notification */
+    function showToast(message) {
+      const existing = document.querySelector('.toast');
+      if (existing) existing.remove();
+
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add('hide');
+        setTimeout(() => toast.remove(), 300);
+      }, 2000);
+    }
+
+    // ===========================
+    // Storage Functions
+    // ===========================
+    
+    /** Save blocks to localStorage */
+    function saveBlocks() {
+      localStorage.setItem(STORAGE_KEYS.blocks, JSON.stringify(blocks));
+    }
+
+    /** Load blocks from localStorage */
+    function loadBlocks() {
+      const saved = localStorage.getItem(STORAGE_KEYS.blocks);
+      if (saved) {
+        try {
+          blocks = JSON.parse(saved);
+        } catch (e) {
+          blocks = [];
+        }
+      }
+      // Ensure at least one block exists
+      if (blocks.length === 0) {
+        blocks.push(createBlockData('paragraph', ''));
+      }
+    }
+
+    /** Save page title */
+    function saveTitle() {
+      localStorage.setItem(STORAGE_KEYS.title, pageTitle.innerHTML);
+    }
+
+    /** Load page title */
+    function loadTitle() {
+      const saved = localStorage.getItem(STORAGE_KEYS.title);
+      pageTitle.innerHTML = saved || '';
+    }
+
+    /** Save theme preference */
+    function saveTheme(theme) {
+      localStorage.setItem(STORAGE_KEYS.theme, theme);
+    }
+
+    /** Load theme preference */
+    function loadTheme() {
+      return localStorage.getItem(STORAGE_KEYS.theme) || 'light';
+    }
+
+    /** Clear all data */
+    function clearWorkspace() {
+      if (confirm('Are you sure you want to clear all content? This cannot be undone.')) {
+        localStorage.removeItem(STORAGE_KEYS.blocks);
+        localStorage.removeItem(STORAGE_KEYS.title);
+        blocks = [createBlockData('paragraph', '')];
+        pageTitle.innerHTML = '';
+        renderBlocks();
+        showToast('Workspace cleared');
+      }
+    }
+
+    // ===========================
+    // Export Functions
+    // ===========================
+    
+    /** Convert HTML content to plain text */
+    function htmlToText(html) {
+      const temp = document.createElement('div');
+      temp.innerHTML = html;
+      return temp.textContent || temp.innerText || '';
+    }
+    
+    /** Export blocks to Markdown */
+    function exportToMarkdown() {
+      let markdown = '';
+      
+      // Add title
+      const title = htmlToText(pageTitle.innerHTML);
+      if (title) {
+        markdown += `# ${title}\n\n`;
+      }
+      
+      // Convert blocks
+      markdown += blocksToMarkdown(blocks, 0);
+      
+      // Download file
+      const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (title || 'document').replace(/[^a-zA-Z0-9а-яА-Я]/g, '_') + '.md';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      showToast('Exported to Markdown');
+    }
+    
+    /** Convert block array to markdown */
+    function blocksToMarkdown(blockList, indentLevel = 0) {
+      let result = '';
+      const indent = '  '.repeat(indentLevel);
+      let numberedIndex = 0;
+      
+      for (const block of blockList) {
+        const text = htmlToText(block.content);
+        
+        switch (block.type) {
+          case 'paragraph':
+            if (text) result += `${indent}${text}\n\n`;
+            break;
+            
+          case 'h1':
+            result += `${indent}# ${text}\n\n`;
+            break;
+            
+          case 'h2':
+            result += `${indent}## ${text}\n\n`;
+            break;
+            
+          case 'h3':
+            result += `${indent}### ${text}\n\n`;
+            break;
+            
+          case 'bullet':
+            result += `${indent}- ${text}\n`;
+            break;
+            
+          case 'numbered':
+            numberedIndex++;
+            result += `${indent}${numberedIndex}. ${text}\n`;
+            break;
+            
+          case 'todo':
+            result += `${indent}- [${block.checked ? 'x' : ' '}] ${text}\n`;
+            break;
+            
+          case 'quote':
+            result += `${indent}> ${text}\n\n`;
+            break;
+            
+          case 'code':
+            result += `${indent}\`\`\`\n${indent}${text}\n${indent}\`\`\`\n\n`;
+            break;
+            
+          case 'divider':
+            result += `${indent}---\n\n`;
+            break;
+            
+          case 'equation':
+            result += `${indent}$$${block.equationText || ''}$$\n\n`;
+            break;
+            
+          case 'toggle':
+          case 'toggle-h1':
+          case 'toggle-h2':
+          case 'toggle-h3':
+            // Custom toggle syntax: [toggle] or [toggle-h1] etc.
+            const toggleMarker = block.type === 'toggle' ? '[toggle]' : `[${block.type}]`;
+            result += `${indent}> ${toggleMarker} ${text}\n`;
+            if (block.children && block.children.length > 0) {
+              result += blocksToMarkdown(block.children, indentLevel + 1);
+            }
+            result += '\n';
+            break;
+            
+          case 'mcq':
+            // Custom MCQ syntax
+            if (block.mcqData) {
+              const mcq = block.mcqData;
+              result += `${indent}[mcq]\n`;
+              result += `${indent}Q: ${mcq.question || ''}\n`;
+              
+              const letters = ['a', 'b', 'c', 'd', 'e'];
+              const options = mcq.options || [];
+              const optionTexts = options.map((opt, i) => `${letters[i]}) ${opt.text || ''}`);
+              result += `${indent}A: ${optionTexts.join(', ')}\n`;
+              
+              // Find correct answer
+              const correctIndex = options.findIndex(opt => opt.isCorrect);
+              if (correctIndex !== -1) {
+                result += `${indent}C: ${letters[correctIndex]}\n`;
+              }
+              result += `${indent}[/mcq]\n\n`;
+            }
+            break;
+            
+          default:
+            // Handle columns
+            if (block.type.startsWith('columns-')) {
+              const numCols = parseInt(block.type.split('-')[1]);
+              result += `${indent}[columns-${numCols}]\n`;
+              
+              if (block.columns) {
+                for (let i = 0; i < block.columns.length; i++) {
+                  result += `${indent}[col-${i + 1}]\n`;
+                  if (block.columns[i] && block.columns[i].length > 0) {
+                    result += blocksToMarkdown(block.columns[i], indentLevel + 1);
+                  }
+                  result += `${indent}[/col-${i + 1}]\n`;
+                }
+              }
+              result += `${indent}[/columns]\n\n`;
+            }
+            break;
+        }
+        
+        // Reset numbered index if not a numbered block
+        if (block.type !== 'numbered') {
+          numberedIndex = 0;
+        }
+      }
+      
+      return result;
+    }
+
+    // ===========================
+    // Block Data Functions
+    // ===========================
+    
+    /** Create new block data object */
+    function createBlockData(type = 'paragraph', content = '', options = {}) {
+      const block = {
+        id: generateId(),
+        type: type,
+        content: content,
+        checked: options.checked || false,
+        indent: options.indent || 0,
+        textColor: options.textColor || 'default',
+        bgColor: options.bgColor || 'default',
+        fontSize: options.fontSize || 'normal',
+        isOpen: options.isOpen !== undefined ? options.isOpen : true,
+        children: options.children || []
+      };
+      
+      // MCQ specific data
+      if (type === 'mcq') {
+        block.mcqData = options.mcqData || {
+          question: '',
+          options: [
+            { text: '', isCorrect: false },
+            { text: '', isCorrect: false },
+            { text: '', isCorrect: true }
+          ],
+          selectedIndex: -1,
+          answered: false,
+          isEditing: true
+        };
+      }
+      
+      // Equation specific data
+      if (type === 'equation') {
+        block.equationText = options.equationText || '';
+        block.isEditing = options.isEditing !== undefined ? options.isEditing : true;
+      }
+      
+      // Columns specific data
+      if (type.startsWith('columns-')) {
+        const numCols = parseInt(type.split('-')[1]);
+        block.columns = options.columns || Array(numCols).fill().map(() => []);
+      }
+      
+      return block;
+    }
+
+    /** Find block index by ID (only in top-level blocks) */
+    function findBlockIndex(id) {
+      return blocks.findIndex(b => b.id === id);
+    }
+
+    /** Get block by ID - searches all nested levels recursively */
+    function getBlock(id) {
+      function searchInBlocks(blockList) {
+        for (const block of blockList) {
+          if (block.id === id) return block;
+          
+          // Search in toggle children
+          if (block.children && block.children.length > 0) {
+            const found = searchInBlocks(block.children);
+            if (found) return found;
+          }
+          
+          // Search in column children
+          if (block.columns) {
+            for (const col of block.columns) {
+              if (col && col.length > 0) {
+                const found = searchInBlocks(col);
+                if (found) return found;
+              }
+            }
+          }
+        }
+        return null;
+      }
+      
+      return searchInBlocks(blocks);
+    }
+    
+    /** Find parent info for a nested block - searches all levels recursively */
+    function findBlockParent(id) {
+      // Check top-level first
+      const topIndex = blocks.findIndex(b => b.id === id);
+      if (topIndex !== -1) return { type: 'top', index: topIndex, parent: null };
+      
+      function searchInBlocks(blockList, grandParent = null) {
+        for (const block of blockList) {
+          // Search in toggle children
+          if (block.children) {
+            const childIndex = block.children.findIndex(c => c.id === id);
+            if (childIndex !== -1) {
+              return { type: 'toggle', index: childIndex, parent: block };
+            }
+            // Recursively search deeper
+            const found = searchInBlocks(block.children, block);
+            if (found) return found;
+          }
+          
+          // Search in column children
+          if (block.columns) {
+            for (let colIdx = 0; colIdx < block.columns.length; colIdx++) {
+              const col = block.columns[colIdx];
+              if (col) {
+                const childIndex = col.findIndex(c => c.id === id);
+                if (childIndex !== -1) {
+                  return { type: 'column', index: childIndex, parent: block, columnIndex: colIdx };
+                }
+                // Recursively search deeper
+                const found = searchInBlocks(col, block);
+                if (found) return found;
+              }
+            }
+          }
+        }
+        return null;
+      }
+      
+      return searchInBlocks(blocks);
+    }
+
+    /** Update block content */
+    function updateBlockContent(id, content) {
+      const block = getBlock(id);
+      if (block) {
+        block.content = content;
+        saveBlocks();
+      }
+    }
+
+    /** Update block type */
+    function updateBlockType(id, type) {
+      const block = getBlock(id);
+      if (block) {
+        const oldType = block.type;
+        block.type = type;
+        
+        // Initialize special properties for new types
+        if (type === 'mcq' && !block.mcqData) {
+          block.mcqData = {
+            question: block.content || '',
+            options: [
+              { text: '', isCorrect: false },
+              { text: '', isCorrect: false },
+              { text: '', isCorrect: true }
+            ],
+            selectedIndex: -1,
+            answered: false,
+            isEditing: true
+          };
+          block.content = '';
+        }
+        
+        if (type === 'equation' && block.equationText === undefined) {
+          block.equationText = block.content || '';
+          block.isEditing = true;
+          block.content = '';
+        }
+        
+        if ((type === 'toggle' || type.startsWith('toggle-h')) && block.isOpen === undefined) {
+          block.isOpen = true;
+          block.children = [];
+        }
+        
+        if (type.startsWith('columns-') && !block.columns) {
+          const numCols = parseInt(type.split('-')[1]);
+          block.columns = Array(numCols).fill().map(() => []);
+        }
+        
+        saveBlocks();
+        renderBlocks();
+        // Focus the block after re-render
+        setTimeout(() => {
+          const el = document.querySelector(`[data-block-id="${id}"] .block-content`);
+          if (el) setCaretToEnd(el);
+        }, 10);
+      }
+    }
+
+    /** Insert block after specified ID - handles nested blocks */
+    function insertBlockAfter(afterId, newBlock) {
+      const parentInfo = findBlockParent(afterId);
+      if (!parentInfo) return;
+      
+      if (parentInfo.type === 'top') {
+        blocks.splice(parentInfo.index + 1, 0, newBlock);
+      } else if (parentInfo.type === 'toggle') {
+        parentInfo.parent.children.splice(parentInfo.index + 1, 0, newBlock);
+      } else if (parentInfo.type === 'column') {
+        parentInfo.parent.columns[parentInfo.columnIndex].splice(parentInfo.index + 1, 0, newBlock);
+      }
+      
+      saveBlocks();
+      renderBlocks();
+      // Focus new block
+      setTimeout(() => {
+        const el = document.querySelector(`[data-block-id="${newBlock.id}"] .block-content`);
+        if (el) setCaretToStart(el);
+      }, 10);
+    }
+
+    /** Delete block by ID - handles nested blocks */
+    function deleteBlock(id) {
+      const parentInfo = findBlockParent(id);
+      if (!parentInfo) return;
+      
+      if (parentInfo.type === 'top') {
+        // Top-level block
+        if (blocks.length > 1) {
+          blocks.splice(parentInfo.index, 1);
+          saveBlocks();
+          renderBlocks();
+          const prevIndex = Math.max(0, parentInfo.index - 1);
+          setTimeout(() => {
+            const el = document.querySelector(`[data-block-id="${blocks[prevIndex].id}"] .block-content`);
+            if (el) setCaretToEnd(el);
+          }, 10);
+        }
+      } else if (parentInfo.type === 'toggle') {
+        // Block inside toggle
+        parentInfo.parent.children.splice(parentInfo.index, 1);
+        saveBlocks();
+        renderBlocks();
+      } else if (parentInfo.type === 'column') {
+        // Block inside column
+        parentInfo.parent.columns[parentInfo.columnIndex].splice(parentInfo.index, 1);
+        saveBlocks();
+        renderBlocks();
+      }
+    }
+
+    /** Move block - supports nested containers */
+    function moveBlock(fromId, toId, position, targetContainer = null) {
+      // Get the block being moved
+      const sourceInfo = findBlockParent(fromId);
+      if (!sourceInfo) return;
+      
+      // Extract the block from its current location
+      let movedBlock;
+      if (sourceInfo.type === 'top') {
+        [movedBlock] = blocks.splice(sourceInfo.index, 1);
+      } else if (sourceInfo.type === 'toggle') {
+        [movedBlock] = sourceInfo.parent.children.splice(sourceInfo.index, 1);
+      } else if (sourceInfo.type === 'column') {
+        [movedBlock] = sourceInfo.parent.columns[sourceInfo.columnIndex].splice(sourceInfo.index, 1);
+      }
+      
+      if (!movedBlock) return;
+      
+      // Determine target location
+      if (targetContainer) {
+        // Dropping into a container (toggle or column)
+        if (targetContainer.type === 'toggle') {
+          targetContainer.parent.children.push(movedBlock);
+        } else if (targetContainer.type === 'column') {
+          targetContainer.parent.columns[targetContainer.columnIndex].push(movedBlock);
+        }
+      } else if (toId) {
+        // Dropping relative to another block
+        const targetInfo = findBlockParent(toId);
+        if (!targetInfo) {
+          // Put back if target not found
+          blocks.push(movedBlock);
+        } else if (targetInfo.type === 'top') {
+          // Target is top-level
+          let toIndex = targetInfo.index;
+          if (position === 'after') toIndex++;
+          blocks.splice(toIndex, 0, movedBlock);
+        } else if (targetInfo.type === 'toggle') {
+          // Target is inside a toggle
+          let toIndex = targetInfo.index;
+          if (position === 'after') toIndex++;
+          targetInfo.parent.children.splice(toIndex, 0, movedBlock);
+        } else if (targetInfo.type === 'column') {
+          // Target is inside a column
+          let toIndex = targetInfo.index;
+          if (position === 'after') toIndex++;
+          targetInfo.parent.columns[targetInfo.columnIndex].splice(toIndex, 0, movedBlock);
+        }
+      } else {
+        // No target, add to end of main blocks
+        blocks.push(movedBlock);
+      }
+      
+      saveBlocks();
+      renderBlocks();
+    }
+
+    // ===========================
+    // Rendering Functions
+    // ===========================
+    
+    /** Render all blocks */
+    function renderBlocks() {
+      blocksContainer.innerHTML = '';
+      let numberedCount = 0;
+
+      blocks.forEach((block, index) => {
+        // Track numbered list count
+        if (block.type === 'numbered') {
+          numberedCount++;
+        } else {
+          numberedCount = 0;
+        }
+
+        const el = createBlockElement(block, block.type === 'numbered' ? numberedCount : null);
+        blocksContainer.appendChild(el);
+      });
+    }
+
+    /** Create DOM element for a block */
+    function createBlockElement(block, numberIndex) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'block';
+      wrapper.dataset.blockId = block.id;
+      wrapper.dataset.type = block.type;
+      wrapper.draggable = !['divider', 'mcq', 'equation'].includes(block.type) && !block.type.startsWith('columns-');
+
+      if (block.indent > 0) {
+        wrapper.dataset.indent = block.indent;
+      }
+      
+      // Apply colors
+      if (block.textColor && block.textColor !== 'default') {
+        wrapper.dataset.textColor = block.textColor;
+      }
+      if (block.bgColor && block.bgColor !== 'default') {
+        wrapper.dataset.bgColor = block.bgColor;
+      }
+      
+      // Apply font size
+      if (block.fontSize && block.fontSize !== 'normal') {
+        wrapper.dataset.fontSize = block.fontSize;
+      }
+
+      // Block controls (+ button and drag handle) - for ALL block types including divider
+      const controls = document.createElement('div');
+      controls.className = 'block-controls';
+      
+      // Add button
+      const addBtn = document.createElement('button');
+      addBtn.className = 'block-add-btn';
+      addBtn.innerHTML = '+';
+      addBtn.title = 'Add block below';
+      addBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const newBlock = createBlockData('paragraph', '');
+        insertBlockAfter(block.id, newBlock);
+      });
+      controls.appendChild(addBtn);
+      
+      // Drag handle (also opens menu on click)
+      const handle = document.createElement('div');
+      handle.className = 'block-handle';
+      handle.innerHTML = '⋮⋮';
+      handle.title = 'Drag to move • Click for options';
+      handle.draggable = true;
+      
+      // Click to open menu
+      handle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showBlockMenu(block.id, handle);
+      });
+      
+      // Drag functionality on handle
+      handle.addEventListener('dragstart', (e) => {
+        e.stopPropagation();
+        draggedBlockId = block.id;
+        wrapper.classList.add('dragging');
+        handle.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', block.id);
+      });
+      
+      handle.addEventListener('dragend', (e) => {
+        wrapper.classList.remove('dragging');
+        handle.classList.remove('dragging');
+        document.querySelectorAll('.block').forEach(el => {
+          el.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
+        draggedBlockId = null;
+      });
+      
+      controls.appendChild(handle);
+      wrapper.appendChild(controls);
+
+      // Type-specific elements
+      if (block.type === 'todo') {
+        wrapper.dataset.checked = block.checked;
+        const checkbox = document.createElement('div');
+        checkbox.className = 'todo-checkbox' + (block.checked ? ' checked' : '');
+        checkbox.addEventListener('click', () => {
+          block.checked = !block.checked;
+          saveBlocks();
+          renderBlocks();
+        });
+        wrapper.appendChild(checkbox);
+      }
+
+      if (block.type === 'bullet') {
+        const marker = document.createElement('div');
+        marker.className = 'bullet-marker';
+        wrapper.appendChild(marker);
+      }
+
+      if (block.type === 'numbered') {
+        const marker = document.createElement('div');
+        marker.className = 'number-marker';
+        marker.textContent = numberIndex + '.';
+        wrapper.appendChild(marker);
+      }
+      
+      // Toggle blocks
+      if (block.type === 'toggle' || block.type.startsWith('toggle-h')) {
+        // Initialize if needed
+        if (block.isOpen === undefined) block.isOpen = true;
+        if (!block.children) block.children = [];
+        
+        // Create header container
+        const toggleHeader = document.createElement('div');
+        toggleHeader.className = 'toggle-header';
+        
+        const arrow = document.createElement('div');
+        arrow.className = 'toggle-arrow' + (block.isOpen ? ' open' : '');
+        arrow.innerHTML = '▶';
+        arrow.addEventListener('click', (e) => {
+          e.stopPropagation();
+          block.isOpen = !block.isOpen;
+          saveBlocks();
+          renderBlocks();
+        });
+        toggleHeader.appendChild(arrow);
+        
+        // Content editable for toggle title
+        const content = document.createElement('div');
+        content.className = 'block-content';
+        content.contentEditable = 'true';
+        content.innerHTML = block.content;
+        content.dataset.placeholder = getPlaceholder(block.type);
+        content.addEventListener('input', (e) => handleBlockInput(e, block));
+        content.addEventListener('keydown', (e) => handleBlockKeydown(e, block));
+        content.addEventListener('paste', handlePaste);
+        content.addEventListener('focus', () => wrapper.classList.add('focused'));
+        content.addEventListener('blur', () => wrapper.classList.remove('focused'));
+        toggleHeader.appendChild(content);
+        
+        wrapper.appendChild(toggleHeader);
+        
+        // Children container
+        const childrenContainer = document.createElement('div');
+        childrenContainer.className = 'toggle-children' + (block.isOpen ? ' open' : '');
+        childrenContainer.dataset.parentToggleId = block.id;
+        
+        // Add drag events to children container
+        childrenContainer.addEventListener('dragover', handleDragOver);
+        childrenContainer.addEventListener('dragleave', handleDragLeave);
+        childrenContainer.addEventListener('drop', handleDrop);
+        
+        // Render children
+        block.children.forEach((child, idx) => {
+          const childEl = createBlockElement(child, idx + 1);
+          childEl.dataset.parentId = block.id;
+          childEl.dataset.childIndex = idx;
+          childrenContainer.appendChild(childEl);
+        });
+        
+        // Always show add placeholder
+        const placeholder = document.createElement('div');
+        placeholder.className = 'toggle-children-placeholder';
+        placeholder.textContent = block.children.length === 0 ? 'Empty. Click or drag blocks here...' : '+ Add block';
+        placeholder.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const newChild = createBlockData('paragraph', '');
+          block.children.push(newChild);
+          saveBlocks();
+          renderBlocks();
+          setTimeout(() => {
+            const el = document.querySelector(`[data-block-id="${newChild.id}"] .block-content`);
+            if (el) el.focus();
+          }, 10);
+        });
+        childrenContainer.appendChild(placeholder);
+        
+        wrapper.appendChild(childrenContainer);
+      }
+
+      if (block.type === 'divider') {
+        const line = document.createElement('div');
+        line.className = 'divider-line';
+        wrapper.appendChild(line);
+        
+        // Click on divider to show menu
+        wrapper.addEventListener('click', (e) => {
+          if (!e.target.closest('.block-controls')) {
+            showBlockMenu(block.id, handle);
+          }
+        });
+      } else if (block.type === 'equation') {
+        // Equation block - initialize if needed
+        if (block.equationText === undefined) block.equationText = '';
+        if (block.isEditing === undefined) block.isEditing = !block.equationText;
+        
+        const eqContainer = document.createElement('div');
+        eqContainer.className = 'equation-display';
+        
+        if (block.isEditing) {
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'equation-input';
+          input.value = block.equationText || '';
+          input.placeholder = 'Enter LaTeX equation (e.g., E = mc^2)';
+          
+          input.addEventListener('blur', () => {
+            block.equationText = input.value;
+            block.isEditing = false;
+            saveBlocks();
+            renderBlocks();
+          });
+          
+          input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              block.equationText = input.value;
+              block.isEditing = false;
+              saveBlocks();
+              renderBlocks();
+            }
+            if (e.key === 'Escape') {
+              block.isEditing = false;
+              saveBlocks();
+              renderBlocks();
+            }
+          });
+          
+          eqContainer.appendChild(input);
+          wrapper.appendChild(eqContainer);
+          
+          setTimeout(() => input.focus(), 10);
+        } else {
+          if (block.equationText) {
+            try {
+              if (typeof katex !== 'undefined') {
+                katex.render(block.equationText, eqContainer, { throwOnError: false });
+              } else {
+                eqContainer.textContent = block.equationText;
+              }
+            } catch (err) {
+              eqContainer.textContent = block.equationText;
+            }
+          } else {
+            eqContainer.innerHTML = '<span class="equation-placeholder">Click to add equation</span>';
+          }
+          
+          eqContainer.addEventListener('click', () => {
+            block.isEditing = true;
+            saveBlocks();
+            renderBlocks();
+          });
+          
+          wrapper.appendChild(eqContainer);
+        }
+      } else if (block.type === 'mcq') {
+        // Multiple Choice Question block
+        wrapper.appendChild(createMCQElement(block));
+      } else if (block.type.startsWith('columns-')) {
+        // Columns block - initialize columns if needed
+        const numCols = parseInt(block.type.split('-')[1]);
+        if (!block.columns) {
+          block.columns = Array(numCols).fill().map(() => []);
+        }
+        
+        const colContainer = document.createElement('div');
+        colContainer.className = 'columns-container';
+        
+        for (let i = 0; i < numCols; i++) {
+          const col = document.createElement('div');
+          col.className = 'column';
+          col.dataset.columnIndex = i;
+          col.dataset.parentBlockId = block.id;
+          
+          // Add drag events to column
+          col.addEventListener('dragover', handleDragOver);
+          col.addEventListener('dragleave', handleDragLeave);
+          col.addEventListener('drop', handleDrop);
+          
+          // Get children for this column
+          const colChildren = block.columns[i] || [];
+          
+          // Render children in this column
+          colChildren.forEach((child, idx) => {
+            const childEl = createBlockElement(child, idx + 1);
+            childEl.dataset.parentId = block.id;
+            childEl.dataset.columnIndex = i;
+            col.appendChild(childEl);
+          });
+          
+          // Always show add placeholder
+          const placeholder = document.createElement('div');
+          placeholder.className = 'column-placeholder';
+          placeholder.textContent = colChildren.length === 0 ? 'Click or drag here' : '+ Add';
+          placeholder.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const newChild = createBlockData('paragraph', '');
+            if (!block.columns[i]) block.columns[i] = [];
+            block.columns[i].push(newChild);
+            saveBlocks();
+            renderBlocks();
+            setTimeout(() => {
+              const el = document.querySelector(`[data-block-id="${newChild.id}"] .block-content`);
+              if (el) el.focus();
+            }, 10);
+          });
+          col.appendChild(placeholder);
+          
+          colContainer.appendChild(col);
+        }
+        
+        wrapper.appendChild(colContainer);
+      } else if (!['divider', 'toggle', 'toggle-h1', 'toggle-h2', 'toggle-h3'].includes(block.type) && !block.type.startsWith('toggle-')) {
+        // Content editable area
+        const content = document.createElement('div');
+        content.className = 'block-content';
+        content.contentEditable = 'true';
+        content.innerHTML = block.content;
+        content.dataset.placeholder = getPlaceholder(block.type);
+        
+        // Event listeners
+        content.addEventListener('input', (e) => handleBlockInput(e, block));
+        content.addEventListener('keydown', (e) => handleBlockKeydown(e, block));
+        content.addEventListener('paste', handlePaste);
+        content.addEventListener('focus', () => wrapper.classList.add('focused'));
+        content.addEventListener('blur', () => wrapper.classList.remove('focused'));
+
+        wrapper.appendChild(content);
+      }
+
+      // Drag events on wrapper (for dropping)
+      wrapper.addEventListener('dragover', handleDragOver);
+      wrapper.addEventListener('dragleave', handleDragLeave);
+      wrapper.addEventListener('drop', handleDrop);
+
+      return wrapper;
+    }
+    
+    /** Create MCQ element */
+    function createMCQElement(block) {
+      // Initialize mcqData if missing
+      if (!block.mcqData) {
+        block.mcqData = {
+          question: '',
+          options: [
+            { text: '', isCorrect: false },
+            { text: '', isCorrect: false },
+            { text: '', isCorrect: true }
+          ],
+          selectedIndex: -1,
+          answered: false,
+          isEditing: true
+        };
+      }
+      const mcq = block.mcqData;
+      const container = document.createElement('div');
+      container.className = 'mcq-container' + (mcq.isEditing ? ' editing' : '');
+      if (!mcq.isEditing) container.classList.add('mcq-view-mode');
+      
+      // Question
+      const question = document.createElement('div');
+      question.className = 'mcq-question';
+      question.contentEditable = mcq.isEditing ? 'true' : 'false';
+      question.textContent = mcq.question;
+      if (mcq.isEditing) {
+        question.addEventListener('blur', () => {
+          mcq.question = question.textContent;
+          saveBlocks();
+        });
+      }
+      container.appendChild(question);
+      
+      // Options
+      const optionsContainer = document.createElement('div');
+      optionsContainer.className = 'mcq-options';
+      
+      const letters = ['A', 'B', 'C', 'D', 'E'];
+      mcq.options.forEach((opt, index) => {
+        const option = document.createElement('div');
+        option.className = 'mcq-option';
+        if (mcq.selectedIndex === index) option.classList.add('selected');
+        if (mcq.answered) {
+          if (opt.isCorrect) option.classList.add('correct');
+          else if (mcq.selectedIndex === index) option.classList.add('incorrect');
+        }
+        
+        // Letter circle
+        const letter = document.createElement('div');
+        letter.className = 'mcq-option-letter';
+        letter.textContent = letters[index];
+        option.appendChild(letter);
+        
+        // Option text
+        const text = document.createElement('div');
+        text.className = 'mcq-option-text';
+        text.contentEditable = mcq.isEditing ? 'true' : 'false';
+        text.textContent = opt.text;
+        if (mcq.isEditing) {
+          text.addEventListener('blur', () => {
+            opt.text = text.textContent;
+            saveBlocks();
+          });
+        }
+        option.appendChild(text);
+        
+        // Correct marker (only in edit mode)
+        if (mcq.isEditing) {
+          const correctMarker = document.createElement('div');
+          correctMarker.className = 'mcq-correct-marker' + (opt.isCorrect ? ' is-correct' : '');
+          correctMarker.title = 'Mark as correct answer';
+          correctMarker.addEventListener('click', (e) => {
+            e.stopPropagation();
+            mcq.options.forEach(o => o.isCorrect = false);
+            opt.isCorrect = true;
+            saveBlocks();
+            renderBlocks();
+          });
+          option.appendChild(correctMarker);
+        }
+        
+        // Click to select (only in view mode)
+        if (!mcq.isEditing && !mcq.answered) {
+          option.addEventListener('click', () => {
+            mcq.selectedIndex = index;
+            mcq.answered = true;
+            saveBlocks();
+            renderBlocks();
+          });
+        }
+        
+        optionsContainer.appendChild(option);
+      });
+      
+      container.appendChild(optionsContainer);
+      
+      // Result message
+      if (mcq.answered) {
+        const result = document.createElement('div');
+        result.className = 'mcq-result show';
+        const isCorrect = mcq.options[mcq.selectedIndex]?.isCorrect;
+        result.classList.add(isCorrect ? 'correct' : 'incorrect');
+        result.textContent = isCorrect ? '✓ Correct!' : '✗ Incorrect. Try again!';
+        
+        if (!isCorrect) {
+          const retryBtn = document.createElement('button');
+          retryBtn.textContent = 'Try Again';
+          retryBtn.style.cssText = 'margin-left: 10px; padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; background: var(--bg-primary);';
+          retryBtn.addEventListener('click', () => {
+            mcq.answered = false;
+            mcq.selectedIndex = -1;
+            saveBlocks();
+            renderBlocks();
+          });
+          result.appendChild(retryBtn);
+        }
+        
+        container.appendChild(result);
+      }
+      
+      // Done editing button
+      if (mcq.isEditing) {
+        const doneBtn = document.createElement('button');
+        doneBtn.textContent = '✓ Done Editing';
+        doneBtn.style.cssText = 'margin-top: 12px; padding: 8px 16px; background: var(--accent-color); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;';
+        doneBtn.addEventListener('click', () => {
+          mcq.isEditing = false;
+          saveBlocks();
+          renderBlocks();
+        });
+        container.appendChild(doneBtn);
+      }
+      
+      return container;
+    }
+
+    /** Get placeholder text for block type */
+    function getPlaceholder(type) {
+      const placeholders = {
+        paragraph: "Type '/' for commands...",
+        h1: 'Heading 1',
+        h2: 'Heading 2',
+        h3: 'Heading 3',
+        todo: 'To-do',
+        bullet: 'List item',
+        numbered: 'List item',
+        quote: 'Quote',
+        code: 'Code',
+        toggle: 'Toggle list',
+        'toggle-h1': 'Toggle Heading 1',
+        'toggle-h2': 'Toggle Heading 2',
+        'toggle-h3': 'Toggle Heading 3'
+      };
+      return placeholders[type] || '';
+    }
+
+    // ===========================
+    // Block Input Handlers
+    // ===========================
+    
+    /** Handle input in block */
+    function handleBlockInput(e, block) {
+      const content = e.target.innerHTML;
+      const textContent = e.target.textContent;
+      
+      // Divider shortcut (triggers immediately on typing ---)
+      if (textContent === '---' || textContent === '***') {
+        updateBlockType(block.id, 'divider');
+        // Create new block after divider
+        const newBlock = createBlockData('paragraph', '');
+        insertBlockAfter(block.id, newBlock);
+        return;
+      }
+      
+      // Equation shortcut (triggers immediately on typing $$)
+      if (textContent === '$$') {
+        block.type = 'equation';
+        block.equationText = '';
+        block.isEditing = true;
+        block.content = '';
+        saveBlocks();
+        renderBlocks();
+        return;
+      }
+
+      // Handle slash menu
+      if (content.includes('/')) {
+        const pos = getCaretPosition(e.target);
+        const textBeforeCaret = e.target.textContent.substring(0, pos);
+        const slashIndex = textBeforeCaret.lastIndexOf('/');
+        
+        if (slashIndex !== -1) {
+          slashMenuFilter = textBeforeCaret.substring(slashIndex + 1).toLowerCase();
+          showSlashMenu(block.id, e.target);
+        }
+      } else {
+        hideSlashMenu();
+      }
+
+      updateBlockContent(block.id, content);
+    }
+
+    /** Handle keydown in block */
+    function handleBlockKeydown(e, block) {
+      const content = e.target;
+      
+      // Handle slash menu navigation
+      if (slashMenuVisible) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          navigateSlashMenu(1);
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          navigateSlashMenu(-1);
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          selectSlashMenuItem();
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          hideSlashMenu();
+          return;
+        }
+      }
+
+      // Markdown shortcuts - trigger on Space key
+      if (e.key === ' ' && block.type === 'paragraph') {
+        const textContent = content.textContent;
+        
+        // Heading shortcuts
+        if (textContent === '#') {
+          e.preventDefault();
+          block.content = '';
+          updateBlockType(block.id, 'h1');
+          return;
+        }
+        if (textContent === '##') {
+          e.preventDefault();
+          block.content = '';
+          updateBlockType(block.id, 'h2');
+          return;
+        }
+        if (textContent === '###') {
+          e.preventDefault();
+          block.content = '';
+          updateBlockType(block.id, 'h3');
+          return;
+        }
+        
+        // List shortcuts
+        if (textContent === '-' || textContent === '*') {
+          e.preventDefault();
+          block.content = '';
+          updateBlockType(block.id, 'bullet');
+          return;
+        }
+        if (textContent === '1.') {
+          e.preventDefault();
+          block.content = '';
+          updateBlockType(block.id, 'numbered');
+          return;
+        }
+        
+        // Todo shortcut
+        if (textContent === '[]') {
+          e.preventDefault();
+          block.content = '';
+          updateBlockType(block.id, 'todo');
+          return;
+        }
+        
+        // Quote shortcut
+        if (textContent === '>') {
+          e.preventDefault();
+          block.content = '';
+          updateBlockType(block.id, 'quote');
+          return;
+        }
+        
+        // Code shortcut
+        if (textContent === '```') {
+          e.preventDefault();
+          block.content = '';
+          updateBlockType(block.id, 'code');
+          return;
+        }
+      }
+
+      // Enter - create new block
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        
+        // Get content after caret for new block
+        const selection = window.getSelection();
+        const range = selection.getRangeAt(0);
+        const afterRange = range.cloneRange();
+        afterRange.selectNodeContents(content);
+        afterRange.setStart(range.endContainer, range.endOffset);
+        
+        const afterContent = afterRange.cloneContents();
+        const temp = document.createElement('div');
+        temp.appendChild(afterContent);
+        const afterHtml = temp.innerHTML;
+        
+        // Remove content after caret from current block
+        range.deleteContents();
+        afterRange.deleteContents();
+        
+        // Update current block
+        updateBlockContent(block.id, content.innerHTML);
+        
+        // Determine new block type (continue list types)
+        let newType = 'paragraph';
+        if (['bullet', 'numbered', 'todo'].includes(block.type)) {
+          newType = block.type;
+        }
+        
+        // Create and insert new block
+        const newBlock = createBlockData(newType, afterHtml, { indent: block.indent });
+        insertBlockAfter(block.id, newBlock);
+      }
+
+      // Backspace on empty block - delete it or convert to paragraph
+      if (e.key === 'Backspace' && content.textContent === '') {
+        e.preventDefault();
+        const parentInfo = findBlockParent(block.id);
+        
+        // Can delete if: nested block OR top-level with more than 1 block
+        if (parentInfo && (parentInfo.type !== 'top' || blocks.length > 1)) {
+          deleteBlock(block.id);
+        } else if (block.type !== 'paragraph') {
+          // Convert last block to paragraph instead of deleting
+          updateBlockType(block.id, 'paragraph');
+        }
+      }
+
+      // Arrow Up/Down - navigate between blocks
+      if (e.key === 'ArrowUp') {
+        const pos = getCaretPosition(content);
+        if (pos === 0) {
+          e.preventDefault();
+          focusPreviousBlock(block.id);
+        }
+      }
+      
+      if (e.key === 'ArrowDown') {
+        const pos = getCaretPosition(content);
+        const len = content.textContent.length;
+        if (pos === len) {
+          e.preventDefault();
+          focusNextBlock(block.id);
+        }
+      }
+
+      // Tab - indent (for list items)
+      if (e.key === 'Tab') {
+        if (['bullet', 'numbered', 'todo'].includes(block.type)) {
+          e.preventDefault();
+          if (e.shiftKey) {
+            // Outdent
+            block.indent = Math.max(0, (block.indent || 0) - 1);
+          } else {
+            // Indent
+            block.indent = Math.min(4, (block.indent || 0) + 1);
+          }
+          saveBlocks();
+          renderBlocks();
+          // Re-focus
+          setTimeout(() => {
+            const el = document.querySelector(`[data-block-id="${block.id}"] .block-content`);
+            if (el) setCaretToEnd(el);
+          }, 10);
+        }
+      }
+
+      // Formatting shortcuts
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
+        if (e.key === 'b') {
+          e.preventDefault();
+          document.execCommand('bold', false, null);
+        }
+        if (e.key === 'i') {
+          e.preventDefault();
+          document.execCommand('italic', false, null);
+        }
+        if (e.key === 'u') {
+          e.preventDefault();
+          document.execCommand('underline', false, null);
+        }
+      }
+    }
+
+    /** Handle paste - clean up HTML */
+    function handlePaste(e) {
+      e.preventDefault();
+      const text = e.clipboardData.getData('text/plain');
+      document.execCommand('insertText', false, text);
+    }
+
+    /** Focus previous block */
+    function focusPreviousBlock(currentId) {
+      // Use DOM to find previous editable block
+      const currentEl = document.querySelector(`[data-block-id="${currentId}"]`);
+      if (!currentEl) return;
+      
+      // Get all block-content elements in document order
+      const allContents = Array.from(document.querySelectorAll('.block-content[contenteditable="true"]'));
+      const currentContent = currentEl.querySelector('.block-content');
+      const currentIndex = allContents.indexOf(currentContent);
+      
+      if (currentIndex > 0) {
+        setCaretToEnd(allContents[currentIndex - 1]);
+      }
+    }
+
+    /** Focus next block */
+    function focusNextBlock(currentId) {
+      // Use DOM to find next editable block
+      const currentEl = document.querySelector(`[data-block-id="${currentId}"]`);
+      if (!currentEl) return;
+      
+      // Get all block-content elements in document order
+      const allContents = Array.from(document.querySelectorAll('.block-content[contenteditable="true"]'));
+      const currentContent = currentEl.querySelector('.block-content');
+      const currentIndex = allContents.indexOf(currentContent);
+      
+      if (currentIndex < allContents.length - 1) {
+        setCaretToStart(allContents[currentIndex + 1]);
+      }
+    }
+
+    // ===========================
+    // Slash Menu Functions
+    // ===========================
+    
+    /** Show slash menu */
+    function showSlashMenu(blockId, contentEl) {
+      hideSlashMenu();
+      
+      slashMenuVisible = true;
+      slashMenuBlockId = blockId;
+      slashMenuIndex = 0;
+
+      const menu = document.createElement('div');
+      menu.className = 'slash-menu';
+      menu.id = 'slashMenu';
+      
+      renderSlashMenuItems(menu);
+      
+      // Add menu to body first to get its dimensions
+      menu.style.visibility = 'hidden';
+      menu.style.position = 'fixed';
+      document.body.appendChild(menu);
+      
+      // Get block position
+      const blockEl = contentEl.closest('.block');
+      const blockRect = blockEl.getBoundingClientRect();
+      const menuHeight = menu.offsetHeight;
+      
+      // Position: bottom of menu touches top of block
+      let left = blockRect.left + 8;
+      let top = blockRect.top - menuHeight - 2;
+      
+      // If menu would go above viewport, show below block instead
+      if (top < 10) {
+        top = blockRect.bottom + 4;
+      }
+      
+      // Keep within viewport horizontally
+      if (left + 260 > window.innerWidth) {
+        left = window.innerWidth - 270;
+      }
+      if (left < 10) {
+        left = 10;
+      }
+      
+      menu.style.left = left + 'px';
+      menu.style.top = top + 'px';
+      menu.style.visibility = 'visible';
+    }
+
+    /** Render slash menu items based on filter */
+    function renderSlashMenuItems(menu) {
+      const filtered = BLOCK_TYPES.filter(bt => 
+        bt.name.toLowerCase().includes(slashMenuFilter) ||
+        bt.type.toLowerCase().includes(slashMenuFilter)
+      );
+
+      if (filtered.length === 0) {
+        menu.innerHTML = '<div class="slash-menu-empty">No results</div>';
+        return;
+      }
+
+      menu.innerHTML = filtered.map((bt, i) => `
+        <div class="slash-menu-item ${i === slashMenuIndex ? 'selected' : ''}" data-type="${bt.type}">
+          <div class="slash-menu-item-icon">${bt.icon}</div>
+          <div class="slash-menu-item-text">
+            <div class="slash-menu-item-title">${bt.name}</div>
+            <div class="slash-menu-item-desc">${bt.desc}</div>
+          </div>
+        </div>
+      `).join('');
+
+      // Add click listeners
+      menu.querySelectorAll('.slash-menu-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const type = item.dataset.type;
+          applySlashCommand(type);
+        });
+        item.addEventListener('mouseenter', () => {
+          menu.querySelectorAll('.slash-menu-item').forEach(el => el.classList.remove('selected'));
+          item.classList.add('selected');
+          slashMenuIndex = [...menu.querySelectorAll('.slash-menu-item')].indexOf(item);
+        });
+      });
+    }
+
+    /** Navigate slash menu with arrow keys */
+    function navigateSlashMenu(direction) {
+      const menu = document.getElementById('slashMenu');
+      if (!menu) return;
+      
+      const items = menu.querySelectorAll('.slash-menu-item');
+      if (items.length === 0) return;
+      
+      items[slashMenuIndex]?.classList.remove('selected');
+      slashMenuIndex = (slashMenuIndex + direction + items.length) % items.length;
+      items[slashMenuIndex]?.classList.add('selected');
+      items[slashMenuIndex]?.scrollIntoView({ block: 'nearest' });
+    }
+
+    /** Select current slash menu item */
+    function selectSlashMenuItem() {
+      const menu = document.getElementById('slashMenu');
+      if (!menu) return;
+      
+      const items = menu.querySelectorAll('.slash-menu-item');
+      const selected = items[slashMenuIndex];
+      if (selected) {
+        const type = selected.dataset.type;
+        applySlashCommand(type);
+      }
+    }
+
+    /** Apply slash command - change block type */
+    function applySlashCommand(type) {
+      // Save blockId before hiding menu (hideSlashMenu resets it to null)
+      const blockId = slashMenuBlockId;
+      const block = getBlock(blockId);
+      if (!block) return;
+      
+      // Remove the slash and filter text
+      const contentEl = document.querySelector(`[data-block-id="${blockId}"] .block-content`);
+      if (contentEl) {
+        let content = contentEl.textContent;
+        const slashIndex = content.lastIndexOf('/');
+        if (slashIndex !== -1) {
+          content = content.substring(0, slashIndex);
+          block.content = content;
+        }
+      }
+      
+      hideSlashMenu();
+      updateBlockType(blockId, type);
+    }
+
+    /** Hide slash menu */
+    function hideSlashMenu() {
+      const menu = document.getElementById('slashMenu');
+      if (menu) menu.remove();
+      slashMenuVisible = false;
+      slashMenuBlockId = null;
+      slashMenuFilter = '';
+    }
+
+    // ===========================
+    // Block Menu (on handle click)
+    // ===========================
+    
+    let blockMenuVisible = false;
+    let blockMenuBlockId = null;
+
+    /** Show block menu */
+    function showBlockMenu(blockId, handleEl) {
+      hideBlockMenu();
+      hideSlashMenu();
+      
+      blockMenuVisible = true;
+      blockMenuBlockId = blockId;
+      const block = getBlock(blockId);
+      if (!block) return;
+
+      const COLORS = ['default', 'gray', 'brown', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'red'];
+      const COLOR_NAMES = {
+        default: 'Default', gray: 'Gray', brown: 'Brown', orange: 'Orange', 
+        yellow: 'Yellow', green: 'Green', blue: 'Blue', purple: 'Purple', 
+        pink: 'Pink', red: 'Red'
+      };
+      
+      // Basic block types for "Turn into"
+      const basicTypes = ['paragraph', 'h1', 'h2', 'h3', 'todo', 'bullet', 'numbered', 'toggle', 'toggle-h1', 'toggle-h2', 'toggle-h3', 'quote', 'code'];
+      // Special block types for "Insert"
+      const specialTypes = ['equation', 'mcq', 'columns-2', 'columns-3', 'columns-4', 'columns-5', 'divider'];
+      
+      // Check if this is an MCQ block
+      const isMCQ = block.type === 'mcq';
+      const mcqIsEditing = isMCQ && block.mcqData?.isEditing;
+
+      const menu = document.createElement('div');
+      menu.className = 'block-menu';
+      menu.id = 'blockMenu';
+      
+      // Determine if we should show "Turn into" section (not for special blocks)
+      const showTurnInto = !['mcq', 'equation'].includes(block.type) && !block.type.startsWith('columns-');
+      
+      menu.innerHTML = `
+        <div class="block-menu-item danger" data-action="delete">
+          <span class="block-menu-item-icon">🗑️</span>
+          <span>Delete</span>
+          <span style="margin-left: auto; color: var(--text-muted); font-size: 12px;">Del</span>
+        </div>
+        <div class="block-menu-item" data-action="duplicate">
+          <span class="block-menu-item-icon">📋</span>
+          <span>Duplicate</span>
+        </div>
+        ${isMCQ ? `
+        <div class="block-menu-divider"></div>
+        <div class="block-menu-item" data-action="edit-mcq">
+          <span class="block-menu-item-icon">${mcqIsEditing ? '✓' : '✏️'}</span>
+          <span>${mcqIsEditing ? 'Done Editing' : 'Edit Quiz'}</span>
+        </div>
+        ` : ''}
+        ${showTurnInto ? `
+        <div class="block-menu-divider"></div>
+        <div class="block-menu-section">Turn into</div>
+        <div class="block-type-grid">
+          ${BLOCK_TYPES.filter(bt => basicTypes.includes(bt.type)).map(bt => `
+            <button class="block-type-btn ${block.type === bt.type ? 'active' : ''}" data-type="${bt.type}" title="${bt.name}">
+              <span class="block-type-btn-icon">${bt.icon}</span>
+              <span class="block-type-btn-label">${bt.name.substring(0, 6)}</span>
+            </button>
+          `).join('')}
+        </div>
+        ` : ''}
+        <div class="block-menu-divider"></div>
+        <div class="block-menu-section">Insert below</div>
+        <div class="block-type-grid">
+          ${BLOCK_TYPES.filter(bt => specialTypes.includes(bt.type)).map(bt => `
+            <button class="block-type-btn" data-action="insert" data-type="${bt.type}" title="${bt.name}">
+              <span class="block-type-btn-icon">${bt.icon}</span>
+              <span class="block-type-btn-label">${bt.name.substring(0, 6)}</span>
+            </button>
+          `).join('')}
+        </div>
+        <div class="block-menu-divider"></div>
+        <div class="block-menu-section">Font size</div>
+        <div class="color-picker-grid" style="grid-template-columns: repeat(5, 1fr);">
+          ${FONT_SIZES.map(fs => `
+            <button class="color-swatch ${block.fontSize === fs.id ? 'active' : ''}" 
+                    data-action="font-size" data-size="${fs.id}" title="${fs.name}"
+                    style="font-size: ${fs.id === 'small' ? '10px' : fs.id === 'normal' ? '12px' : fs.id === 'large' ? '14px' : fs.id === 'xlarge' ? '16px' : '18px'};">
+              Aa
+            </button>
+          `).join('')}
+        </div>
+        <div class="block-menu-divider"></div>
+        <div class="block-menu-section">Text color</div>
+        <div class="color-picker-grid">
+          ${COLORS.map(c => `
+            <button class="color-swatch ${block.textColor === c ? 'active' : ''}" 
+                    data-action="text-color" data-color="${c}" title="${COLOR_NAMES[c]}">
+              A
+            </button>
+          `).join('')}
+        </div>
+        <div class="block-menu-divider"></div>
+        <div class="block-menu-section">Background</div>
+        <div class="color-picker-grid">
+          ${COLORS.map(c => `
+            <button class="color-swatch ${block.bgColor === c ? 'active' : ''}" 
+                    data-action="bg-color" data-color="${c}" title="${COLOR_NAMES[c]}">
+            </button>
+          `).join('')}
+        </div>
+      `;
+      
+      // Position menu
+      const rect = handleEl.getBoundingClientRect();
+      let left = rect.left;
+      let top = rect.bottom + 4;
+      
+      // Keep within viewport
+      if (left + 220 > window.innerWidth) {
+        left = window.innerWidth - 230;
+      }
+      if (top + 500 > window.innerHeight) {
+        top = Math.max(10, rect.top - 510);
+      }
+      
+      menu.style.left = left + 'px';
+      menu.style.top = top + 'px';
+      menu.style.position = 'fixed';
+      
+      document.body.appendChild(menu);
+      
+      // Store blockId locally to avoid issues with hideBlockMenu resetting it
+      const currentBlockId = blockId;
+      
+      // Event listeners
+      menu.querySelector('[data-action="delete"]').addEventListener('click', () => {
+        if (blocks.length > 1) {
+          deleteBlock(currentBlockId);
+          hideBlockMenu();
+        } else {
+          showToast('Cannot delete the last block');
+        }
+      });
+      
+      menu.querySelector('[data-action="duplicate"]').addEventListener('click', () => {
+        const block = getBlock(currentBlockId);
+        if (block) {
+          const newBlock = createBlockData(block.type, block.content, { 
+            checked: block.checked, 
+            indent: block.indent,
+            textColor: block.textColor,
+            bgColor: block.bgColor,
+            fontSize: block.fontSize
+          });
+          insertBlockAfter(currentBlockId, newBlock);
+        }
+        hideBlockMenu();
+      });
+      
+      // Edit MCQ handler
+      const editMcqBtn = menu.querySelector('[data-action="edit-mcq"]');
+      if (editMcqBtn) {
+        editMcqBtn.addEventListener('click', () => {
+          const block = getBlock(currentBlockId);
+          if (block && block.mcqData) {
+            block.mcqData.isEditing = !block.mcqData.isEditing;
+            if (block.mcqData.isEditing) {
+              block.mcqData.answered = false;
+              block.mcqData.selectedIndex = -1;
+            }
+            saveBlocks();
+            renderBlocks();
+          }
+          hideBlockMenu();
+        });
+      }
+      
+      menu.querySelectorAll('.block-type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const newType = btn.dataset.type;
+          const action = btn.dataset.action;
+          
+          if (action === 'insert') {
+            // Insert new block of this type below
+            const newBlock = createBlockData(newType, '');
+            insertBlockAfter(currentBlockId, newBlock);
+          } else {
+            // Turn current block into this type
+            updateBlockType(currentBlockId, newType);
+          }
+          hideBlockMenu();
+        });
+      });
+      
+      // Font size handlers
+      menu.querySelectorAll('[data-action="font-size"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const size = btn.dataset.size;
+          const block = getBlock(currentBlockId);
+          if (block) {
+            block.fontSize = size;
+            saveBlocks();
+            renderBlocks();
+          }
+          hideBlockMenu();
+        });
+      });
+      
+      // Text color handlers
+      menu.querySelectorAll('[data-action="text-color"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const color = btn.dataset.color;
+          const block = getBlock(currentBlockId);
+          if (block) {
+            block.textColor = color;
+            saveBlocks();
+            renderBlocks();
+          }
+          hideBlockMenu();
+        });
+      });
+      
+      // Background color handlers
+      menu.querySelectorAll('[data-action="bg-color"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const color = btn.dataset.color;
+          const block = getBlock(currentBlockId);
+          if (block) {
+            block.bgColor = color;
+            saveBlocks();
+            renderBlocks();
+          }
+          hideBlockMenu();
+        });
+      });
+    }
+
+    /** Hide block menu */
+    function hideBlockMenu() {
+      const menu = document.getElementById('blockMenu');
+      if (menu) menu.remove();
+      blockMenuVisible = false;
+      blockMenuBlockId = null;
+    }
+
+    // ===========================
+    // Drag and Drop Implementation
+    // ===========================
+
+    /** Handle drag over */
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      
+      // Clear all indicators
+      document.querySelectorAll('.block').forEach(el => {
+        el.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      document.querySelectorAll('.toggle-children, .column').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+      
+      // Check if over a toggle-children container
+      const toggleChildren = e.target.closest('.toggle-children');
+      if (toggleChildren && !e.target.closest('.block')) {
+        toggleChildren.classList.add('drag-over');
+        return;
+      }
+      
+      // Check if over a column
+      const column = e.target.closest('.column');
+      if (column && !e.target.closest('.block')) {
+        column.classList.add('drag-over');
+        return;
+      }
+      
+      // Check if over a block
+      const blockEl = e.target.closest('.block');
+      if (!blockEl || blockEl.dataset.blockId === draggedBlockId) return;
+      
+      // Don't allow dropping on the dragged block's children
+      const draggedEl = document.querySelector(`[data-block-id="${draggedBlockId}"]`);
+      if (draggedEl && draggedEl.contains(blockEl)) return;
+      
+      // Determine if dropping above or below
+      const rect = blockEl.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      
+      if (e.clientY < midY) {
+        blockEl.classList.add('drag-over-top');
+      } else {
+        blockEl.classList.add('drag-over-bottom');
+      }
+    }
+
+    /** Handle drag leave */
+    function handleDragLeave(e) {
+      const blockEl = e.target.closest('.block');
+      if (blockEl) {
+        blockEl.classList.remove('drag-over-top', 'drag-over-bottom');
+      }
+      
+      const toggleChildren = e.target.closest('.toggle-children');
+      if (toggleChildren) {
+        toggleChildren.classList.remove('drag-over');
+      }
+      
+      const column = e.target.closest('.column');
+      if (column) {
+        column.classList.remove('drag-over');
+      }
+    }
+
+    /** Handle drop */
+    function handleDrop(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (!draggedBlockId) return;
+      
+      // Clear all indicators
+      document.querySelectorAll('.block').forEach(el => {
+        el.classList.remove('drag-over-top', 'drag-over-bottom', 'dragging');
+      });
+      document.querySelectorAll('.toggle-children, .column').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+      
+      // Check if dropped on toggle-children container (empty area)
+      const toggleChildren = e.target.closest('.toggle-children');
+      if (toggleChildren && !e.target.closest('.block[data-block-id]')) {
+        const parentBlock = toggleChildren.closest('.block');
+        if (parentBlock) {
+          const parentId = parentBlock.dataset.blockId;
+          const parent = getBlock(parentId);
+          if (parent && parent.children !== undefined) {
+            moveBlock(draggedBlockId, null, null, { type: 'toggle', parent: parent });
+            return;
+          }
+        }
+      }
+      
+      // Check if dropped on column (empty area)
+      const column = e.target.closest('.column');
+      if (column && !e.target.closest('.block[data-block-id]')) {
+        const parentBlockId = column.dataset.parentBlockId;
+        const columnIndex = parseInt(column.dataset.columnIndex);
+        const parent = getBlock(parentBlockId);
+        if (parent && parent.columns) {
+          moveBlock(draggedBlockId, null, null, { type: 'column', parent: parent, columnIndex: columnIndex });
+          return;
+        }
+      }
+      
+      // Dropped on a block
+      const blockEl = e.target.closest('.block');
+      if (!blockEl) return;
+      
+      const targetId = blockEl.dataset.blockId;
+      if (targetId === draggedBlockId) return;
+      
+      // Don't allow dropping on self or children
+      const draggedEl = document.querySelector(`[data-block-id="${draggedBlockId}"]`);
+      if (draggedEl && draggedEl.contains(blockEl)) return;
+      
+      // Determine position
+      const rect = blockEl.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      const position = e.clientY < midY ? 'before' : 'after';
+      
+      moveBlock(draggedBlockId, targetId, position);
+    }
+
+    // ===========================
+    // Theme Toggle
+    // ===========================
+    
+    /** Toggle between light and dark theme */
+    function toggleTheme() {
+      const currentTheme = document.body.dataset.theme;
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      
+      document.body.dataset.theme = newTheme;
+      themeToggle.textContent = newTheme === 'light' ? '🌙' : '☀️';
+      saveTheme(newTheme);
+    }
+
+    /** Apply saved theme */
+    function applyTheme() {
+      const theme = loadTheme();
+      document.body.dataset.theme = theme;
+      themeToggle.textContent = theme === 'light' ? '🌙' : '☀️';
+    }
+
+    // ===========================
+    // Event Listeners
+    // ===========================
+    
+    // Theme toggle
+    themeToggle.addEventListener('click', toggleTheme);
+    
+    // Clear workspace
+    clearBtn.addEventListener('click', clearWorkspace);
+    
+    // Export to Markdown
+    const exportBtn = document.getElementById('exportBtn');
+    exportBtn.addEventListener('click', exportToMarkdown);
+    
+    // Click area below blocks - creates new block or focuses last empty block
+    const blocksClickArea = document.getElementById('blocksClickArea');
+    blocksClickArea.addEventListener('click', () => {
+      const lastBlock = blocks[blocks.length - 1];
+      
+      // If last block is empty, just focus it
+      if (lastBlock && lastBlock.content === '' && lastBlock.type !== 'divider') {
+        const el = document.querySelector(`[data-block-id="${lastBlock.id}"] .block-content`);
+        if (el) {
+          setCaretToStart(el);
+          return;
+        }
+      }
+      
+      // Otherwise create new block
+      const newBlock = createBlockData('paragraph', '');
+      blocks.push(newBlock);
+      saveBlocks();
+      renderBlocks();
+      setTimeout(() => {
+        const el = document.querySelector(`[data-block-id="${newBlock.id}"] .block-content`);
+        if (el) setCaretToStart(el);
+      }, 10);
+    });
+    
+    // Drag events for main blocks area (to allow dropping from nested containers)
+    blocksContainer.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    
+    blocksContainer.addEventListener('drop', (e) => {
+      // Only handle if not caught by a more specific handler
+      if (!e.target.closest('.block') && !e.target.closest('.toggle-children') && !e.target.closest('.column')) {
+        e.preventDefault();
+        if (draggedBlockId) {
+          // Move to end of main blocks
+          moveBlock(draggedBlockId, null, null, null);
+        }
+      }
+    });
+    
+    blocksClickArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      blocksClickArea.style.background = 'rgba(35, 131, 226, 0.1)';
+    });
+    
+    blocksClickArea.addEventListener('dragleave', () => {
+      blocksClickArea.style.background = '';
+    });
+    
+    blocksClickArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      blocksClickArea.style.background = '';
+      if (draggedBlockId) {
+        // Move to end of main blocks
+        moveBlock(draggedBlockId, null, null, null);
+      }
+    });
+    
+    // Page title save
+    pageTitle.addEventListener('input', saveTitle);
+    pageTitle.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        // Focus first block
+        if (blocks.length > 0) {
+          const el = document.querySelector(`[data-block-id="${blocks[0].id}"] .block-content`);
+          if (el) setCaretToStart(el);
+        }
+      }
+    });
+    
+    // Global click to hide menus
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.slash-menu') && !e.target.closest('.block-content')) {
+        hideSlashMenu();
+      }
+      if (!e.target.closest('.block-menu') && !e.target.closest('.block-handle')) {
+        hideBlockMenu();
+      }
+    });
+    
+    // Global keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      // Escape closes menus
+      if (e.key === 'Escape') {
+        hideSlashMenu();
+        hideBlockMenu();
+        return;
+      }
+      
+      // Find currently focused block
+      const activeElement = document.activeElement;
+      const blockEl = activeElement?.closest('.block');
+      const blockId = blockEl?.dataset.blockId;
+      
+      // Delete key - delete current block when menu is open or block is focused
+      if (e.key === 'Delete') {
+        // If block menu is open, delete that block
+        if (blockMenuVisible && blockMenuBlockId) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (blocks.length > 1) {
+            deleteBlock(blockMenuBlockId);
+            hideBlockMenu();
+          } else {
+            showToast('Cannot delete the last block');
+          }
+          return;
+        }
+        
+        // If a block is focused and empty, delete it
+        if (blockId && activeElement?.classList.contains('block-content')) {
+          // Check actual DOM content, not saved content
+          const isEmpty = activeElement.textContent.trim() === '';
+          if (isEmpty && blocks.length > 1) {
+            e.preventDefault();
+            e.stopPropagation();
+            deleteBlock(blockId);
+            return;
+          }
+        }
+      }
+      
+      // Ctrl+Shift+D or Cmd+Shift+D - delete current block
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // If block menu is open, delete that block
+        if (blockMenuVisible && blockMenuBlockId) {
+          if (blocks.length > 1) {
+            deleteBlock(blockMenuBlockId);
+            hideBlockMenu();
+          } else {
+            showToast('Cannot delete the last block');
+          }
+          return;
+        }
+        
+        // Otherwise delete focused block
+        if (blockId) {
+          if (blocks.length > 1) {
+            deleteBlock(blockId);
+          } else {
+            showToast('Cannot delete the last block');
+          }
+          return;
+        }
+      }
+      
+      // When block menu is open, capture certain keys
+      if (blockMenuVisible) {
+        // Arrow keys for navigation in menu
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          e.stopPropagation();
+          // Could add menu navigation here
+        }
+      }
+    }, true); // Use capture phase to intercept before browser
+
+    // ===========================
+    // Initialization
+    // ===========================
+    
+    /** Initialize the app */
+    function init() {
+      applyTheme();
+      loadTitle();
+      loadBlocks();
+      renderBlocks();
+      
+      // Focus title if empty, otherwise first block
+      if (pageTitle.textContent === '') {
+        pageTitle.focus();
+      } else if (blocks.length > 0) {
+        setTimeout(() => {
+          const el = document.querySelector(`[data-block-id="${blocks[0].id}"] .block-content`);
+          if (el) setCaretToStart(el);
+        }, 100);
+      }
+    }
+
+    // Run on load
+    init();
+  </script>
+</body>
+</html>

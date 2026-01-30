@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boids + Predator-Prey Simulation</title>
+    <!--
+    ============================================================================
+    BOIDS + PREDATOR-PREY SIMULATION
+    ============================================================================
+    
+    This simulation combines the classic Boids flocking algorithm by Craig Reynolds
+    with a predator-prey ecosystem model.
+    
+    BOIDS RULES:
+    1. Separation - Boids steer away from nearby flockmates to avoid crowding
+    2. Alignment  - Boids steer towards the average heading of nearby flockmates
+    3. Cohesion   - Boids steer towards the average position of nearby flockmates
+    
+    PREDATOR-PREY DYNAMICS:
+    - Predators chase and eat boids within their catch radius
+    - Boids flee from predators when within their fear radius
+    - Predators starve if they don't eat for too long
+    - Both species can reproduce under certain conditions
+    
+    WORLD BEHAVIOR:
+    - Uses world wrapping (toroidal topology) - agents exiting one edge 
+      reappear on the opposite edge for seamless continuous motion
+    
+    ============================================================================
+    -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #eaeaea;
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* Control Panel Styling */
+        #controls {
+            width: 320px;
+            min-width: 320px;
+            background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
+            padding: 15px;
+            overflow-y: auto;
+            border-right: 2px solid #0f3460;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.3);
+        }
+        
+        #controls h1 {
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            color: #e94560;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        #controls h2 {
+            font-size: 0.95em;
+            margin: 15px 0 10px 0;
+            padding: 8px 10px;
+            background: #0f3460;
+            border-radius: 5px;
+            color: #00d9ff;
+        }
+        
+        .control-group {
+            margin-bottom: 10px;
+        }
+        
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85em;
+            margin-bottom: 4px;
+            color: #b8b8b8;
+        }
+        
+        .control-group label span.value {
+            color: #00d9ff;
+            font-weight: bold;
+            min-width: 40px;
+            text-align: right;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            background: #0f3460;
+            border-radius: 3px;
+            outline: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #e94560;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #ff6b8a;
+        }
+        
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #e94560;
+            cursor: pointer;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .checkbox-group label {
+            font-size: 0.85em;
+            color: #b8b8b8;
+            cursor: pointer;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        
+        button {
+            flex: 1;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            font-size: 0.9em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        #pauseBtn {
+            background: #0f3460;
+            color: #00d9ff;
+        }
+        
+        #pauseBtn:hover {
+            background: #1a4a7a;
+        }
+        
+        #resetBtn {
+            background: #e94560;
+            color: white;
+        }
+        
+        #resetBtn:hover {
+            background: #ff6b8a;
+        }
+        
+        /* Stats Display */
+        #stats {
+            background: #0f3460;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-size: 0.85em;
+        }
+        
+        #stats div {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        
+        #stats span.stat-value {
+            color: #00d9ff;
+            font-weight: bold;
+        }
+        
+        /* Canvas Container */
+        #canvas-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        canvas {
+            display: block;
+            background: #0d0d1a;
+        }
+        
+        /* Scrollbar styling */
+        #controls::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        #controls::-webkit-scrollbar-track {
+            background: #1a1a2e;
+        }
+        
+        #controls::-webkit-scrollbar-thumb {
+            background: #0f3460;
+            border-radius: 4px;
+        }
+        
+        #controls::-webkit-scrollbar-thumb:hover {
+            background: #1a4a7a;
+        }
+    </style>
+</head>
+<body>
+    <!-- Control Panel -->
+    <div id="controls">
+        <h1>🐦 Boids Simulation</h1>
+        
+        <!-- Global Controls -->
+        <div class="button-group">
+            <button id="pauseBtn">Pause</button>
+            <button id="resetBtn">Reset</button>
+        </div>
+        
+        <h2>🌐 Global Settings</h2>
+        
+        <div class="control-group">
+            <label>Simulation Speed <span class="value" id="simSpeedVal">1.0</span></label>
+            <input type="range" id="simSpeed" min="0.1" max="3" step="0.1" value="1">
+        </div>
+        
+        <div class="checkbox-group">
+            <input type="checkbox" id="showTrails">
+            <label for="showTrails">Show Trails</label>
+        </div>
+        
+        <div class="checkbox-group">
+            <input type="checkbox" id="showPerception">
+            <label for="showPerception">Show Perception Radius</label>
+        </div>
+        
+        <!-- Boid Parameters -->
+        <h2>🔵 Boid Parameters</h2>
+        
+        <div class="control-group">
+            <label>Number of Boids <span class="value" id="numBoidsVal">150</span></label>
+            <input type="range" id="numBoids" min="10" max="500" step="10" value="150">
+        </div>
+        
+        <div class="control-group">
+            <label>Max Speed <span class="value" id="boidSpeedVal">4</span></label>
+            <input type="range" id="boidSpeed" min="1" max="10" step="0.5" value="4">
+        </div>
+        
+        <div class="control-group">
+            <label>Perception Radius <span class="value" id="boidPerceptionVal">50</span></label>
+            <input type="range" id="boidPerception" min="20" max="150" step="5" value="50">
+        </div>
+        
+        <div class="control-group">
+            <label>Separation Strength <span class="value" id="separationVal">1.5</span></label>
+            <input type="range" id="separation" min="0" max="5" step="0.1" value="1.5">
+        </div>
+        
+        <div class="control-group">
+            <label>Alignment Strength <span class="value" id="alignmentVal">1.0</span></label>
+            <input type="range" id="alignment" min="0" max="5" step="0.1" value="1.0">
+        </div>
+        
+        <div class="control-group">
+            <label>Cohesion Strength <span class="value" id="cohesionVal">1.0</span></label>
+            <input type="range" id="cohesion" min="0" max="5" step="0.1" value="1.0">
+        </div>
+        
+        <div class="control-group">
+            <label>Fear Radius <span class="value" id="fearRadiusVal">100</span></label>
+            <input type="range" id="fearRadius" min="30" max="200" step="5" value="100">
+        </div>
+        
+        <div class="control-group">
+            <label>Flee Strength <span class="value" id="fleeStrengthVal">3.0</span></label>
+            <input type="range" id="fleeStrength" min="0" max="10" step="0.5" value="3.0">
+        </div>
+        
+        <div class="checkbox-group">
+            <input type="checkbox" id="boidReproduce" checked>
+            <label for="boidReproduce">Enable Reproduction</label>
+        </div>
+        
+        <div class="control-group">
+            <label>Reproduction Rate <span class="value" id="boidReproRateVal">0.001</span></label>
+            <input type="range" id="boidReproRate" min="0" max="0.01" step="0.0005" value="0.001">
+        </div>
+        
+        <!-- Predator Parameters -->
+        <h2>🔴 Predator Parameters</h2>
+        
+        <div class="control-group">
+            <label>Number of Predators <span class="value" id="numPredatorsVal">3</span></label>
+            <input type="range" id="numPredators" min="0" max="20" step="1" value="3">
+        </div>
+        
+        <div class="control-group">
+            <label>Max Speed <span class="value" id="predSpeedVal">5</span></label>
+            <input type="range" id="predSpeed" min="1" max="12" step="0.5" value="5">
+        </div>
+        
+        <div class="control-group">
+            <label>Perception Radius <span class="value" id="predPerceptionVal">150</span></label>
+            <input type="range" id="predPerception" min="50" max="300" step="10" value="150">
+        </div>
+        
+        <div class="control-group">
+            <label>Catch Radius <span class="value" id="catchRadiusVal">15</span></label>
+            <input type="range" id="catchRadius" min="5" max="40" step="1" value="15">
+        </div>
+        
+        <div class="checkbox-group">
+            <input type="checkbox" id="predStarve" checked>
+            <label for="predStarve">Enable Starvation</label>
+        </div>
+        
+        <div class="control-group">
+            <label>Starvation Time (s) <span class="value" id="starveTimeVal">15</span></label>
+            <input type="range" id="starveTime" min="5" max="60" step="1" value="15">
+        </div>
+        
+        <div class="checkbox-group">
+            <input type="checkbox" id="predReproduce" checked>
+            <label for="predReproduce">Enable Reproduction</label>
+        </div>
+        
+        <div class="control-group">
+            <label>Meals to Reproduce <span class="value" id="predReproThreshVal">5</span></label>
+            <input type="range" id="predReproThresh" min="1" max="20" step="1" value="5">
+        </div>
+        
+        <!-- Statistics -->
+        <div id="stats">
+            <h2 style="margin: 0 0 10px 0; padding: 0; background: none;">📊 Statistics</h2>
+            <div>Boids: <span class="stat-value" id="boidCount">0</span></div>
+            <div>Predators: <span class="stat-value" id="predCount">0</span></div>
+            <div>FPS: <span class="stat-value" id="fps">0</span></div>
+            <div>Boids Eaten: <span class="stat-value" id="eatenCount">0</span></div>
+        </div>
+    </div>
+    
+    <!-- Canvas Container -->
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
+    
+    <script>
+    // =========================================================================
+    // VECTOR CLASS
+    // A simple 2D vector class for position and velocity calculations
+    // =========================================================================
+    class Vector {
+        constructor(x = 0, y = 0) {
+            this.x = x;
+            this.y = y;
+        }
+        
+        // Create a copy of this vector
+        copy() {
+            return new Vector(this.x, this.y);
+        }
+        
+        // Add another vector to this one
+        add(v) {
+            this.x += v.x;
+            this.y += v.y;
+            return this;
+        }
+        
+        // Subtract another vector from this one
+        sub(v) {
+            this.x -= v.x;
+            this.y -= v.y;
+            return this;
+        }
+        
+        // Multiply by a scalar
+        mult(n) {
+            this.x *= n;
+            this.y *= n;
+            return this;
+        }
+        
+        // Divide by a scalar
+        div(n) {
+            if (n !== 0) {
+                this.x /= n;
+                this.y /= n;
+            }
+            return this;
+        }
+        
+        // Get the magnitude (length) of this vector
+        mag() {
+            return Math.sqrt(this.x * this.x + this.y * this.y);
+        }
+        
+        // Normalize to unit length
+        normalize() {
+            const m = this.mag();
+            if (m > 0) {
+                this.div(m);
+            }
+            return this;
+        }
+        
+        // Limit the magnitude to a maximum value
+        limit(max) {
+            const m = this.mag();
+            if (m > max) {
+                this.normalize().mult(max);
+            }
+            return this;
+        }
+        
+        // Set the magnitude to a specific value
+        setMag(n) {
+            return this.normalize().mult(n);
+        }
+        
+        // Get the angle of this vector
+        heading() {
+            return Math.atan2(this.y, this.x);
+        }
+        
+        // Get distance to another vector
+        dist(v) {
+            const dx = this.x - v.x;
+            const dy = this.y - v.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+        
+        // Static method to subtract two vectors
+        static sub(v1, v2) {
+            return new Vector(v1.x - v2.x, v1.y - v2.y);
+        }
+        
+        // Static method to add two vectors
+        static add(v1, v2) {
+            return new Vector(v1.x + v2.x, v1.y + v2.y);
+        }
+        
+        // Create a random unit vector
+        static random() {
+            const angle = Math.random() * Math.PI * 2;
+            return new Vector(Math.cos(angle), Math.sin(angle));
+        }
+    }
+    
+    // =========================================================================
+    // BOID CLASS
+    // Represents a single boid (prey) agent with flocking behavior
+    // =========================================================================
+    class Boid {
+        constructor(x, y) {
+            this.position = new Vector(x, y);
+            // Random initial velocity
+            this.velocity = Vector.random().mult(Math.random() * 2 + 1);
+            this.acceleration = new Vector();
+            // Visual properties
+            this.size = 8;
+            this.color = this.getRandomBlueColor();
+        }
+        
+        // Generate a random blue shade for visual variety
+        getRandomBlueColor() {
+            const hue = 200 + Math.random() * 40; // Blue range
+            const sat = 70 + Math.random() * 30;
+            const light = 50 + Math.random() * 20;
+            return `hsl(${hue}, ${sat}%, ${light}%)`;
+        }
+        
+        // Apply a force to the boid (F = ma, assuming m = 1)
+        applyForce(force) {
+            this.acceleration.add(force);
+        }
+        
+        // =====================================================================
+        // SEPARATION RULE
+        // Steer away from nearby boids to avoid crowding
+        // Creates personal space between agents
+        // =====================================================================
+        separation(boids, perceptionRadius) {
+            const steering = new Vector();
+            let count = 0;
+            
+            for (const other of boids) {
+                const d = this.position.dist(other.position);
+                // Only consider boids within perception radius and not self
+                if (other !== this && d < perceptionRadius && d > 0) {
+                    // Vector pointing away from neighbor
+                    const diff = Vector.sub(this.position, other.position);
+                    diff.normalize();
+                    diff.div(d); // Weight by distance (closer = stronger)
+                    steering.add(diff);
+                    count++;
+                }
+            }
+            
+            if (count > 0) {
+                steering.div(count);
+                steering.setMag(params.boidSpeed);
+                steering.sub(this.velocity);
+                steering.limit(params.boidSpeed * 0.1);
+            }
+            
+            return steering;
+        }
+        
+        // =====================================================================
+        // ALIGNMENT RULE
+        // Steer towards the average heading of nearby boids
+        // Creates synchronized movement direction
+        // =====================================================================
+        alignment(boids, perceptionRadius) {
+            const steering = new Vector();
+            let count = 0;
+            
+            for (const other of boids) {
+                const d = this.position.dist(other.position);
+                if (other !== this && d < perceptionRadius) {
+                    steering.add(other.velocity);
+                    count++;
+                }
+            }
+            
+            if (count > 0) {
+                steering.div(count);
+                steering.setMag(params.boidSpeed);
+                steering.sub(this.velocity);
+                steering.limit(params.boidSpeed * 0.1);
+            }
+            
+            return steering;
+        }
+        
+        // =====================================================================
+        // COHESION RULE
+        // Steer towards the average position of nearby boids
+        // Keeps the flock together
+        // =====================================================================
+        cohesion(boids, perceptionRadius) {
+            const steering = new Vector();
+            let count = 0;
+            
+            for (const other of boids) {
+                const d = this.position.dist(other.position);
+                if (other !== this && d < perceptionRadius) {
+                    steering.add(other.position);
+                    count++;
+                }
+            }
+            
+            if (count > 0) {
+                steering.div(count);
+                steering.sub(this.position);
+                steering.setMag(params.boidSpeed);
+                steering.sub(this.velocity);
+                steering.limit(params.boidSpeed * 0.1);
+            }
+            
+            return steering;
+        }
+        
+        // =====================================================================
+        // FLEE BEHAVIOR
+        // Steer away from predators when they're within fear radius
+        // Higher priority than normal flocking behavior
+        // =====================================================================
+        flee(predators) {
+            const steering = new Vector();
+            let count = 0;
+            
+            for (const predator of predators) {
+                const d = this.position.dist(predator.position);
+                if (d < params.fearRadius) {
+                    // Vector pointing away from predator
+                    const diff = Vector.sub(this.position, predator.position);
+                    diff.normalize();
+                    diff.div(d); // Closer = stronger flee response
+                    steering.add(diff);
+                    count++;
+                }
+            }
+            
+            if (count > 0) {
+                steering.div(count);
+                steering.setMag(params.boidSpeed);
+                steering.sub(this.velocity);
+                steering.limit(params.boidSpeed * 0.3); // Higher limit for fleeing
+            }
+            
+            return steering;
+        }
+        
+        // Apply all behaviors and update position
+        flock(boids, predators) {
+            // Calculate all steering forces
+            const sep = this.separation(boids, params.boidPerception);
+            const ali = this.alignment(boids, params.boidPerception);
+            const coh = this.cohesion(boids, params.boidPerception);
+            const flee = this.flee(predators);
+            
+            // Apply weights from parameters
+            sep.mult(params.separation);
+            ali.mult(params.alignment);
+            coh.mult(params.cohesion);
+            flee.mult(params.fleeStrength);
+            
+            // Apply forces
+            this.applyForce(sep);
+            this.applyForce(ali);
+            this.applyForce(coh);
+            this.applyForce(flee);
+        }
+        
+        // Update physics
+        update(deltaTime) {
+            this.velocity.add(this.acceleration);
+            this.velocity.limit(params.boidSpeed);
+            this.position.add(this.velocity.copy().mult(deltaTime * params.simSpeed));
+            this.acceleration.mult(0); // Reset acceleration
+            
+            // World wrapping - toroidal topology
+            this.wrap();
+        }
+        
+        // Wrap around edges (toroidal world)
+        wrap() {
+            if (this.position.x < 0) this.position.x = canvas.width;
+            if (this.position.x > canvas.width) this.position.x = 0;
+            if (this.position.y < 0) this.position.y = canvas.height;
+            if (this.position.y > canvas.height) this.position.y = 0;
+        }
+        
+        // Draw the boid as an oriented triangle
+        draw(ctx) {
+            const angle = this.velocity.heading();
+            
+            ctx.save();
+            ctx.translate(this.position.x, this.position.y);
+            ctx.rotate(angle);
+            
+            // Draw triangle pointing in direction of movement
+            ctx.beginPath();
+            ctx.moveTo(this.size, 0);
+            ctx.lineTo(-this.size * 0.6, this.size * 0.5);
+            ctx.lineTo(-this.size * 0.6, -this.size * 0.5);
+            ctx.closePath();
+            
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            
+            ctx.restore();
+        }
+    }
+    
+    // =========================================================================
+    // PREDATOR CLASS
+    // Represents a predator agent that hunts boids
+    // =========================================================================
+    class Predator {
+        constructor(x, y) {
+            this.position = new Vector(x, y);
+            this.velocity = Vector.random().mult(Math.random() * 2 + 1);
+            this.acceleration = new Vector();
+            this.size = 14;
+            
+            // Hunger tracking
+            this.timeSinceLastMeal = 0; // Seconds since last meal
+            this.mealsEaten = 0; // Count for reproduction
+            
+            // Visual properties
+            this.color = this.getRandomRedColor();
+        }
+        
+        getRandomRedColor() {
+            const hue = 0 + Math.random() * 20; // Red range
+            const sat = 80 + Math.random() * 20;
+            const light = 45 + Math.random() * 15;
+            return `hsl(${hue}, ${sat}%, ${light}%)`;
+        }
+        
+        applyForce(force) {
+            this.acceleration.add(force);
+        }
+        
+        // =====================================================================
+        // CHASE BEHAVIOR
+        // Steer towards the nearest boid within perception radius
+        // Predators target the closest prey for efficiency
+        // =====================================================================
+        chase(boids) {
+            let closestDist = Infinity;
+            let closest = null;
+            
+            // Find the closest boid
+            for (const boid of boids) {
+                const d = this.position.dist(boid.position);
+                if (d < params.predPerception && d < closestDist) {
+                    closestDist = d;
+                    closest = boid;
+                }
+            }
+            
+            if (closest) {
+                // Steer towards the closest boid
+                const desired = Vector.sub(closest.position, this.position);
+                desired.setMag(params.predSpeed);
+                const steering = Vector.sub(desired, this.velocity);
+                steering.limit(params.predSpeed * 0.15);
+                return steering;
+            }
+            
+            // Wander if no boids nearby
+            return this.wander();
+        }
+        
+        // Random wandering when no prey is visible
+        wander() {
+            const steering = Vector.random().mult(0.5);
+            return steering;
+        }
+        
+        // Check for and eat any boids within catch radius
+        // Returns array of eaten boid indices
+        eat(boids) {
+            const eaten = [];
+            
+            for (let i = boids.length - 1; i >= 0; i--) {
+                const d = this.position.dist(boids[i].position);
+                if (d < params.catchRadius) {
+                    eaten.push(i);
+                    this.timeSinceLastMeal = 0;
+                    this.mealsEaten++;
+                }
+            }
+            
+            return eaten;
+        }
+        
+        // Check if predator can reproduce
+        canReproduce() {
+            return params.predReproduce && this.mealsEaten >= params.predReproThresh;
+        }
+        
+        // Reset meal counter after reproduction
+        reproduce() {
+            this.mealsEaten = 0;
+        }
+        
+        // Check if predator has starved
+        isStarving() {
+            return params.predStarve && this.timeSinceLastMeal > params.starveTime;
+        }
+        
+        update(boids, deltaTime) {
+            // Chase behavior
+            const chase = this.chase(boids);
+            this.applyForce(chase);
+            
+            // Update physics
+            this.velocity.add(this.acceleration);
+            this.velocity.limit(params.predSpeed);
+            this.position.add(this.velocity.copy().mult(deltaTime * params.simSpeed));
+            this.acceleration.mult(0);
+            
+            // Track hunger
+            this.timeSinceLastMeal += deltaTime * params.simSpeed;
+            
+            // World wrapping
+            this.wrap();
+        }
+        
+        wrap() {
+            if (this.position.x < 0) this.position.x = canvas.width;
+            if (this.position.x > canvas.width) this.position.x = 0;
+            if (this.position.y < 0) this.position.y = canvas.height;
+            if (this.position.y > canvas.height) this.position.y = 0;
+        }
+        
+        draw(ctx) {
+            const angle = this.velocity.heading();
+            
+            ctx.save();
+            ctx.translate(this.position.x, this.position.y);
+            ctx.rotate(angle);
+            
+            // Draw larger triangle for predator
+            ctx.beginPath();
+            ctx.moveTo(this.size, 0);
+            ctx.lineTo(-this.size * 0.7, this.size * 0.6);
+            ctx.lineTo(-this.size * 0.4, 0);
+            ctx.lineTo(-this.size * 0.7, -this.size * 0.6);
+            ctx.closePath();
+            
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            
+            // Hunger indicator (gets darker as hunger increases)
+            if (params.predStarve) {
+                const hungerRatio = Math.min(this.timeSinceLastMeal / params.starveTime, 1);
+                ctx.fillStyle = `rgba(0, 0, 0, ${hungerRatio * 0.5})`;
+                ctx.fill();
+            }
+            
+            ctx.restore();
+            
+            // Draw perception radius if enabled
+            if (params.showPerception) {
+                ctx.beginPath();
+                ctx.arc(this.position.x, this.position.y, params.predPerception, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(233, 69, 96, 0.2)';
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(this.position.x, this.position.y, params.catchRadius, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(233, 69, 96, 0.5)';
+                ctx.stroke();
+            }
+        }
+    }
+    
+    // =========================================================================
+    // SIMULATION PARAMETERS
+    // All adjustable parameters stored in a single object
+    // =========================================================================
+    const params = {
+        // Global
+        simSpeed: 1.0,
+        showTrails: false,
+        showPerception: false,
+        paused: false,
+        
+        // Boid parameters
+        numBoids: 150,
+        boidSpeed: 4,
+        boidPerception: 50,
+        separation: 1.5,
+        alignment: 1.0,
+        cohesion: 1.0,
+        fearRadius: 100,
+        fleeStrength: 3.0,
+        boidReproduce: true,
+        boidReproRate: 0.001,
+        
+        // Predator parameters
+        numPredators: 3,
+        predSpeed: 5,
+        predPerception: 150,
+        catchRadius: 15,
+        predStarve: true,
+        starveTime: 15,
+        predReproduce: true,
+        predReproThresh: 5
+    };
+    
+    // =========================================================================
+    // SIMULATION STATE
+    // =========================================================================
+    let canvas, ctx;
+    let boids = [];
+    let predators = [];
+    let lastTime = 0;
+    let totalEaten = 0;
+    let frameCount = 0;
+    let fps = 0;
+    let fpsTime = 0;
+    
+    // =========================================================================
+    // INITIALIZATION
+    // =========================================================================
+    function init() {
+        canvas = document.getElementById('canvas');
+        ctx = canvas.getContext('2d');
+        
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        setupControls();
+        resetSimulation();
+        
+        requestAnimationFrame(gameLoop);
+    }
+    
+    function resizeCanvas() {
+        const container = document.getElementById('canvas-container');
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+    }
+    
+    // Create initial boids and predators
+    function resetSimulation() {
+        boids = [];
+        predators = [];
+        totalEaten = 0;
+        
+        // Create boids at random positions
+        for (let i = 0; i < params.numBoids; i++) {
+            boids.push(new Boid(
+                Math.random() * canvas.width,
+                Math.random() * canvas.height
+            ));
+        }
+        
+        // Create predators at random positions
+        for (let i = 0; i < params.numPredators; i++) {
+            predators.push(new Predator(
+                Math.random() * canvas.width,
+                Math.random() * canvas.height
+            ));
+        }
+        
+        updateStats();
+    }
+    
+    // =========================================================================
+    // CONTROL PANEL SETUP
+    // Bind all UI controls to parameters
+    // =========================================================================
+    function setupControls() {
+        // Helper function to bind a slider to a parameter
+        function bindSlider(id, param, isFloat = true) {
+            const slider = document.getElementById(id);
+            const valueSpan = document.getElementById(id + 'Val');
+            
+            slider.addEventListener('input', () => {
+                const value = isFloat ? parseFloat(slider.value) : parseInt(slider.value);
+                params[param] = value;
+                valueSpan.textContent = isFloat ? value.toFixed(value < 1 ? 3 : 1) : value;
+            });
+        }
+        
+        // Helper function to bind a checkbox to a parameter
+        function bindCheckbox(id, param) {
+            const checkbox = document.getElementById(id);
+            checkbox.addEventListener('change', () => {
+                params[param] = checkbox.checked;
+            });
+        }
+        
+        // Global parameters
+        bindSlider('simSpeed', 'simSpeed');
+        bindCheckbox('showTrails', 'showTrails');
+        bindCheckbox('showPerception', 'showPerception');
+        
+        // Boid parameters
+        bindSlider('numBoids', 'numBoids', false);
+        bindSlider('boidSpeed', 'boidSpeed');
+        bindSlider('boidPerception', 'boidPerception', false);
+        bindSlider('separation', 'separation');
+        bindSlider('alignment', 'alignment');
+        bindSlider('cohesion', 'cohesion');
+        bindSlider('fearRadius', 'fearRadius', false);
+        bindSlider('fleeStrength', 'fleeStrength');
+        bindCheckbox('boidReproduce', 'boidReproduce');
+        bindSlider('boidReproRate', 'boidReproRate');
+        
+        // Predator parameters
+        bindSlider('numPredators', 'numPredators', false);
+        bindSlider('predSpeed', 'predSpeed');
+        bindSlider('predPerception', 'predPerception', false);
+        bindSlider('catchRadius', 'catchRadius', false);
+        bindCheckbox('predStarve', 'predStarve');
+        bindSlider('starveTime', 'starveTime', false);
+        bindCheckbox('predReproduce', 'predReproduce');
+        bindSlider('predReproThresh', 'predReproThresh', false);
+        
+        // Buttons
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            params.paused = !params.paused;
+            document.getElementById('pauseBtn').textContent = params.paused ? 'Resume' : 'Pause';
+        });
+        
+        document.getElementById('resetBtn').addEventListener('click', resetSimulation);
+    }
+    
+    // =========================================================================
+    // MAIN GAME LOOP
+    // =========================================================================
+    function gameLoop(timestamp) {
+        // Calculate delta time (capped to prevent large jumps)
+        const deltaTime = Math.min((timestamp - lastTime) / 1000, 0.1);
+        lastTime = timestamp;
+        
+        // FPS calculation
+        frameCount++;
+        fpsTime += deltaTime;
+        if (fpsTime >= 1) {
+            fps = Math.round(frameCount / fpsTime);
+            frameCount = 0;
+            fpsTime = 0;
+        }
+        
+        if (!params.paused) {
+            update(deltaTime);
+        }
+        
+        draw();
+        updateStats();
+        
+        requestAnimationFrame(gameLoop);
+    }
+    
+    // =========================================================================
+    // UPDATE LOGIC
+    // =========================================================================
+    function update(deltaTime) {
+        // Update all boids with flocking behavior
+        for (const boid of boids) {
+            boid.flock(boids, predators);
+            boid.update(deltaTime);
+        }
+        
+        // Update predators and handle eating
+        for (const predator of predators) {
+            predator.update(boids, deltaTime);
+            
+            // Check for eating
+            const eaten = predator.eat(boids);
+            for (const index of eaten) {
+                boids.splice(index, 1);
+                totalEaten++;
+            }
+        }
+        
+        // Handle predator reproduction
+        for (let i = 0; i < predators.length; i++) {
+            if (predators[i].canReproduce()) {
+                predators[i].reproduce();
+                // Spawn new predator nearby
+                predators.push(new Predator(
+                    predators[i].position.x + (Math.random() - 0.5) * 50,
+                    predators[i].position.y + (Math.random() - 0.5) * 50
+                ));
+            }
+        }
+        
+        // Handle predator starvation
+        predators = predators.filter(p => !p.isStarving());
+        
+        // Handle boid reproduction
+        if (params.boidReproduce && boids.length > 0 && boids.length < 1000) {
+            // Probability-based reproduction
+            if (Math.random() < params.boidReproRate * boids.length * deltaTime * params.simSpeed) {
+                const parent = boids[Math.floor(Math.random() * boids.length)];
+                boids.push(new Boid(
+                    parent.position.x + (Math.random() - 0.5) * 30,
+                    parent.position.y + (Math.random() - 0.5) * 30
+                ));
+            }
+        }
+    }
+    
+    // =========================================================================
+    // DRAWING
+    // =========================================================================
+    function draw() {
+        // Clear or fade for trails effect
+        if (params.showTrails) {
+            ctx.fillStyle = 'rgba(13, 13, 26, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        } else {
+            ctx.fillStyle = '#0d0d1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        // Draw perception radius for first boid if enabled
+        if (params.showPerception && boids.length > 0) {
+            const b = boids[0];
+            ctx.beginPath();
+            ctx.arc(b.position.x, b.position.y, params.boidPerception, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(0, 217, 255, 0.2)';
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.arc(b.position.x, b.position.y, params.fearRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255, 200, 0, 0.2)';
+            ctx.stroke();
+        }
+        
+        // Draw all boids
+        for (const boid of boids) {
+            boid.draw(ctx);
+        }
+        
+        // Draw all predators
+        for (const predator of predators) {
+            predator.draw(ctx);
+        }
+    }
+    
+    // Update statistics display
+    function updateStats() {
+        document.getElementById('boidCount').textContent = boids.length;
+        document.getElementById('predCount').textContent = predators.length;
+        document.getElementById('fps').textContent = fps;
+        document.getElementById('eatenCount').textContent = totalEaten;
+    }
+    
+    // Start the simulation when the page loads
+    window.addEventListener('load', init);
+    </script>
+</body>
+</html>

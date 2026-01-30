@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JLPT N5 Kanji Drill (103 Kanji)</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { background: white; border-radius: 15px; padding: 30px; margin-bottom: 30px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        h1 { color: #667eea; font-size: 2.2em; margin-bottom: 5px; }
+        .subtitle { color: #666; font-size: 1em; margin-bottom: 20px; }
+        .nav-buttons { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; }
+        .nav-btn { background: #e0e5ec; color: #667eea; border: 2px solid #667eea; padding: 12px 30px; border-radius: 25px; cursor: pointer; font-size: 1em; font-weight: bold; transition: all 0.3s; }
+        .nav-btn:hover, .nav-btn.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; transform: translateY(-2px); }
+        section { background: white; border-radius: 15px; padding: 30px; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: none; }
+        section.active { display: block; }
+        h2 { color: #667eea; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 3px solid #667eea; }
+        .search-box { margin-bottom: 20px; }
+        .search-box input { width: 100%; padding: 15px 20px; font-size: 1.1em; border: 2px solid #ddd; border-radius: 30px; outline: none; }
+        .search-box input:focus { border-color: #667eea; }
+        .draw-section { background: #f8f9fa; border-radius: 15px; padding: 20px; margin-bottom: 25px; }
+        .draw-section h3 { color: #667eea; margin-bottom: 15px; font-size: 1.1em; text-align: center; }
+        .canvas-container { display: flex; gap: 20px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+        .draw-canvas { border: 3px solid #667eea; border-radius: 10px; background: white; cursor: crosshair; touch-action: none; }
+        .draw-controls { display: flex; flex-direction: column; gap: 10px; }
+        .draw-btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 1em; font-weight: bold; transition: all 0.3s; }
+        .draw-btn.clear { background: #dc3545; color: white; }
+        .draw-btn.undo { background: #ffc107; color: #333; }
+        .draw-btn:hover { transform: scale(1.05); }
+        .recognition-result { margin-top: 15px; padding: 15px; background: white; border-radius: 10px; min-height: 70px; text-align: center; }
+        .candidates { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        .candidate { font-size: 2.2em; padding: 10px 18px; background: #f0f3ff; border: 2px solid #667eea; border-radius: 10px; cursor: pointer; transition: all 0.3s; font-family: "Hiragino Kaku Gothic Pro", "MS Gothic", sans-serif; }
+        .candidate:hover { background: #667eea; color: white; transform: scale(1.1); }
+        .recognition-status { color: #999; font-size: 0.95em; }
+        .kanji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .kanji-card { background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%); border-radius: 12px; padding: 20px; transition: transform 0.3s, box-shadow 0.3s; cursor: pointer; }
+        .kanji-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.15); }
+        .kanji-card.hidden { display: none; }
+        .kanji-char { font-size: 3.5em; text-align: center; color: #333; margin-bottom: 10px; font-family: "Hiragino Kaku Gothic Pro", "MS Gothic", sans-serif; }
+        .kanji-meaning { text-align: center; font-size: 1.2em; color: #e91e63; font-weight: bold; margin-bottom: 15px; }
+        .kanji-readings { background: white; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+        .reading-label { font-weight: bold; font-size: 0.9em; }
+        .reading-label.onyomi { color: #ff9800; }
+        .reading-label.kunyomi { color: #2196f3; }
+        .example-word { background: #667eea; color: white; border-radius: 8px; padding: 10px; font-size: 0.95em; }
+        .example-word strong { display: block; font-size: 1.2em; margin-bottom: 5px; }
+        .no-results { text-align: center; padding: 40px; color: #666; font-size: 1.2em; }
+        .quiz-options { background: #f8f9fa; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        .quiz-options h3 { color: #667eea; margin-bottom: 15px; font-size: 1.1em; }
+        .option-group { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; align-items: center; }
+        .option-group label { font-weight: bold; margin-right: 10px; color: #555; }
+        .filter-btn { padding: 8px 16px; border: 2px solid #667eea; background: white; color: #667eea; border-radius: 20px; cursor: pointer; font-size: 0.9em; transition: all 0.3s; }
+        .filter-btn:hover, .filter-btn.active { background: #667eea; color: white; }
+        .filter-btn.meaning-type { border-color: #e91e63; color: #e91e63; }
+        .filter-btn.meaning-type:hover, .filter-btn.meaning-type.active { background: #e91e63; color: white; }
+        .filter-btn.onyomi-type { border-color: #ff9800; color: #ff9800; }
+        .filter-btn.onyomi-type:hover, .filter-btn.onyomi-type.active { background: #ff9800; color: white; }
+        .filter-btn.kunyomi-type { border-color: #2196f3; color: #2196f3; }
+        .filter-btn.kunyomi-type:hover, .filter-btn.kunyomi-type.active { background: #2196f3; color: white; }
+        .start-quiz-btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 15px 40px; font-size: 1.1em; border-radius: 25px; cursor: pointer; font-weight: bold; }
+        .quiz-header { background: #f8f9fa; padding: 15px 20px; border-radius: 10px; margin-bottom: 20px; }
+        .quiz-progress { font-weight: bold; color: #667eea; font-size: 1.1em; }
+        .quiz-question { background: #fff; border: 2px solid #e0e0e0; border-radius: 12px; padding: 25px; margin-bottom: 20px; }
+        .question-number { display: inline-block; background: #667eea; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; margin-bottom: 15px; }
+        .question-text { font-size: 1.3em; margin-bottom: 20px; color: #333; }
+        .kanji-display { font-size: 1.8em; font-weight: bold; display: inline-block; padding: 5px 15px; border-radius: 8px; font-family: "Hiragino Kaku Gothic Pro", "MS Gothic", sans-serif; }
+        .kanji-display.meaning-q { background: #fce4ec; color: #e91e63; }
+        .kanji-display.onyomi-q { background: #fff3e0; color: #ff9800; }
+        .kanji-display.kunyomi-q { background: #e3f2fd; color: #2196f3; }
+        .options { display: flex; flex-direction: column; gap: 12px; }
+        .option { display: flex; align-items: center; padding: 15px 20px; background: #fafafa; border: 2px solid #e0e0e0; border-radius: 10px; cursor: pointer; transition: all 0.2s; }
+        .option:hover { border-color: #667eea; background: #f0f3ff; }
+        .option input { display: none; }
+        .option-number { width: 35px; height: 35px; background: #667eea; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; margin-right: 15px; }
+        .option.selected { border-color: #667eea; background: #e8edff; }
+        .option.selected .option-number { background: #764ba2; }
+        .option label { cursor: pointer; flex: 1; font-size: 1.15em; }
+        /* CORRECT = YELLOW, WRONG = RED */
+        .option.correct { background: #fff3cd !important; border-color: #ffc107 !important; border-width: 3px; }
+        .option.correct .option-number { background: #ffc107 !important; color: #333 !important; }
+        .option.correct-selected { background: #d4edda !important; border-color: #28a745 !important; border-width: 3px; }
+        .option.correct-selected .option-number { background: #28a745 !important; color: white !important; }
+        .option.incorrect { background: #f8d7da !important; border-color: #dc3545 !important; border-width: 3px; }
+        .option.incorrect .option-number { background: #dc3545 !important; color: white !important; }
+        .quiz-actions { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-top: 30px; }
+        .action-btn { padding: 15px 35px; font-size: 1.1em; border-radius: 25px; cursor: pointer; font-weight: bold; transition: all 0.3s; border: none; }
+        .action-btn.check { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; }
+        .action-btn.retry { background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); color: #333; }
+        .action-btn.new-quiz { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .action-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        /* RESULTS - VERY IMPORTANT */
+        #result { text-align: center; font-size: 1.5em; padding: 30px; border-radius: 15px; margin-top: 25px; font-weight: bold; }
+        #result.good { background: #d4edda; color: #155724; border: 4px solid #28a745; }
+        #result.medium { background: #fff3cd; color: #856404; border: 4px solid #ffc107; }
+        #result.poor { background: #f8d7da; color: #721c24; border: 4px solid #dc3545; }
+        .handwriting-mode { text-align: center; padding: 20px; }
+        .hw-question { font-size: 1.5em; margin-bottom: 20px; }
+        .hw-hint { font-size: 1.1em; color: #666; margin-bottom: 20px; }
+        .hw-result { margin-top: 20px; padding: 20px; border-radius: 12px; font-size: 1.3em; }
+        .hw-result.correct { background: #d4edda; color: #155724; }
+        .hw-result.incorrect { background: #f8d7da; color: #721c24; }
+        .hw-progress { margin-bottom: 20px; font-size: 1.1em; color: #667eea; font-weight: bold; }
+        .hw-controls { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+        /* MODAL */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.show { display: flex; }
+        .modal-content { background: white; border-radius: 20px; padding: 30px; max-width: 550px; width: 90%; max-height: 90vh; overflow-y: auto; position: relative; }
+        .modal-close { position: absolute; top: 15px; right: 20px; font-size: 2em; cursor: pointer; color: #999; }
+        .modal-close:hover { color: #333; }
+        .modal-kanji { font-size: 5em; text-align: center; font-family: "Hiragino Kaku Gothic Pro", "MS Gothic", sans-serif; margin-bottom: 10px; }
+        .stroke-order-container { text-align: center; margin: 15px 0; min-height: 220px; background: #f8f9fa; border-radius: 10px; padding: 15px; }
+        #strokeOrderDisplay { display: inline-block; }
+        #strokeOrderDisplay svg { max-width: 200px; max-height: 200px; }
+        .stroke-controls { display: flex; gap: 8px; justify-content: center; margin-top: 15px; flex-wrap: wrap; }
+        .stroke-btn { padding: 10px 16px; border: 2px solid #667eea; background: white; color: #667eea; border-radius: 20px; cursor: pointer; transition: all 0.3s; font-size: 0.85em; font-weight: bold; }
+        .stroke-btn:hover { background: #667eea; color: white; }
+        .stroke-btn.radical-btn { border-color: #e91e63; color: #e91e63; }
+        .stroke-btn.radical-btn:hover { background: #e91e63; color: white; }
+        .stroke-btn.component-btn { border-color: #4caf50; color: #4caf50; }
+        .stroke-btn.component-btn:hover { background: #4caf50; color: white; }
+        .stroke-info { margin-top: 15px; padding: 12px; background: #e8f5e9; border-radius: 8px; font-size: 0.95em; text-align: center; }
+        .modal-info { background: #f8f9fa; border-radius: 10px; padding: 15px; margin-top: 15px; }
+        .modal-info h4 { color: #667eea; margin-bottom: 10px; }
+        .modal-info p { margin: 5px 0; }
+        @media (max-width: 600px) {
+            h1 { font-size: 1.6em; }
+            .kanji-char { font-size: 2.5em; }
+            .nav-buttons { flex-direction: column; }
+            .nav-btn { width: 100%; }
+            section { padding: 15px; }
+            .draw-canvas { width: 220px !important; height: 220px !important; }
+            .modal-kanji { font-size: 4em; }
+            .stroke-btn { padding: 8px 12px; font-size: 0.75em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>JLPT N5 漢字ドリル</h1>
+            <p class="subtitle">103 Essential Kanji for JLPT N5</p>
+            <div class="nav-buttons">
+                <button class="nav-btn active" onclick="showSection('kanji-list', this)">📚 漢字リスト</button>
+                <button class="nav-btn" onclick="showSection('quiz-section', this)">📝 クイズ</button>
+                <button class="nav-btn" onclick="showSection('handwriting-section', this)">✏️ 手書き練習</button>
+            </div>
+        </header>
+
+        <section id="kanji-list" class="active">
+            <h2>📚 JLPT N5 漢字リスト (103字)</h2>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 検索: 漢字、意味、読み方..." oninput="filterKanji()">
+            </div>
+            <div class="draw-section">
+                <h3>✏️ 漢字を書いて検索 (Google Handwriting)</h3>
+                <div class="canvas-container">
+                    <canvas id="searchCanvas" class="draw-canvas" width="280" height="280"></canvas>
+                    <div class="draw-controls">
+                        <button class="draw-btn undo" onclick="undoStroke('search')">↩ 戻す</button>
+                        <button class="draw-btn clear" onclick="clearCanvas('search')">✕ 消去</button>
+                    </div>
+                </div>
+                <div class="recognition-result">
+                    <div class="candidates" id="searchCandidates">
+                        <span class="recognition-status">漢字を書いてください...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="kanji-grid" id="kanjiGrid"></div>
+            <div class="no-results" id="noResults" style="display: none;">検索結果がありません</div>
+        </section>
+
+        <section id="quiz-section">
+            <h2>📝 JLPT N5 漢字クイズ</h2>
+            <div class="quiz-options" id="quizOptions">
+                <h3>クイズ設定</h3>
+                <div class="option-group">
+                    <label>問題タイプ:</label>
+                    <button class="filter-btn meaning-type" onclick="setQuizType('meaning', this)">意味のみ</button>
+                    <button class="filter-btn onyomi-type" onclick="setQuizType('onyomi', this)">音読みのみ</button>
+                    <button class="filter-btn kunyomi-type" onclick="setQuizType('kunyomi', this)">訓読みのみ</button>
+                    <button class="filter-btn active" onclick="setQuizType('mixed', this)">混合</button>
+                </div>
+                <div class="option-group">
+                    <label>問題数:</label>
+                    <button class="filter-btn" onclick="setQuizCount(10, this)">10問</button>
+                    <button class="filter-btn" onclick="setQuizCount(20, this)">20問</button>
+                    <button class="filter-btn active" onclick="setQuizCount(50, this)">50問</button>
+                </div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="start-quiz-btn" onclick="startQuiz()">クイズを始める</button>
+                </div>
+            </div>
+            <div id="quizContainer" style="display: none;">
+                <div class="quiz-header">
+                    <span class="quiz-progress" id="quizProgress">問題数: 0問</span>
+                </div>
+                <div id="quizQuestions"></div>
+                <div class="quiz-actions">
+                    <button class="action-btn check" id="checkBtn" onclick="checkAnswers()">採点する</button>
+                    <button class="action-btn retry" id="retryBtn" style="display:none;" onclick="retryWrong()">間違いを復習</button>
+                    <button class="action-btn new-quiz" onclick="showQuizOptions()">新しいクイズ</button>
+                </div>
+                <div id="result" style="display:none;"></div>
+            </div>
+        </section>
+
+        <section id="handwriting-section">
+            <h2>✏️ 手書き練習モード</h2>
+            <div class="quiz-options" id="hwOptions">
+                <h3>練習設定</h3>
+                <div class="option-group">
+                    <label>問題タイプ:</label>
+                    <button class="filter-btn meaning-type" onclick="setHWType('meaning', this)">意味→漢字</button>
+                    <button class="filter-btn onyomi-type" onclick="setHWType('onyomi', this)">音読み→漢字</button>
+                    <button class="filter-btn kunyomi-type" onclick="setHWType('kunyomi', this)">訓読み→漢字</button>
+                    <button class="filter-btn active" onclick="setHWType('mixed', this)">混合</button>
+                </div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="start-quiz-btn" onclick="startHandwritingQuiz()">練習を始める</button>
+                </div>
+            </div>
+            <div id="hwQuizContainer" style="display: none;">
+                <div class="handwriting-mode">
+                    <div class="hw-progress" id="hwProgress">正解: 0 / 回答: 0</div>
+                    <div class="hw-question" id="hwQuestion"></div>
+                    <div class="hw-hint" id="hwHint"></div>
+                    <div style="margin: 20px 0;">
+                        <canvas id="hwCanvas" class="draw-canvas" width="280" height="280"></canvas>
+                    </div>
+                    <div class="hw-controls">
+                        <button class="draw-btn undo" onclick="undoStroke('hw')">↩ 戻す</button>
+                        <button class="draw-btn clear" onclick="clearCanvas('hw')">✕ 消去</button>
+                        <button class="action-btn check" onclick="checkHandwriting()">確認する</button>
+                    </div>
+                    <div class="recognition-result">
+                        <div class="candidates" id="hwCandidates">
+                            <span class="recognition-status">漢字を書いて「確認する」をクリック</span>
+                        </div>
+                    </div>
+                    <div id="hwResult" style="display: none;"></div>
+                    <div class="hw-controls" id="hwNextControls" style="display: none;">
+                        <button class="action-btn new-quiz" onclick="nextHandwritingQuestion()">次の問題</button>
+                        <button class="action-btn retry" style="display: inline-block;" onclick="showHWOptions()">練習終了</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Stroke Order Modal -->
+    <div class="modal" id="strokeModal" onclick="if(event.target===this)closeModal()">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal()">&times;</span>
+            <div class="modal-kanji" id="modalKanji"></div>
+            <div class="stroke-order-container">
+                <div id="strokeOrderDisplay"></div>
+            </div>
+            <div class="stroke-controls">
+                <button class="stroke-btn" onclick="animateStrokes()">▶ アニメーション</button>
+                <button class="stroke-btn" onclick="resetStrokes()">↺ リセット</button>
+                <button class="stroke-btn radical-btn" onclick="showRadicals()">🔴 部首を表示</button>
+                <button class="stroke-btn component-btn" onclick="showComponents()">🟢 部品を表示</button>
+            </div>
+            <div class="stroke-info" id="strokeInfo" style="display:none;"></div>
+            <div class="modal-info" id="modalInfo">
+                <h4>漢字情報</h4>
+                <p id="modalMeaning"></p>
+                <p id="modalOnyomi"></p>
+                <p id="modalKunyomi"></p>
+                <p id="modalExample"></p>
+                <p id="modalStrokes"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== KANJI DATA ====================
+        const kanjiData = [
+            { kanji: "一", meaning: "one", onyomi: "いち", kunyomi: "ひと(つ)", example: "一人", exReading: "ひとり", exMeaning: "one person", strokes: 1, radical: "一 (one)" },
+            { kanji: "二", meaning: "two", onyomi: "に", kunyomi: "ふた(つ)", example: "二人", exReading: "ふたり", exMeaning: "two people", strokes: 2, radical: "二 (two)" },
+            { kanji: "三", meaning: "three", onyomi: "さん", kunyomi: "み(つ)", example: "三日", exReading: "みっか", exMeaning: "3rd day", strokes: 3, radical: "一 (one)" },
+            { kanji: "四", meaning: "four", onyomi: "し", kunyomi: "よ(つ)", example: "四月", exReading: "しがつ", exMeaning: "April", strokes: 5, radical: "囗 (enclosure)" },
+            { kanji: "五", meaning: "five", onyomi: "ご", kunyomi: "いつ(つ)", example: "五日", exReading: "いつか", exMeaning: "5th day", strokes: 4, radical: "二 (two)" },
+            { kanji: "六", meaning: "six", onyomi: "ろく", kunyomi: "む(つ)", example: "六月", exReading: "ろくがつ", exMeaning: "June", strokes: 4, radical: "八 (eight)" },
+            { kanji: "七", meaning: "seven", onyomi: "しち", kunyomi: "なな(つ)", example: "七日", exReading: "なのか", exMeaning: "7th day", strokes: 2, radical: "一 (one)" },
+            { kanji: "八", meaning: "eight", onyomi: "はち", kunyomi: "や(つ)", example: "八日", exReading: "ようか", exMeaning: "8th day", strokes: 2, radical: "八 (eight)" },
+            { kanji: "九", meaning: "nine", onyomi: "きゅう", kunyomi: "ここの(つ)", example: "九月", exReading: "くがつ", exMeaning: "September", strokes: 2, radical: "乙 (second)" },
+            { kanji: "十", meaning: "ten", onyomi: "じゅう", kunyomi: "とお", example: "十日", exReading: "とおか", exMeaning: "10th day", strokes: 2, radical: "十 (ten)" },
+            { kanji: "百", meaning: "hundred", onyomi: "ひゃく", kunyomi: "もも", example: "百円", exReading: "ひゃくえん", exMeaning: "100 yen", strokes: 6, radical: "白 (white)" },
+            { kanji: "千", meaning: "thousand", onyomi: "せん", kunyomi: "ち", example: "千円", exReading: "せんえん", exMeaning: "1000 yen", strokes: 3, radical: "十 (ten)" },
+            { kanji: "万", meaning: "ten thousand", onyomi: "まん", kunyomi: "よろず", example: "一万", exReading: "いちまん", exMeaning: "10,000", strokes: 3, radical: "一 (one)" },
+            { kanji: "円", meaning: "yen, circle", onyomi: "えん", kunyomi: "まる(い)", example: "五百円", exReading: "ごひゃくえん", exMeaning: "500 yen", strokes: 4, radical: "冂 (down box)" },
+            { kanji: "日", meaning: "day, sun", onyomi: "にち", kunyomi: "ひ", example: "日曜日", exReading: "にちようび", exMeaning: "Sunday", strokes: 4, radical: "日 (sun)" },
+            { kanji: "月", meaning: "month, moon", onyomi: "げつ", kunyomi: "つき", example: "月曜日", exReading: "げつようび", exMeaning: "Monday", strokes: 4, radical: "月 (moon)" },
+            { kanji: "火", meaning: "fire", onyomi: "か", kunyomi: "ひ", example: "火曜日", exReading: "かようび", exMeaning: "Tuesday", strokes: 4, radical: "火 (fire)" },
+            { kanji: "水", meaning: "water", onyomi: "すい", kunyomi: "みず", example: "水曜日", exReading: "すいようび", exMeaning: "Wednesday", strokes: 4, radical: "水 (water)" },
+            { kanji: "木", meaning: "tree, wood", onyomi: "もく", kunyomi: "き", example: "木曜日", exReading: "もくようび", exMeaning: "Thursday", strokes: 4, radical: "木 (tree)" },
+            { kanji: "金", meaning: "gold, money", onyomi: "きん", kunyomi: "かね", example: "金曜日", exReading: "きんようび", exMeaning: "Friday", strokes: 8, radical: "金 (metal)" },
+            { kanji: "土", meaning: "earth, soil", onyomi: "ど", kunyomi: "つち", example: "土曜日", exReading: "どようび", exMeaning: "Saturday", strokes: 3, radical: "土 (earth)" },
+            { kanji: "年", meaning: "year", onyomi: "ねん", kunyomi: "とし", example: "今年", exReading: "ことし", exMeaning: "this year", strokes: 6, radical: "干 (dry)" },
+            { kanji: "時", meaning: "time, hour", onyomi: "じ", kunyomi: "とき", example: "時間", exReading: "じかん", exMeaning: "time", strokes: 10, radical: "日 (sun)" },
+            { kanji: "分", meaning: "minute, part", onyomi: "ふん", kunyomi: "わ(ける)", example: "十分", exReading: "じゅっぷん", exMeaning: "10 minutes", strokes: 4, radical: "刀 (knife)" },
+            { kanji: "半", meaning: "half", onyomi: "はん", kunyomi: "なか(ば)", example: "半分", exReading: "はんぶん", exMeaning: "half", strokes: 5, radical: "十 (ten)" },
+            { kanji: "週", meaning: "week", onyomi: "しゅう", kunyomi: "まわり", example: "今週", exReading: "こんしゅう", exMeaning: "this week", strokes: 11, radical: "辶 (walk)" },
+            { kanji: "午", meaning: "noon", onyomi: "ご", kunyomi: "うま", example: "午前", exReading: "ごぜん", exMeaning: "AM", strokes: 4, radical: "十 (ten)" },
+            { kanji: "前", meaning: "before, front", onyomi: "ぜん", kunyomi: "まえ", example: "名前", exReading: "なまえ", exMeaning: "name", strokes: 9, radical: "刀 (knife)" },
+            { kanji: "後", meaning: "after, behind", onyomi: "ご", kunyomi: "うし(ろ)", example: "午後", exReading: "ごご", exMeaning: "PM", strokes: 9, radical: "彳 (step)" },
+            { kanji: "今", meaning: "now", onyomi: "こん", kunyomi: "いま", example: "今日", exReading: "きょう", exMeaning: "today", strokes: 4, radical: "人 (person)" },
+            { kanji: "先", meaning: "previous", onyomi: "せん", kunyomi: "さき", example: "先生", exReading: "せんせい", exMeaning: "teacher", strokes: 6, radical: "儿 (legs)" },
+            { kanji: "来", meaning: "come, next", onyomi: "らい", kunyomi: "く(る)", example: "来週", exReading: "らいしゅう", exMeaning: "next week", strokes: 7, radical: "木 (tree)" },
+            { kanji: "毎", meaning: "every", onyomi: "まい", kunyomi: "ごと", example: "毎日", exReading: "まいにち", exMeaning: "every day", strokes: 6, radical: "母 (mother)" },
+            { kanji: "間", meaning: "between", onyomi: "かん", kunyomi: "あいだ", example: "時間", exReading: "じかん", exMeaning: "time", strokes: 12, radical: "門 (gate)" },
+            { kanji: "人", meaning: "person", onyomi: "じん", kunyomi: "ひと", example: "日本人", exReading: "にほんじん", exMeaning: "Japanese", strokes: 2, radical: "人 (person)" },
+            { kanji: "男", meaning: "man", onyomi: "だん", kunyomi: "おとこ", example: "男の子", exReading: "おとこのこ", exMeaning: "boy", strokes: 7, radical: "田 (field)" },
+            { kanji: "女", meaning: "woman", onyomi: "じょ", kunyomi: "おんな", example: "女の子", exReading: "おんなのこ", exMeaning: "girl", strokes: 3, radical: "女 (woman)" },
+            { kanji: "子", meaning: "child", onyomi: "し", kunyomi: "こ", example: "子供", exReading: "こども", exMeaning: "child", strokes: 3, radical: "子 (child)" },
+            { kanji: "母", meaning: "mother", onyomi: "ぼ", kunyomi: "はは", example: "お母さん", exReading: "おかあさん", exMeaning: "mother", strokes: 5, radical: "母 (mother)" },
+            { kanji: "父", meaning: "father", onyomi: "ふ", kunyomi: "ちち", example: "お父さん", exReading: "おとうさん", exMeaning: "father", strokes: 4, radical: "父 (father)" },
+            { kanji: "友", meaning: "friend", onyomi: "ゆう", kunyomi: "とも", example: "友達", exReading: "ともだち", exMeaning: "friend", strokes: 4, radical: "又 (again)" },
+            { kanji: "名", meaning: "name", onyomi: "めい", kunyomi: "な", example: "名前", exReading: "なまえ", exMeaning: "name", strokes: 6, radical: "口 (mouth)" },
+            { kanji: "国", meaning: "country", onyomi: "こく", kunyomi: "くに", example: "外国", exReading: "がいこく", exMeaning: "foreign country", strokes: 8, radical: "囗 (enclosure)" },
+            { kanji: "本", meaning: "book", onyomi: "ほん", kunyomi: "もと", example: "日本", exReading: "にほん", exMeaning: "Japan", strokes: 5, radical: "木 (tree)" },
+            { kanji: "学", meaning: "study", onyomi: "がく", kunyomi: "まな(ぶ)", example: "学生", exReading: "がくせい", exMeaning: "student", strokes: 8, radical: "子 (child)" },
+            { kanji: "校", meaning: "school", onyomi: "こう", kunyomi: "-", example: "学校", exReading: "がっこう", exMeaning: "school", strokes: 10, radical: "木 (tree)" },
+            { kanji: "生", meaning: "life", onyomi: "せい", kunyomi: "い(きる)", example: "先生", exReading: "せんせい", exMeaning: "teacher", strokes: 5, radical: "生 (life)" },
+            { kanji: "大", meaning: "big", onyomi: "だい", kunyomi: "おお(きい)", example: "大学", exReading: "だいがく", exMeaning: "university", strokes: 3, radical: "大 (big)" },
+            { kanji: "小", meaning: "small", onyomi: "しょう", kunyomi: "ちい(さい)", example: "小学校", exReading: "しょうがっこう", exMeaning: "elementary", strokes: 3, radical: "小 (small)" },
+            { kanji: "中", meaning: "middle", onyomi: "ちゅう", kunyomi: "なか", example: "中学校", exReading: "ちゅうがっこう", exMeaning: "middle school", strokes: 4, radical: "丨 (line)" },
+            { kanji: "高", meaning: "tall, expensive", onyomi: "こう", kunyomi: "たか(い)", example: "高校", exReading: "こうこう", exMeaning: "high school", strokes: 10, radical: "高 (tall)" },
+            { kanji: "長", meaning: "long", onyomi: "ちょう", kunyomi: "なが(い)", example: "長い", exReading: "ながい", exMeaning: "long", strokes: 8, radical: "長 (long)" },
+            { kanji: "新", meaning: "new", onyomi: "しん", kunyomi: "あたら(しい)", example: "新聞", exReading: "しんぶん", exMeaning: "newspaper", strokes: 13, radical: "斤 (axe)" },
+            { kanji: "古", meaning: "old", onyomi: "こ", kunyomi: "ふる(い)", example: "古い", exReading: "ふるい", exMeaning: "old", strokes: 5, radical: "口 (mouth)" },
+            { kanji: "多", meaning: "many", onyomi: "た", kunyomi: "おお(い)", example: "多い", exReading: "おおい", exMeaning: "many", strokes: 6, radical: "夕 (evening)" },
+            { kanji: "少", meaning: "few", onyomi: "しょう", kunyomi: "すく(ない)", example: "少し", exReading: "すこし", exMeaning: "a little", strokes: 4, radical: "小 (small)" },
+            { kanji: "安", meaning: "cheap", onyomi: "あん", kunyomi: "やす(い)", example: "安い", exReading: "やすい", exMeaning: "cheap", strokes: 6, radical: "宀 (roof)" },
+            { kanji: "白", meaning: "white", onyomi: "はく", kunyomi: "しろ(い)", example: "白い", exReading: "しろい", exMeaning: "white", strokes: 5, radical: "白 (white)" },
+            { kanji: "上", meaning: "up", onyomi: "じょう", kunyomi: "うえ", example: "上手", exReading: "じょうず", exMeaning: "skillful", strokes: 3, radical: "一 (one)" },
+            { kanji: "下", meaning: "down", onyomi: "か", kunyomi: "した", example: "下手", exReading: "へた", exMeaning: "unskillful", strokes: 3, radical: "一 (one)" },
+            { kanji: "右", meaning: "right", onyomi: "う", kunyomi: "みぎ", example: "右", exReading: "みぎ", exMeaning: "right", strokes: 5, radical: "口 (mouth)" },
+            { kanji: "左", meaning: "left", onyomi: "さ", kunyomi: "ひだり", example: "左", exReading: "ひだり", exMeaning: "left", strokes: 5, radical: "工 (work)" },
+            { kanji: "北", meaning: "north", onyomi: "ほく", kunyomi: "きた", example: "北", exReading: "きた", exMeaning: "north", strokes: 5, radical: "匕 (spoon)" },
+            { kanji: "南", meaning: "south", onyomi: "なん", kunyomi: "みなみ", example: "南", exReading: "みなみ", exMeaning: "south", strokes: 9, radical: "十 (ten)" },
+            { kanji: "東", meaning: "east", onyomi: "とう", kunyomi: "ひがし", example: "東京", exReading: "とうきょう", exMeaning: "Tokyo", strokes: 8, radical: "木 (tree)" },
+            { kanji: "西", meaning: "west", onyomi: "せい", kunyomi: "にし", example: "西", exReading: "にし", exMeaning: "west", strokes: 6, radical: "覀 (west)" },
+            { kanji: "外", meaning: "outside", onyomi: "がい", kunyomi: "そと", example: "外国", exReading: "がいこく", exMeaning: "abroad", strokes: 5, radical: "夕 (evening)" },
+            { kanji: "山", meaning: "mountain", onyomi: "さん", kunyomi: "やま", example: "富士山", exReading: "ふじさん", exMeaning: "Mt. Fuji", strokes: 3, radical: "山 (mountain)" },
+            { kanji: "川", meaning: "river", onyomi: "せん", kunyomi: "かわ", example: "川", exReading: "かわ", exMeaning: "river", strokes: 3, radical: "川 (river)" },
+            { kanji: "天", meaning: "heaven", onyomi: "てん", kunyomi: "あめ", example: "天気", exReading: "てんき", exMeaning: "weather", strokes: 4, radical: "大 (big)" },
+            { kanji: "気", meaning: "spirit", onyomi: "き", kunyomi: "いき", example: "元気", exReading: "げんき", exMeaning: "healthy", strokes: 6, radical: "气 (steam)" },
+            { kanji: "雨", meaning: "rain", onyomi: "う", kunyomi: "あめ", example: "雨", exReading: "あめ", exMeaning: "rain", strokes: 8, radical: "雨 (rain)" },
+            { kanji: "電", meaning: "electricity", onyomi: "でん", kunyomi: "-", example: "電話", exReading: "でんわ", exMeaning: "telephone", strokes: 13, radical: "雨 (rain)" },
+            { kanji: "車", meaning: "car", onyomi: "しゃ", kunyomi: "くるま", example: "電車", exReading: "でんしゃ", exMeaning: "train", strokes: 7, radical: "車 (car)" },
+            { kanji: "駅", meaning: "station", onyomi: "えき", kunyomi: "-", example: "駅", exReading: "えき", exMeaning: "station", strokes: 14, radical: "馬 (horse)" },
+            { kanji: "道", meaning: "road", onyomi: "どう", kunyomi: "みち", example: "道", exReading: "みち", exMeaning: "road", strokes: 12, radical: "辶 (walk)" },
+            { kanji: "店", meaning: "shop", onyomi: "てん", kunyomi: "みせ", example: "店", exReading: "みせ", exMeaning: "shop", strokes: 8, radical: "广 (cliff)" },
+            { kanji: "社", meaning: "company", onyomi: "しゃ", kunyomi: "やしろ", example: "会社", exReading: "かいしゃ", exMeaning: "company", strokes: 7, radical: "示 (altar)" },
+            { kanji: "会", meaning: "meet", onyomi: "かい", kunyomi: "あ(う)", example: "会社", exReading: "かいしゃ", exMeaning: "company", strokes: 6, radical: "人 (person)" },
+            { kanji: "語", meaning: "language", onyomi: "ご", kunyomi: "かた(る)", example: "日本語", exReading: "にほんご", exMeaning: "Japanese", strokes: 14, radical: "言 (speech)" },
+            { kanji: "話", meaning: "talk", onyomi: "わ", kunyomi: "はな(す)", example: "電話", exReading: "でんわ", exMeaning: "telephone", strokes: 13, radical: "言 (speech)" },
+            { kanji: "言", meaning: "say", onyomi: "げん", kunyomi: "い(う)", example: "言う", exReading: "いう", exMeaning: "to say", strokes: 7, radical: "言 (speech)" },
+            { kanji: "読", meaning: "read", onyomi: "どく", kunyomi: "よ(む)", example: "読む", exReading: "よむ", exMeaning: "to read", strokes: 14, radical: "言 (speech)" },
+            { kanji: "書", meaning: "write", onyomi: "しょ", kunyomi: "か(く)", example: "書く", exReading: "かく", exMeaning: "to write", strokes: 10, radical: "曰 (say)" },
+            { kanji: "聞", meaning: "hear", onyomi: "ぶん", kunyomi: "き(く)", example: "聞く", exReading: "きく", exMeaning: "to listen", strokes: 14, radical: "耳 (ear)" },
+            { kanji: "見", meaning: "see", onyomi: "けん", kunyomi: "み(る)", example: "見る", exReading: "みる", exMeaning: "to see", strokes: 7, radical: "見 (see)" },
+            { kanji: "行", meaning: "go", onyomi: "こう", kunyomi: "い(く)", example: "行く", exReading: "いく", exMeaning: "to go", strokes: 6, radical: "行 (go)" },
+            { kanji: "出", meaning: "exit", onyomi: "しゅつ", kunyomi: "で(る)", example: "出口", exReading: "でぐち", exMeaning: "exit", strokes: 5, radical: "凵 (container)" },
+            { kanji: "入", meaning: "enter", onyomi: "にゅう", kunyomi: "はい(る)", example: "入口", exReading: "いりぐち", exMeaning: "entrance", strokes: 2, radical: "入 (enter)" },
+            { kanji: "休", meaning: "rest", onyomi: "きゅう", kunyomi: "やす(む)", example: "休む", exReading: "やすむ", exMeaning: "to rest", strokes: 6, radical: "人 (person)" },
+            { kanji: "買", meaning: "buy", onyomi: "ばい", kunyomi: "か(う)", example: "買う", exReading: "かう", exMeaning: "to buy", strokes: 12, radical: "貝 (shell)" },
+            { kanji: "食", meaning: "eat", onyomi: "しょく", kunyomi: "た(べる)", example: "食べる", exReading: "たべる", exMeaning: "to eat", strokes: 9, radical: "食 (eat)" },
+            { kanji: "飲", meaning: "drink", onyomi: "いん", kunyomi: "の(む)", example: "飲む", exReading: "のむ", exMeaning: "to drink", strokes: 12, radical: "食 (eat)" },
+            { kanji: "立", meaning: "stand", onyomi: "りつ", kunyomi: "た(つ)", example: "立つ", exReading: "たつ", exMeaning: "to stand", strokes: 5, radical: "立 (stand)" },
+            { kanji: "何", meaning: "what", onyomi: "か", kunyomi: "なに", example: "何", exReading: "なに", exMeaning: "what", strokes: 7, radical: "人 (person)" },
+            { kanji: "手", meaning: "hand", onyomi: "しゅ", kunyomi: "て", example: "手紙", exReading: "てがみ", exMeaning: "letter", strokes: 4, radical: "手 (hand)" },
+            { kanji: "足", meaning: "foot", onyomi: "そく", kunyomi: "あし", example: "足", exReading: "あし", exMeaning: "foot", strokes: 7, radical: "足 (foot)" },
+            { kanji: "目", meaning: "eye", onyomi: "もく", kunyomi: "め", example: "目", exReading: "め", exMeaning: "eye", strokes: 5, radical: "目 (eye)" },
+            { kanji: "耳", meaning: "ear", onyomi: "じ", kunyomi: "みみ", example: "耳", exReading: "みみ", exMeaning: "ear", strokes: 6, radical: "耳 (ear)" },
+            { kanji: "口", meaning: "mouth", onyomi: "こう", kunyomi: "くち", example: "入口", exReading: "いりぐち", exMeaning: "entrance", strokes: 3, radical: "口 (mouth)" },
+            { kanji: "花", meaning: "flower", onyomi: "か", kunyomi: "はな", example: "花", exReading: "はな", exMeaning: "flower", strokes: 7, radical: "艹 (grass)" },
+            { kanji: "魚", meaning: "fish", onyomi: "ぎょ", kunyomi: "さかな", example: "魚", exReading: "さかな", exMeaning: "fish", strokes: 11, radical: "魚 (fish)" },
+            { kanji: "空", meaning: "sky", onyomi: "くう", kunyomi: "そら", example: "空", exReading: "そら", exMeaning: "sky", strokes: 8, radical: "穴 (hole)" }
+        ];
+
+        // ==================== GLOBAL VARIABLES ====================
+        let canvases = {}, strokes = { search: [], hw: [] }, currentStroke = { search: [], hw: [] };
+        let isDrawing = { search: false, hw: false }, recognitionTimeout = { search: null, hw: null };
+        let quizType = 'mixed', quizCount = 50, currentQuiz = [], wrongAnswers = [];
+        let hwType = 'mixed', hwQuestions = [], hwCurrentIndex = 0, hwCorrect = 0, hwTotal = 0;
+        let currentSvgData = null;
+
+        // ==================== INITIALIZATION ====================
+        document.addEventListener('DOMContentLoaded', function() {
+            generateKanjiCards();
+            initCanvas('search');
+            initCanvas('hw');
+        });
+
+        function showSection(id, btn) {
+            document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        // ==================== KANJI CARDS ====================
+        function generateKanjiCards() {
+            const grid = document.getElementById('kanjiGrid');
+            kanjiData.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'kanji-card';
+                card.dataset.kanji = item.kanji;
+                card.dataset.meaning = item.meaning.toLowerCase();
+                card.dataset.onyomi = item.onyomi;
+                card.dataset.kunyomi = item.kunyomi;
+                card.onclick = () => showStrokeOrder(item);
+                card.innerHTML = `<div class="kanji-char">${item.kanji}</div><div class="kanji-meaning">${item.meaning}</div><div class="kanji-readings"><div><span class="reading-label onyomi">音読み:</span> ${item.onyomi}</div><div><span class="reading-label kunyomi">訓読み:</span> ${item.kunyomi}</div></div><div class="example-word"><strong>${item.example}</strong><div>${item.exReading} - ${item.exMeaning}</div></div>`;
+                grid.appendChild(card);
+            });
+        }
+
+        function filterKanji() {
+            const term = document.getElementById('searchInput').value.toLowerCase().trim();
+            let count = 0;
+            document.querySelectorAll('.kanji-card').forEach(card => {
+                const match = !term || card.dataset.kanji.includes(term) || card.dataset.meaning.includes(term) || card.dataset.onyomi.includes(term) || card.dataset.kunyomi.includes(term);
+                card.classList.toggle('hidden', !match);
+                if (match) count++;
+            });
+            document.getElementById('noResults').style.display = count ? 'none' : 'block';
+        }
+
+        // ==================== CANVAS ====================
+        function initCanvas(type) {
+            const canvas = document.getElementById(type === 'search' ? 'searchCanvas' : 'hwCanvas');
+            if (!canvas) return;
+            canvases[type] = canvas;
+            const ctx = canvas.getContext('2d');
+            ctx.strokeStyle = '#333'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            canvas.onmousedown = e => startDrawing(e, type);
+            canvas.onmousemove = e => draw(e, type);
+            canvas.onmouseup = canvas.onmouseout = () => stopDrawing(type);
+            canvas.ontouchstart = e => { e.preventDefault(); startDrawing({clientX: e.touches[0].clientX, clientY: e.touches[0].clientY}, type); };
+            canvas.ontouchmove = e => { e.preventDefault(); draw({clientX: e.touches[0].clientX, clientY: e.touches[0].clientY}, type); };
+            canvas.ontouchend = () => stopDrawing(type);
+        }
+
+        function startDrawing(e, type) {
+            isDrawing[type] = true; currentStroke[type] = [];
+            const pos = getPos(e, type); currentStroke[type].push([pos.x, pos.y]);
+            const ctx = canvases[type].getContext('2d'); ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+        }
+
+        function draw(e, type) {
+            if (!isDrawing[type]) return;
+            const pos = getPos(e, type); currentStroke[type].push([pos.x, pos.y]);
+            const ctx = canvases[type].getContext('2d'); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+        }
+
+        function stopDrawing(type) {
+            if (isDrawing[type] && currentStroke[type].length > 0) {
+                strokes[type].push(currentStroke[type]);
+                clearTimeout(recognitionTimeout[type]);
+                recognitionTimeout[type] = setTimeout(() => recognizeWithGoogle(type), 400);
+            }
+            isDrawing[type] = false;
+        }
+
+        function getPos(e, type) {
+            const c = canvases[type], r = c.getBoundingClientRect();
+            return { x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height) };
+        }
+
+        function clearCanvas(type) {
+            canvases[type].getContext('2d').clearRect(0, 0, canvases[type].width, canvases[type].height);
+            strokes[type] = []; currentStroke[type] = [];
+            document.getElementById(type === 'search' ? 'searchCandidates' : 'hwCandidates').innerHTML = '<span class="recognition-status">漢字を書いてください...</span>';
+        }
+
+        function undoStroke(type) {
+            if (strokes[type].length > 0) {
+                strokes[type].pop();
+                const ctx = canvases[type].getContext('2d');
+                ctx.clearRect(0, 0, canvases[type].width, canvases[type].height);
+                strokes[type].forEach(s => { ctx.beginPath(); ctx.moveTo(s[0][0], s[0][1]); s.forEach(p => ctx.lineTo(p[0], p[1])); ctx.stroke(); });
+                if (strokes[type].length > 0) { clearTimeout(recognitionTimeout[type]); recognitionTimeout[type] = setTimeout(() => recognizeWithGoogle(type), 400); }
+                else document.getElementById(type === 'search' ? 'searchCandidates' : 'hwCandidates').innerHTML = '<span class="recognition-status">漢字を書いてください...</span>';
+            }
+        }
+
+        async function recognizeWithGoogle(type) {
+            if (!strokes[type].length) return;
+            const cid = type === 'search' ? 'searchCandidates' : 'hwCandidates';
+            document.getElementById(cid).innerHTML = '<span class="recognition-status" style="color:#667eea">認識中...</span>';
+            try {
+                const res = await fetch('https://inputtools.google.com/request?itc=ja-t-i0-handwrit&app=demopage', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ options: "enable_pre_space", requests: [{ writing_guide: { writing_area_width: 280, writing_area_height: 280 }, ink: strokes[type].map(s => [s.map(p => p[0]), s.map(p => p[1])]), language: "ja" }] })
+                });
+                const data = await res.json();
+                if (data[0] === 'SUCCESS' && data[1]?.[0]?.[1]) {
+                    const cands = data[1][0][1].slice(0, 8);
+                    document.getElementById(cid).innerHTML = cands.map(c => `<span class="candidate" ${type === 'search' ? `onclick="selectSearchCandidate('${c}')"` : ''}>${c}</span>`).join('');
+                } else document.getElementById(cid).innerHTML = '<span class="recognition-status" style="color:#dc3545">認識できませんでした</span>';
+            } catch { document.getElementById(cid).innerHTML = '<span class="recognition-status" style="color:#dc3545">エラー</span>'; }
+        }
+
+        function selectSearchCandidate(c) { document.getElementById('searchInput').value = c; filterKanji(); clearCanvas('search'); }
+
+        // ==================== QUIZ ====================
+        function setQuizType(t, btn) { quizType = t; document.querySelectorAll('#quizOptions .option-group:first-of-type .filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
+        function setQuizCount(c, btn) { quizCount = c; document.querySelectorAll('#quizOptions .option-group:nth-of-type(2) .filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
+
+        function getUniqueOpts(field, correct) {
+            const all = kanjiData.map(k => k[field]).filter(v => v && v !== correct && !v.includes('-'));
+            return [...new Set(all)].sort(() => Math.random() - 0.5).slice(0, 3);
+        }
+
+        function createQ(item, type) {
+            let q, ans, cls;
+            if (type === 'meaning') { q = `<span class="kanji-display meaning-q">${item.kanji}</span> の意味は？`; ans = item.meaning; cls = 'meaning-q'; }
+            else if (type === 'onyomi') { if (item.onyomi.includes('-')) return null; q = `<span class="kanji-display onyomi-q">${item.kanji}</span> の音読みは？`; ans = item.onyomi; cls = 'onyomi-q'; }
+            else { if (item.kunyomi.includes('-')) return null; q = `<span class="kanji-display kunyomi-q">${item.kanji}</span> の訓読みは？`; ans = item.kunyomi; cls = 'kunyomi-q'; }
+            let opts = getUniqueOpts(type === 'meaning' ? 'meaning' : type, ans);
+            if (opts.length < 3) return null;
+            const idx = Math.floor(Math.random() * 4);
+            opts.splice(idx, 0, ans);
+            return { kanji: item.kanji, q, opts: opts.slice(0, 4), ans: idx, cls };
+        }
+
+        function genQuestions(type, count, src = null) {
+            const qs = [], list = (src || [...kanjiData]).sort(() => Math.random() - 0.5);
+            const types = type === 'mixed' ? ['meaning', 'onyomi', 'kunyomi'] : [type];
+            for (let item of list) {
+                if (qs.length >= count) break;
+                const qObj = createQ(item, types[Math.floor(Math.random() * types.length)]);
+                if (qObj) qs.push(qObj);
+            }
+            return qs;
+        }
+
+        function startQuiz() {
+            currentQuiz = genQuestions(quizType, quizCount);
+            if (!currentQuiz.length) { alert('問題を生成できませんでした'); return; }
+            wrongAnswers = [];
+            document.getElementById('quizOptions').style.display = 'none';
+            document.getElementById('quizContainer').style.display = 'block';
+            document.getElementById('retryBtn').style.display = 'none';
+            document.getElementById('result').style.display = 'none';
+            renderQuiz();
+        }
+
+        function renderQuiz() {
+            document.getElementById('quizProgress').textContent = '問題数: ' + currentQuiz.length + '問';
+            document.getElementById('quizQuestions').innerHTML = currentQuiz.map((q, i) => `
+                <div class="quiz-question" id="q${i}">
+                    <span class="question-number">問${i + 1}</span>
+                    <div class="question-text">${q.q}</div>
+                    <div class="options">${q.opts.map((o, j) => `<div class="option" id="opt${i}-${j}" onclick="selectOpt(${i},${j})"><input type="radio" name="q${i}" value="${j}"><span class="option-number">${j + 1}</span><label>${o}</label></div>`).join('')}</div>
+                </div>
+            `).join('');
+        }
+
+        function selectOpt(qi, oi) {
+            for (let j = 0; j < 4; j++) document.getElementById('opt' + qi + '-' + j)?.classList.remove('selected');
+            document.getElementById('opt' + qi + '-' + oi).classList.add('selected');
+            document.querySelector(`input[name="q${qi}"][value="${oi}"]`).checked = true;
+        }
+
+        function checkAnswers() {
+            let correct = 0;
+            wrongAnswers = [];
+            currentQuiz.forEach((q, i) => {
+                const sel = document.querySelector(`input[name="q${i}"]:checked`);
+                for (let j = 0; j < 4; j++) document.getElementById('opt' + i + '-' + j)?.classList.remove('correct', 'incorrect', 'selected');
+                // Mark correct answer YELLOW
+                document.getElementById('opt' + i + '-' + q.ans).classList.add('correct');
+                if (sel) {
+                    const v = parseInt(sel.value);
+                    if (v === q.ans) {
+                        // Верен отговор → ЗЕЛЕНО
+                        document.getElementById('opt' + i + '-' + q.ans).classList.add('correct-selected');
+                        correct++;
+                    } else {
+                        // Грешен отговор → ЧЕРВЕНО, верният → ЖЪЛТО
+                        document.getElementById('opt' + i + '-' + v).classList.add('incorrect');
+                        document.getElementById('opt' + i + '-' + q.ans).classList.add('correct');
+                        wrongAnswers.push(q);
+                    }
+                } else {
+                    // Не е избрано нищо → верният ЖЪЛТ
+                    document.getElementById('opt' + i + '-' + q.ans).classList.add('correct');
+                    wrongAnswers.push(q);
+                }
+            });
+            const pct = Math.round(100 * correct / currentQuiz.length);
+            const res = document.getElementById('result');
+            res.textContent = `正解: ${correct}/${currentQuiz.length} (${pct}%) — ${pct >= 80 ? '素晴らしい！🎉' : pct >= 60 ? 'もう少し！💪' : '復習しよう！📚'}`;
+            res.className = pct >= 80 ? 'good' : pct >= 60 ? 'medium' : 'poor';
+            res.style.display = 'block';
+            document.getElementById('retryBtn').style.display = wrongAnswers.length ? 'inline-block' : 'none';
+            res.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function retryWrong() {
+            const items = wrongAnswers.map(q => kanjiData.find(k => k.kanji === q.kanji)).filter(Boolean);
+            currentQuiz = genQuestions(quizType, items.length, items);
+            wrongAnswers = [];
+            document.getElementById('retryBtn').style.display = 'none';
+            document.getElementById('result').style.display = 'none';
+            renderQuiz();
+            window.scrollTo({ top: document.getElementById('quizContainer').offsetTop, behavior: 'smooth' });
+        }
+
+        function showQuizOptions() {
+            document.getElementById('quizOptions').style.display = 'block';
+            document.getElementById('quizContainer').style.display = 'none';
+        }
+
+        // ==================== HANDWRITING QUIZ ====================
+        function setHWType(t, btn) { hwType = t; document.querySelectorAll('#hwOptions .filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
+
+        function startHandwritingQuiz() {
+            hwQuestions = genHWQs(hwType); hwCurrentIndex = 0; hwCorrect = 0; hwTotal = 0;
+            document.getElementById('hwOptions').style.display = 'none';
+            document.getElementById('hwQuizContainer').style.display = 'block';
+            showHWQ();
+        }
+
+        function genHWQs(type) {
+            const qs = [], shuffled = [...kanjiData].sort(() => Math.random() - 0.5);
+            const types = type === 'mixed' ? ['meaning', 'onyomi', 'kunyomi'] : [type];
+            shuffled.forEach(item => {
+                const t = types[Math.floor(Math.random() * types.length)];
+                let hint, cls;
+                if (t === 'meaning') { hint = item.meaning; cls = 'meaning-q'; }
+                else if (t === 'onyomi') { if (item.onyomi.includes('-')) return; hint = item.onyomi + ' (' + item.meaning + ')'; cls = 'onyomi-q'; }
+                else { if (item.kunyomi.includes('-')) return; hint = item.kunyomi + ' (' + item.meaning + ')'; cls = 'kunyomi-q'; }
+                qs.push({ kanji: item.kanji, hint, meaning: item.meaning, cls });
+            });
+            return qs;
+        }
+
+        function showHWQ() {
+            if (hwCurrentIndex >= hwQuestions.length) { hwCurrentIndex = 0; hwQuestions.sort(() => Math.random() - 0.5); }
+            const q = hwQuestions[hwCurrentIndex];
+            document.getElementById('hwProgress').textContent = '正解: ' + hwCorrect + ' / 回答: ' + hwTotal;
+            document.getElementById('hwQuestion').innerHTML = `<span class="kanji-display ${q.cls}">${q.hint}</span>`;
+            document.getElementById('hwHint').textContent = '意味: ' + q.meaning;
+            document.getElementById('hwResult').style.display = 'none';
+            document.getElementById('hwNextControls').style.display = 'none';
+            document.getElementById('hwCandidates').innerHTML = '<span class="recognition-status">漢字を書いて「確認する」をクリック</span>';
+            clearCanvas('hw');
+        }
+
+        function checkHandwriting() {
+            const cands = document.querySelectorAll('#hwCandidates .candidate');
+            if (!cands.length) { alert('まず漢字を書いてください'); return; }
+            const q = hwQuestions[hwCurrentIndex];
+            const ok = Array.from(cands).some(c => c.textContent === q.kanji);
+            hwTotal++; if (ok) hwCorrect++;
+            const r = document.getElementById('hwResult');
+            r.style.display = 'block';
+            r.className = 'hw-result ' + (ok ? 'correct' : 'incorrect');
+            r.innerHTML = ok ? `<strong>正解！🎉</strong> ${q.kanji} (${q.meaning})` : `<strong>不正解</strong><br>正解: <span style="font-size:2em">${q.kanji}</span> (${q.meaning})`;
+            document.getElementById('hwProgress').textContent = '正解: ' + hwCorrect + ' / 回答: ' + hwTotal;
+            document.getElementById('hwNextControls').style.display = 'flex';
+        }
+
+        function nextHandwritingQuestion() { hwCurrentIndex++; showHWQ(); }
+        function showHWOptions() { document.getElementById('hwOptions').style.display = 'block'; document.getElementById('hwQuizContainer').style.display = 'none'; }
+
+        // ==================== STROKE ORDER MODAL ====================
+        function showStrokeOrder(item) {
+            document.getElementById('modalKanji').textContent = item.kanji;
+            document.getElementById('modalMeaning').innerHTML = '<strong style="color:#e91e63">意味:</strong> ' + item.meaning;
+            document.getElementById('modalOnyomi').innerHTML = '<strong style="color:#ff9800">音読み:</strong> ' + item.onyomi;
+            document.getElementById('modalKunyomi').innerHTML = '<strong style="color:#2196f3">訓読み:</strong> ' + item.kunyomi;
+            document.getElementById('modalExample').innerHTML = '<strong>例:</strong> ' + item.example + ' (' + item.exReading + ') - ' + item.exMeaning;
+            document.getElementById('modalStrokes').innerHTML = '<strong>画数:</strong> ' + item.strokes + '画 | <strong>部首:</strong> ' + item.radical;
+            document.getElementById('strokeInfo').style.display = 'none';
+            loadStrokeOrder(item.kanji);
+            document.getElementById('strokeModal').classList.add('show');
+        }
+
+        function closeModal() { document.getElementById('strokeModal').classList.remove('show'); }
+
+        async function loadStrokeOrder(kanji) {
+            const container = document.getElementById('strokeOrderDisplay');
+            container.innerHTML = '<p style="color:#667eea">読み込み中...</p>';
+            const code = kanji.charCodeAt(0).toString(16).padStart(5, '0');
+            try {
+                const res = await fetch('https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/' + code + '.svg');
+                if (res.ok) {
+                    let svg = await res.text();
+                    // FIXED: Remove ALL XML/DOCTYPE declarations that cause ]> to appear
+                    svg = svg.replace(/<\?xml[^?]*\?>/gi, '');
+                    svg = svg.replace(/<!DOCTYPE[^>]*>/gi, '');
+                    svg = svg.replace(/<!ENTITY[^>]*>/gi, '');
+                    svg = svg.replace(/\[[\s\S]*?\]>/gi, '');
+                    svg = svg.replace(/\]>/g, '');
+                    currentSvgData = svg;
+                    container.innerHTML = svg;
+                    const svgEl = container.querySelector('svg');
+                    if (svgEl) { svgEl.setAttribute('width', '200'); svgEl.setAttribute('height', '200'); prepSVG(svgEl); }
+                } else { container.innerHTML = '<p style="color:#999">書き順データなし</p>'; currentSvgData = null; }
+            } catch { container.innerHTML = '<p style="color:#dc3545">読み込みエラー</p>'; currentSvgData = null; }
+        }
+
+        function prepSVG(svg) {
+            svg.querySelectorAll('path').forEach((p, i) => {
+                if (p.getTotalLength) {
+                    const len = p.getTotalLength();
+                    p.style.strokeDasharray = len;
+                    p.style.strokeDashoffset = '0';
+                    p.dataset.len = len;
+                    p.dataset.idx = i;
+                    p.style.stroke = '#000';
+                    p.style.fill = 'none';
+                }
+            });
+        }
+
+        function resetStrokes() {
+            if (currentSvgData) {
+                document.getElementById('strokeOrderDisplay').innerHTML = currentSvgData;
+                const svg = document.getElementById('strokeOrderDisplay').querySelector('svg');
+                if (svg) { svg.setAttribute('width', '200'); svg.setAttribute('height', '200'); prepSVG(svg); }
+            }
+            document.getElementById('strokeInfo').style.display = 'none';
+        }
+
+        function animateStrokes() {
+            resetStrokes();
+            setTimeout(() => {
+                const paths = document.querySelectorAll('#strokeOrderDisplay path');
+                paths.forEach(p => { if (p.dataset.len) { p.style.strokeDashoffset = p.dataset.len; p.style.transition = 'none'; } });
+                setTimeout(() => {
+                    paths.forEach((p, i) => {
+                        if (p.dataset.len) setTimeout(() => { p.style.transition = 'stroke-dashoffset 0.4s ease'; p.style.strokeDashoffset = '0'; }, i * 400);
+                    });
+                }, 50);
+            }, 100);
+        }
+
+        function showRadicals() {
+            const svg = document.querySelector('#strokeOrderDisplay svg');
+            if (!svg) return;
+            const colors = ['#e91e63', '#2196f3', '#4caf50', '#ff9800', '#9c27b0', '#00bcd4'];
+            const groups = svg.querySelectorAll('g[id]');
+            let info = [];
+            groups.forEach((g, i) => {
+                const el = g.getAttribute('kvg:element') || g.getAttribute('element') || '';
+                const color = colors[i % colors.length];
+                g.querySelectorAll('path').forEach(p => { p.style.stroke = color; p.style.strokeWidth = '4'; });
+                if (el) info.push(`<span style="color:${color};font-weight:bold;font-size:1.3em">${el}</span>`);
+            });
+            const infoDiv = document.getElementById('strokeInfo');
+            if (info.length) { infoDiv.innerHTML = '<strong>部首・構成要素:</strong> ' + info.join(' '); infoDiv.style.display = 'block'; }
+        }
+
+        function showComponents() {
+            const svg = document.querySelector('#strokeOrderDisplay svg');
+            if (!svg) return;
+            const colors = ['#4caf50', '#e91e63', '#2196f3', '#ff9800', '#9c27b0', '#ff5722', '#607d8b'];
+            const groups = svg.querySelectorAll('g');
+            let info = [], cnt = 0;
+            groups.forEach(g => {
+                const el = g.getAttribute('kvg:element') || g.getAttribute('element');
+                if (el && el.length === 1) {
+                    const color = colors[cnt % colors.length];
+                    const paths = g.querySelectorAll(':scope > path');
+                    if (paths.length) {
+                        paths.forEach(p => { p.style.stroke = color; p.style.strokeWidth = '4'; });
+                        info.push(`<span style="color:${color};font-weight:bold;font-size:1.3em">${el}</span>`);
+                        cnt++;
+                    }
+                }
+            });
+            const infoDiv = document.getElementById('strokeInfo');
+            infoDiv.innerHTML = info.length ? '<strong>部品グループ:</strong> ' + info.join(' + ') : '<strong>部品:</strong> 単一部品の漢字です';
+            infoDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
