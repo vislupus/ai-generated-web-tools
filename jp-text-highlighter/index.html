@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Японски текст — оцветяване и ромаджи</title>
+  <style>
+    :root{
+      --bg:#101114;
+      --panel:#15171c;
+      --panel-2:#1b1e24;
+      --text:#e8eaf0;
+      --muted:#a9afc1;
+      --accent:#8ab4f8;
+      --border:#2a2f3a;
+      /* 10 highlight colors */
+      --c1:#fff59d;   /* yellow */
+      --c2:#a5d6a7;   /* green */
+      --c3:#80deea;   /* cyan */
+      --c4:#f8bbd0;   /* pink */
+      --c5:#ffcc80;   /* orange */
+      --c6:#ce93d8;   /* purple */
+      --c7:#90caf9;   /* blue */
+      --c8:#ef9a9a;   /* salmon */
+      --c9:#c5e1a5;   /* lime */
+      --c10:#ffe082;  /* amber */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";
+      display:flex;flex-direction:column;
+    }
+    header{
+      position:sticky;top:0;z-index:5;
+      background:linear-gradient(to bottom, rgba(16,17,20,.98), rgba(16,17,20,.92));
+      backdrop-filter:saturate(140%) blur(6px);
+      border-bottom:1px solid var(--border);
+    }
+    .toolbar{
+      display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;
+      padding:.75rem 1rem;
+    }
+    .seg{
+      display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;
+      background:var(--panel);
+    }
+    .seg button{
+      background:transparent;color:var(--text);border:0;padding:.5rem .75rem;cursor:pointer;
+      font-weight:600;letter-spacing:.2px;
+    }
+    .seg button.active{background:var(--panel-2);color:var(--accent)}
+    .colors{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
+    .swatch{
+      width:26px;height:26px;border:2px solid var(--border);border-radius:6px;cursor:pointer;display:grid;place-items:center;
+      font-size:.7rem;color:#000a;font-weight:700;user-select:none;
+    }
+    .swatch.active{outline:2px solid var(--accent);outline-offset:2px}
+    .swatch[data-color="c1"]{background:var(--c1)}
+    .swatch[data-color="c2"]{background:var(--c2)}
+    .swatch[data-color="c3"]{background:var(--c3)}
+    .swatch[data-color="c4"]{background:var(--c4)}
+    .swatch[data-color="c5"]{background:var(--c5)}
+    .swatch[data-color="c6"]{background:var(--c6)}
+    .swatch[data-color="c7"]{background:var(--c7)}
+    .swatch[data-color="c8"]{background:var(--c8)}
+    .swatch[data-color="c9"]{background:var(--c9)}
+    .swatch[data-color="c10"]{background:var(--c10)}
+
+    .btn{
+      background:var(--panel);border:1px solid var(--border);color:var(--text);
+      padding:.55rem .8rem;border-radius:10px;cursor:pointer;font-weight:600;
+    }
+    .btn:hover{background:var(--panel-2)}
+    .btn[disabled]{opacity:.5;cursor:not-allowed}
+    input[type="file"]{display:none}
+
+    .hint{color:var(--muted);font-size:.9rem}
+    .grow{flex:1}
+
+    main{flex:1;display:grid;grid-template-columns:1fr;place-items:stretch}
+    .paper{
+      margin:1rem auto;
+      width:min(1100px, calc(100% - 2rem));
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:1.25rem 1.25rem 2rem;
+      box-shadow:0 10px 30px rgba(0,0,0,.25);
+    }
+    .text-wrap{
+      min-height:40vh;max-height:70vh;overflow:auto;padding:1rem;border-radius:12px;
+      background:#0f1116;border:1px dashed var(--border);
+    }
+
+    /* Highlighting */
+    .hl{background:var(--c1);padding:.1em .05em;border-radius:.2em}
+    .hl.c1{background:var(--c1)}
+    .hl.c2{background:var(--c2)}
+    .hl.c3{background:var(--c3)}
+    .hl.c4{background:var(--c4)}
+    .hl.c5{background:var(--c5)}
+    .hl.c6{background:var(--c6)}
+    .hl.c7{background:var(--c7)}
+    .hl.c8{background:var(--c8)}
+    .hl.c9{background:var(--c9)}
+    .hl.c10{background:var(--c10)}
+
+    /* Faux ruby layout for the provided spans */
+    .ruby{ display:ruby; ruby-position:over; margin:0.08em; }
+    .ruby .rb{ display:ruby-base; line-height:1.5; }
+    .ruby .rt{ display:ruby-text; font-size:0.58em; line-height:1.5; opacity:.9; letter-spacing:.2em; transform: translateY(-0.60em);}
+
+    .large{font-size:1.4rem;line-height:2.9}
+    .romaji{display:none}
+
+    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:#00000033;border:1px solid var(--border);border-radius:6px;padding:.1rem .35rem}
+    footer{color:var(--muted);font-size:.85rem;padding:0 1rem 1rem}
+    a{color:var(--accent);text-decoration:none}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="toolbar">
+      <div class="seg" id="viewSeg">
+        <button data-view="hiragana" class="active">ひらがな / 漢字</button>
+        <button data-view="romaji">romaji</button>
+      </div>
+
+      <div class="colors" id="palette" aria-label="Цветове (1–0)">
+        <div class="swatch active" data-color="c1" title="1"><span>1</span></div>
+        <div class="swatch" data-color="c2" title="2"><span>2</span></div>
+        <div class="swatch" data-color="c3" title="3"><span>3</span></div>
+        <div class="swatch" data-color="c4" title="4"><span>4</span></div>
+        <div class="swatch" data-color="c5" title="5"><span>5</span></div>
+        <div class="swatch" data-color="c6" title="6"><span>6</span></div>
+        <div class="swatch" data-color="c7" title="7"><span>7</span></div>
+        <div class="swatch" data-color="c8" title="8"><span>8</span></div>
+        <div class="swatch" data-color="c9" title="9"><span>9</span></div>
+        <div class="swatch" data-color="c10" title="0"><span>0</span></div>
+      </div>
+
+      <button class="btn" id="applyBtn">Маркирай (Ctrl/⌘+Enter)</button>
+      <button class="btn" id="eraseBtn" title="Изтрива маркировката в избора">Изтрий в избора</button>
+
+      <div class="grow"></div>
+
+      <label class="btn" for="importFile">Зареди JSON</label>
+      <input id="importFile" type="file" accept="application/json" />
+      <button class="btn" id="exportBtn">Запази JSON</button>
+      <button class="btn" id="clearBtn" title="Премахва всички цветове от текущия изглед">Изчисти всичко</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="paper">
+      <div class="hint" style="margin:.25rem 0 .5rem">
+        Подчертай с мишката част от текста и натисни <span class="kbd">Ctrl</span>/<span class="kbd">⌘</span>+<span class="kbd">Enter</span> или бутона <em>Маркирай</em>.
+        Избираш цвят с клавиши <span class="kbd">1</span>…<span class="kbd">0</span>.
+        Превключване на изглед: <em>ひらがな/漢字</em> ↔ <em>romaji</em>.
+      </div>
+      <div class="text-wrap" id="textWrap">
+        <div class="large">
+          <div class="hiragana" style="display: block;">
+            <span class="ruby"><span class="rb">過</span><span class="rt">す</span></span>ぎ<span class="ruby"><span class="rb">去</span><span class="rt">さ</span></span>った<span class="ruby"><span class="rb">時</span><span class="rt">とき</span></span>はささやく この<span class="ruby"><span class="rb">瞬間</span><span class="rt">しゅんかん</span></span>を<span class="ruby"><span class="rb">微笑</span><span class="rt">ほほえ</span></span>むべきと<br>
+            <span class="ruby"><span class="rb">人生</span><span class="rt">じんせい</span></span>は<span class="ruby"><span class="rb">瞬</span><span class="rt">またた</span></span>くように <span class="ruby"><span class="rb">駆</span><span class="rt">か</span></span>け<span class="ruby"><span class="rb">抜</span><span class="rt">ぬ</span></span>けて <span class="ruby"><span class="rb">風</span><span class="rt">かぜ</span></span>となるから<br>
+            <br>
+            <span class="ruby"><span class="rb">辛</span><span class="rt">つら</span></span>かったことは <span class="ruby"><span class="rb">忘</span><span class="rt">わす</span></span>れればいいというけど<br>
+            <span class="ruby"><span class="rb">未来</span><span class="rt">みらい</span></span>は<span class="ruby"><span class="rb">全</span><span class="rt">すべ</span></span>てを <span class="ruby"><span class="rb">抱</span><span class="rt">だ</span></span>きしめてゆくことで<br>
+            <span class="ruby"><span class="rb">輝</span><span class="rt">かがや</span></span>き<span class="ruby"><span class="rb">増</span><span class="rt">ま</span></span>すこと <span class="ruby"><span class="rb">私</span><span class="rt">わたし</span></span>は<span class="ruby"><span class="rb">知</span><span class="rt">し</span></span>ってる<br>
+            <br>
+            <span class="ruby"><span class="rb">失</span><span class="rt">うしな</span></span>ったものがあるなら それにも<span class="ruby"><span class="rb">増</span><span class="rt">ま</span></span>す<span class="ruby"><span class="rb">愛</span><span class="rt">あい</span></span>で<span class="ruby"><span class="rb">生</span><span class="rt">い</span></span>きよう<br>
+            <br>
+            <span class="ruby"><span class="rb">前</span><span class="rt">まえ</span></span>を<span class="ruby"><span class="rb">向</span><span class="rt">む</span></span>いて<span class="ruby"><span class="rb">歩</span><span class="rt">ある</span></span>いてゆこう <span class="ruby"><span class="rb">今</span><span class="rt">いま</span></span>の<span class="ruby"><span class="rb">私</span><span class="rt">わたし</span></span>ならできる<span class="ruby"><span class="rb">気</span><span class="rt">き</span></span>がする<br>
+            <br>
+            <span class="ruby"><span class="rb">何</span><span class="rt">なに</span></span>もかも<span class="ruby"><span class="rb">愛</span><span class="rt">いと</span></span>しく <span class="ruby"><span class="rb">笑</span><span class="rt">わら</span></span>って<span class="ruby"><span class="rb">話</span><span class="rt">はな</span></span>せる<br>
+            <span class="ruby"><span class="rb">未来</span><span class="rt">みらい</span></span>は<span class="ruby"><span class="rb">全</span><span class="rt">すべ</span></span>てを <span class="ruby"><span class="rb">受</span><span class="rt">う</span></span>け<span class="ruby"><span class="rb">止</span><span class="rt">と</span></span>める<span class="ruby"><span class="rb">覚悟</span><span class="rt">かくご</span></span>と<span class="ruby"><span class="rb">準備</span><span class="rt">じゅんび</span></span>があること<br>
+            <span class="ruby"><span class="rb">私</span><span class="rt">わたし</span></span>は<span class="ruby"><span class="rb">知</span><span class="rt">し</span></span>ったの<br>
+            <br>
+            <span class="ruby"><span class="rb">失</span><span class="rt">うしな</span></span>ったもの<span class="ruby"><span class="rb">以上</span><span class="rt">いじょう</span></span>の <span class="ruby"><span class="rb">愛</span><span class="rt">あい</span></span>が<span class="ruby"><span class="rb">私</span><span class="rt">わたし</span></span>を <span class="ruby"><span class="rb">輝</span><span class="rt">かがや</span></span>かせた<br>
+            <br>
+            <span class="ruby"><span class="rb">考</span><span class="rt">かんが</span></span>えるよりも <span class="ruby"><span class="rb">感</span><span class="rt">かん</span></span>じていたい <span class="ruby"><span class="rb">今</span><span class="rt">いま</span></span>を<span class="ruby"><span class="rb">生</span><span class="rt">い</span></span>きる<span class="ruby"><span class="rb">喜</span><span class="rt">よろこ</span></span>び<br>
+            <span class="ruby"><span class="rb">思</span><span class="rt">おも</span></span>い<span class="ruby"><span class="rb">通</span><span class="rt">どお</span></span>りになんてならないことばかりでも<br>
+            <span class="ruby"><span class="rb">生</span><span class="rt">い</span></span>きているんだ そう<span class="ruby"><span class="rb">笑</span><span class="rt">わら</span></span>って<br>
+            そんなことが つながって つながって<br>
+            <span class="ruby"><span class="rb">重</span><span class="rt">かさ</span></span>なって <span class="ruby"><span class="rb">重</span><span class="rt">かさ</span></span>なって <span class="ruby"><span class="rb">重</span><span class="rt">かさ</span></span>なりあって<br>
+            <span class="ruby"><span class="rb">私</span><span class="rt">わたし</span></span>の<span class="ruby"><span class="rb">人生</span><span class="rt">じんせい</span></span>を<span class="ruby"><span class="rb">彩</span><span class="rt">いろど</span></span>ってゆく <span class="ruby"><span class="rb">見</span><span class="rt">み</span></span>たことのない<span class="ruby"><span class="rb">色</span><span class="rt">いろ</span></span>へと<br>
+            <br>
+            <span class="ruby"><span class="rb">信</span><span class="rt">しん</span></span>じている <span class="ruby"><span class="rb">過去</span><span class="rt">かこ</span></span>と<span class="ruby"><span class="rb">未来</span><span class="rt">みらい</span></span>は<br>
+            <br>
+            <span class="ruby"><span class="rb">手</span><span class="rt">て</span></span>をつないで <span class="ruby"><span class="rb">助</span><span class="rt">たす</span></span>けあっている<br>
+            <span class="ruby"><span class="rb">失</span><span class="rt">うしな</span></span>ったものがあるなら それにも<span class="ruby"><span class="rb">増</span><span class="rt">ま</span></span>す<span class="ruby"><span class="rb">愛</span><span class="rt">あい</span></span>で<span class="ruby"><span class="rb">生</span><span class="rt">い</span></span>きよう<br>
+            <span class="ruby"><span class="rb">今</span><span class="rt">いま</span></span>を<span class="ruby"><span class="rb">生</span><span class="rt">い</span></span>きる <span class="ruby"><span class="rb">風</span><span class="rt">かぜ</span></span>となるまで<br>
+            <br>
+            <span class="ruby"><span class="rb">過</span><span class="rt">す</span></span>ぎ<span class="ruby"><span class="rb">去</span><span class="rt">さ</span></span>った<span class="ruby"><span class="rb">時</span><span class="rt">とき</span></span>はささやく<br>
+          </div>
+          <div class="romaji" style="display: none;">
+            <span class="ruby"><span class="rb">過</span><span class="rt">su</span></span><span class="ruby"><span class="rb">ぎ</span><span class="rt">gi</span></span><span class="ruby"><span class="rb">去</span><span class="rt">sa</span></span><span class="ruby"><span class="rb">った</span><span class="rt">tta</span></span><span class="ruby"><span class="rb">時</span><span class="rt">toki</span></span><span class="ruby"><span class="rb">はささやく</span><span class="rt">hasasayaku</span></span> <span class="ruby"><span class="rb">この</span><span class="rt">kono</span></span><span class="ruby"><span class="rb">瞬間</span><span class="rt">syunkan</span></span><span class="ruby"><span class="rb">を</span><span class="rt">wo</span></span><span class="ruby"><span class="rb">微笑</span><span class="rt">hohoe</span></span><span class="ruby"><span class="rb">むべきと</span><span class="rt">mubekito</span></span><br>
+            <span class="ruby"><span class="rb">人生</span><span class="rt">jinsei</span></span><span class="ruby"><span class="rb">は</span><span class="rt">ha</span></span><span class="ruby"><span class="rb">瞬</span><span class="rt">matata</span></span><span class="ruby"><span class="rb">くように</span><span class="rt">kuyouni</span></span> <span class="ruby"><span class="rb">駆</span><span class="rt">ka</span></span><span class="ruby"><span class="rb">け</span><span class="rt">ke</span></span><span class="ruby"><span class="rb">抜</span><span class="rt">nu</span></span><span class="ruby"><span class="rb">けて</span><span class="rt">kete</span></span> <span class="ruby"><span class="rb">風</span><span class="rt">kaze</span></span><span class="ruby"><span class="rb">となるから</span><span class="rt">tonarukara</span></span><br>
+            <br>
+            <span class="ruby"><span class="rb">辛</span><span class="rt">tsura</span></span><span class="ruby"><span class="rb">かったことは</span><span class="rt">kattakotoha</span></span> <span class="ruby"><span class="rb">忘</span><span class="rt">wasu</span></span><span class="ruby"><span class="rb">れればいいというけど</span><span class="rt">rerebaiitoiukedo</span></span><br>
+            <span class="ruby"><span class="rb">未来</span><span class="rt">mirai</span></span><span class="ruby"><span class="rb">は</span><span class="rt">ha</span></span><span class="ruby"><span class="rb">全</span><span class="rt">sube</span></span><span class="ruby"><span class="rb">てを</span><span class="rt">tewo</span></span> <span class="ruby"><span class="rb">抱</span><span class="rt">da</span></span><span class="ruby"><span class="rb">きしめてゆくことで</span><span class="rt">kishimeteyukukotode</span></span><br>
+            <span class="ruby"><span class="rb">輝</span><span class="rt">kagaya</span></span><span class="ruby"><span class="rb">き</span><span class="rt">ki</span></span><span class="ruby"><span class="rb">増</span><span class="rt">ma</span></span><span class="ruby"><span class="rb">すこと</span><span class="rt">sukoto</span></span> <span class="ruby"><span class="rb">私</span><span class="rt">watashi</span></span><span class="ruby"><span class="rb">は</span><span class="rt">ha</span></span><span class="ruby"><span class="rb">知</span><span class="rt">shi</span></span><span class="ruby"><span class="rb">ってる</span><span class="rt">tteru</span></span><br>
+            <br>
+            <span class="ruby"><span class="rb">失</span><span class="rt">ushina</span></span><span class="ruby"><span class="rb">ったものがあるなら</span><span class="rt">ttamonogaarunara</span></span> <span class="ruby"><span class="rb">それにも</span><span class="rt">sorenimo</span></span><span class="ruby"><span class="rb">増</span><span class="rt">ma</span></span><span class="ruby"><span class="rb">す</span><span class="rt">su</span></span><span class="ruby"><span class="rb">愛</span><span class="rt">ai</span></span><span class="ruby"><span class="rb">で</span><span class="rt">de</span></span><span class="ruby"><span class="rb">生</span><span class="rt">i</span></span><span class="ruby"><span class="rb">きよう</span><span class="rt">kiyou</span></span><br>
+            <br>
+            <span class="ruby"><span class="rb">前</span><span class="rt">mae</span></span><span class="ruby"><span class="rb">を</span><span class="rt">wo</span></span><span class="ruby"><span class="rb">向</span><span class="rt">mu</span></span><span class="ruby"><span class="rb">いて</span><span class="rt">ite</span></span><span class="ruby"><span class="rb">歩</span><span class="rt">aru</span></span><span class="ruby"><span class="rb">いてゆこう</span><span class="rt">iteyukou</span></span> <span class="ruby"><span class="rb">今</span><span class="rt">ima</span></span><span class="ruby"><span class="rb">の</span><span class="rt">no</span></span><span class="ruby"><span class="rb">私</span><span class="rt">watashi</span></span><span class="ruby"><span class="rb">ならできる</span><span class="rt">naradekiru</span></span><span class="ruby"><span class="rb">気</span><span class="rt">ki</span></span><span class="ruby"><span class="rb">がする</span><span class="rt">gasuru</span></span><br>
+            <br>
+            <span class="ruby"><span class="rb">何</span><span class="rt">nani</span></span><span class="ruby"><span class="rb">もかも</span><span class="rt">mokamo</span></span><span class="ruby"><span class="rb">愛</span><span class="rt">ito</span></span><span class="ruby"><span class="rb">しく</span><span class="rt">shiku</span></span> <span class="ruby"><span class="rb">笑</span><span class="rt">wara</span></span><span class="ruby"><span class="rb">って</span><span class="rt">tte</span></span><span class="ruby"><span class="rb">話</span><span class="rt">hana</span></span><span class="ruby"><span class="rb">せる</span><span class="rt">seru</span></span><br>
+            <span class="ruby"><span class="rb">未来</span><span class="rt">mirai</span></span><span class="ruby"><span class="rb">は</span><span class="rt">ha</span></span><span class="ruby"><span class="rb">全</span><span class="rt">sube</span></span><span class="ruby"><span class="rb">てを</span><span class="rt">tewo</span></span> <span class="ruby"><span class="rb">受</span><span class="rt">u</span></span><span class="ruby"><span class="rb">け</span><span class="rt">ke</span></span><span class="ruby"><span class="rb">止</span><span class="rt">to</span></span><span class="ruby"><span class="rb">める</span><span class="rt">meru</span></span><span class="ruby"><span class="rb">覚悟</span><span class="rt">kakugo</span></span><span class="ruby"><span class="rb">と</span><span class="rt">to</span></span><span class="ruby"><span class="rb">準備</span><span class="rt">junbi</span></span><span class="ruby"><span class="rb">があること</span><span class="rt">gaarukoto</span></span><br>
+            <span class="ruby"><span class="rb">私</span><span class="rt">watashi</span></span><span class="ruby"><span class="rb">は</span><span class="rt">ha</span></span><span class="ruby"><span class="rb">知</span><span class="rt">shi</span></span><span class="ruby"><span class="rb">ったの</span><span class="rt">ttano</span></span><br>
+            <br>
+            <span class="ruby"><span class="rb">失</span><span class="rt">ushina</span></span><span class="ruby"><span class="rb">ったもの</span><span class="rt">ttamono</span></span><span class="ruby"><span class="rb">以上</span><span class="rt">ijou</span></span><span class="ruby"><span class="rb">の</span><span class="rt">no</span></span> <span class="ruby"><span class="rb">愛</span><span class="rt">ai</span></span><span class="ruby"><span class="rb">が</span><span class="rt">ga</span></span><span class="ruby"><span class="rb">私</span><span class="rt">watashi</span></span><span class="ruby"><span class="rb">を</span><span class="rt">wo</span></span> <span class="ruby"><span class="rb">輝</span><span class="rt">kagaya</span></span><span class="ruby"><span class="rb">かせた</span><span class="rt">kaseta</span></span><br>
+            <br>
+            <span class="ruby"><span class="rb">考</span><span class="rt">kanga</span></span>えるよりも <span class="ruby"><span class="rb">感</span><span class="rt">kan</span></span>じていたい <span class="ruby"><span class="rb">今</span><span class="rt">ima</span></span>を<span class="ruby"><span class="rb">生</span><span class="rt">i</span></span>きる<span class="ruby"><span class="rb">喜</span><span class="rt">yoroko</span></span>び<br>
+            <span class="ruby"><span class="rb">思</span><span class="rt">omo</span></span>い<span class="ruby"><span class="rb">通</span><span class="rt">doo</span></span>りになんてならないことばかりでも<br>
+            <span class="ruby"><span class="rb">生</span><span class="rt">i</span></span>きているんだ <span class="ruby"><span class="rb">そう</span><span class="rt">sou</span></span><span class="ruby"><span class="rb">笑</span><span class="rt">wara</span></span>って<br>
+            <span class="ruby"><span class="rb">そんなことが</span><span class="rt">sonnakotoga</span></span> <span class="ruby"><span class="rb">つながって</span><span class="rt">tsunagatte</span></span> <span class="ruby"><span class="rb">つながって</span><span class="rt">tsunagatte</span></span><br>
+            <span class="ruby"><span class="rb">重</span><span class="rt">kasa</span></span>なって <span class="ruby"><span class="rb">重</span><span class="rt">kasa</span></span>なって <span class="ruby"><span class="rb">重</span><span class="rt">kasa</span></span>なりあって<br>
+            <span class="ruby"><span class="rb">私</span><span class="rt">watashi</span></span>の<span class="ruby"><span class="rb">人生</span><span class="rt">jinsei</span></span>を<span class="ruby"><span class="rb">彩</span><span class="rt">irodo</span></span>ってゆく <span class="ruby"><span class="rb">見</span><span class="rt">mi</span></span>たことのない<span class="ruby"><span class="rb">色</span><span class="rt">iro</span></span>へと<br>
+            <br>
+            <span class="ruby"><span class="rb">信</span><span class="rt">shin</span></span>じている <span class="ruby"><span class="rb">過去</span><span class="rt">kako</span></span>と<span class="ruby"><span class="rb">未来</span><span class="rt">mirai</span></span>は<br>
+            <br>
+            <span class="ruby"><span class="rb">手</span><span class="rt">te</span></span><span class="ruby"><span class="rb">をつないで</span><span class="rt">wotsunaide</span></span> <span class="ruby"><span class="rb">助</span><span class="rt">tasu</span></span><span class="ruby"><span class="rb">けあっている</span><span class="rt">keatteiru</span></span><br>
+            <span class="ruby"><span class="rb">失</span><span class="rt">ushina</span></span><span class="ruby"><span class="rb">ったものがあるなら</span><span class="rt">ttamonogaarunara</span></span> <span class="ruby"><span class="rb">それにも</span><span class="rt">sorenimo</span></span><span class="ruby"><span class="rb">増</span><span class="rt">ma</span></span><span class="ruby"><span class="rb">す</span><span class="rt">su</span></span><span class="ruby"><span class="rb">愛</span><span class="rt">ai</span></span><span class="ruby"><span class="rb">で</span><span class="rt">de</span></span><span class="ruby"><span class="rb">生</span><span class="rt">i</span></span><span class="ruby"><span class="rb">きよう</span><span class="rt">kiyou</span></span><br>
+            <span class="ruby"><span class="rb">今</span><span class="rt">ima</span></span><span class="ruby"><span class="rb">を</span><span class="rt">wo</span></span><span class="ruby"><span class="rb">生</span><span class="rt">i</span></span><span class="ruby"><span class="rb">きる</span><span class="rt">kiru</span></span> <span class="ruby"><span class="rt">風</span><span class="rt">kaze</span></span><span class="rb">となるまで</span><span class="rt">tonarumade</span></span><br>
+            <br>
+            <span class="ruby"><span class="rb">過</span><span class="rt">su</span></span><span class="ruby"><span class="rb">ぎ</span><span class="rt">gi</span></span><span class="ruby"><span class="rb">去</span><span class="rt">sa</span></span><span class="ruby"><span class="rb">った</span><span class="rt">tta</span></span><span class="ruby"><span class="rb">時</span><span class="rt">toki</span></span><span class="ruby"><span class="rb">はささやく</span><span class="rt">hasasayaku</span></span><br>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    ⚠️ Запазването е автоматично в този браузър (localStorage). За архивиране/споделяне ползвай „Запази JSON“, а после „Зареди JSON“ за възстановяване.
+  </footer>
+
+  <script>
+    (function(){
+      /*** STATE ***/
+      const STORAGE_KEY = "jp_highlights_v1";
+      let state = {
+        version:1,
+        highlights:{hiragana:[], romaji:[]}, // {start,end,color}
+        currentView:"hiragana",
+        currentColor:"c1"
+      };
+
+      function loadState(){
+        try{
+          const s = localStorage.getItem(STORAGE_KEY);
+          if(s){
+            const parsed = JSON.parse(s);
+            if(parsed && parsed.version===1){
+              state = parsed;
+            }
+          }
+        }catch(e){ console.warn("Cannot load saved state", e); }
+      }
+      function saveState(){
+        try{
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }catch(e){ console.warn("Cannot save state", e); }
+      }
+
+      /*** DOM HELPERS ***/
+      const wrap = document.getElementById('textWrap');
+      const viewSeg = document.getElementById('viewSeg');
+      const palette = document.getElementById('palette');
+      const applyBtn = document.getElementById('applyBtn');
+      const eraseBtn = document.getElementById('eraseBtn');
+      const exportBtn = document.getElementById('exportBtn');
+      const importFile = document.getElementById('importFile');
+      const clearBtn = document.getElementById('clearBtn');
+
+      const hiraganaRoot = wrap.querySelector('.hiragana');
+      const romajiRoot   = wrap.querySelector('.romaji');
+
+      function rootFor(view){ return view==="romaji" ? romajiRoot : hiraganaRoot; }
+
+      function setView(view){
+        state.currentView = view;
+        viewSeg.querySelectorAll('button').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
+        hiraganaRoot.style.display = (view==="hiragana") ? "block" : "none";
+        romajiRoot.style.display   = (view==="romaji")   ? "block" : "none";
+        renderAll();
+        saveState();
+      }
+
+      function setColor(c){
+        state.currentColor = c;
+        palette.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('active', s.dataset.color===c));
+        saveState();
+      }
+
+      /*** TEXT NODE WALKER & OFFSETS ***/
+      function getTextNodes(root){
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+        const nodes=[]; let n;
+        while((n = walker.nextNode())){ nodes.push(n); }
+        return nodes;
+      }
+      function absoluteOffset(root, node, localOffset){
+        let ofs=0;
+        const list = getTextNodes(root);
+        for(const n of list){
+          if(n===node) return ofs + localOffset;
+          ofs += n.nodeValue.length;
+        }
+        return ofs; // fallback
+      }
+      function rangeToOffsets(root, range){
+        const s = absoluteOffset(root, range.startContainer, range.startOffset);
+        const e = absoluteOffset(root, range.endContainer,   range.endOffset);
+        return s<=e ? {start:s,end:e} : {start:e,end:s};
+      }
+
+      /*** HIGHLIGHT RENDER ***/
+      function unwrapHighlights(root){
+        const spans = root.querySelectorAll('span.hl');
+        spans.forEach(sp=>{
+          const parent = sp.parentNode;
+          while(sp.firstChild){ parent.insertBefore(sp.firstChild, sp); }
+          parent.removeChild(sp);
+          parent.normalize();
+        });
+      }
+
+      function applyOneHighlight(root, start, end, color){
+        if(end<=start) return;
+        const nodes = getTextNodes(root);
+        let ofs = 0;
+        for(const n of nodes){
+          const text = n.nodeValue;
+          const nodeStart = ofs;
+          const nodeEnd   = ofs + text.length;
+          // overlap?
+          const s = Math.max(start, nodeStart);
+          const e = Math.min(end,   nodeEnd);
+          if(e > s){
+            const r = document.createRange();
+            r.setStart(n, s - nodeStart);
+            r.setEnd(n,   e - nodeStart);
+            const span = document.createElement('span');
+            span.className = 'hl ' + color;
+            r.surroundContents(span);
+          }
+          ofs = nodeEnd;
+          if(ofs >= end) break;
+        }
+      }
+
+      function render(view){
+        const root = rootFor(view);
+        unwrapHighlights(root);
+        const list = state.highlights[view] || [];
+        list.sort((a,b)=>a.start-b.start);
+        for(const h of list){ applyOneHighlight(root, h.start, h.end, h.color); }
+      }
+      function renderAll(){ render('hiragana'); render('romaji'); }
+
+      /*** ADD/REMOVE LOGIC ***/
+      function addHighlightFromSelection(){
+        const root = rootFor(state.currentView);
+        const sel = window.getSelection();
+        if(!sel || sel.rangeCount===0) return;
+        const range = sel.getRangeAt(0);
+        if(!root.contains(range.commonAncestorContainer)) return;
+        const {start,end} = rangeToOffsets(root, range);
+        if(end<=start) return;
+
+        // subtract overlaps then add
+        let arr = state.highlights[state.currentView] || [];
+        arr = subtractFromRanges(arr, start, end); // erase overlaps to avoid nesting
+        arr.push({start,end,color:state.currentColor});
+        state.highlights[state.currentView] = arr;
+
+        render(state.currentView);
+        saveState();
+        sel.removeAllRanges();
+      }
+
+      function eraseFromSelection(){
+        const root = rootFor(state.currentView);
+        const sel = window.getSelection();
+        if(!sel || sel.rangeCount===0) return;
+        const range = sel.getRangeAt(0);
+        if(!root.contains(range.commonAncestorContainer)) return;
+        const {start,end} = rangeToOffsets(root, range);
+        if(end<=start) return;
+
+        state.highlights[state.currentView] = subtractFromRanges(state.highlights[state.currentView]||[], start, end);
+        render(state.currentView);
+        saveState();
+        sel.removeAllRanges();
+      }
+
+      // subtract [start,end) from an array of ranges with possible splitting
+      function subtractFromRanges(ranges, start, end){
+        const out = [];
+        for(const r of ranges){
+          // no overlap
+          if(end<=r.start || start>=r.end){ out.push(r); continue; }
+          // full erase
+          if(start<=r.start && end>=r.end){ continue; }
+          // partials
+          if(start>r.start && end<r.end){
+            out.push({start:r.start,end:start,color:r.color});
+            out.push({start:end,end:r.end,color:r.color});
+            continue;
+          }
+          if(start>r.start && start<r.end){
+            out.push({start:r.start,end:start,color:r.color});
+            continue;
+          }
+          if(end>r.start && end<r.end){
+            out.push({start:end,end:r.end,color:r.color});
+            continue;
+          }
+        }
+        // merge adjacent same-color ranges
+        out.sort((a,b)=>a.start-b.start);
+        const merged=[];
+        for(const r of out){
+          const last = merged[merged.length-1];
+          if(last && last.end===r.start && last.color===r.color){
+            last.end = r.end;
+          }else{
+            merged.push({...r});
+          }
+        }
+        return merged;
+      }
+
+      /*** EXPORT / IMPORT ***/
+      function exportJSON(){
+        const blob = new Blob([JSON.stringify(state,null,2)], {type:"application/json"});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = "annotations_jp.json";
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(a.href);
+        a.remove();
+      }
+
+      function importJSON(file){
+        const reader = new FileReader();
+        reader.onload = () => {
+          try{
+            const data = JSON.parse(reader.result);
+            if(!data || data.version!==1 || !data.highlights){ throw new Error("Невалиден файл."); }
+            state = data;
+            setView(state.currentView || "hiragana");
+            setColor(state.currentColor || "c1");
+            renderAll();
+            saveState();
+          }catch(e){
+            alert("Неуспешно зареждане: " + e.message);
+          }
+        };
+        reader.readAsText(file);
+      }
+
+      /*** WIRE UP ***/
+      loadState();
+      setView(state.currentView || "hiragana");
+      setColor(state.currentColor || "c1");
+      renderAll();
+
+      // View toggle
+      viewSeg.addEventListener('click', (e)=>{
+        const btn = e.target.closest('button[data-view]');
+        if(!btn) return;
+        setView(btn.dataset.view);
+      });
+
+      // Palette
+      palette.addEventListener('click', (e)=>{
+        const sw = e.target.closest('.swatch');
+        if(!sw) return;
+        setColor(sw.dataset.color);
+      });
+
+      // Actions
+      applyBtn.addEventListener('click', addHighlightFromSelection);
+      eraseBtn.addEventListener('click', eraseFromSelection);
+      clearBtn.addEventListener('click', ()=>{
+        if(confirm("Да изтрия всички подчертавания в текущия изглед?")){
+          state.highlights[state.currentView] = [];
+          render(state.currentView);
+          saveState();
+        }
+      });
+
+      exportBtn.addEventListener('click', exportJSON);
+      importFile.addEventListener('change', (e)=>{
+        const f = e.target.files[0];
+        if(f) importJSON(f);
+        importFile.value = "";
+      });
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (e)=>{
+        // Pick color 1..0
+        const map = {'1':'c1','2':'c2','3':'c3','4':'c4','5':'c5','6':'c6','7':'c7','8':'c8','9':'c9','0':'c10'};
+        if(map[e.key]){
+          setColor(map[e.key]);
+        }
+        // Apply highlight
+        if((e.ctrlKey || e.metaKey) && e.key === 'Enter'){
+          e.preventDefault();
+          addHighlightFromSelection();
+        }
+      });
+
+    })();
+  </script>
+</body>
+</html>
