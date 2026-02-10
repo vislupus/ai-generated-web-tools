@@ -123,4 +123,6 @@ Each tool lives in its own folder:
 ├─ boids-predator-prey/  # Boids + predator–prey simulation
 ├─ localnotes/           # Notion-like editor
 ├─ jp-text-highlighter/  # Japanese text highlighter with furigana/romaji
-└─ sheetclone/           # Spreadsheet-like app
+├─ sheetclone/           # Spreadsheet-like app
+├─ lunar_miner/          # Lunar Miner
+└─ drone-light-show/     # Drone Light Show
