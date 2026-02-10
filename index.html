@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <title>AI-Generated Web Tools</title>
@@ -19,8 +20,8 @@
       --radius-lg: 16px;
       --radius-md: 10px;
       --radius-sm: 6px;
-      --shadow-soft: 0 20px 40px rgba(0,0,0,0.55);
-      --shadow-chip: 0 8px 20px rgba(0,0,0,0.45);
+      --shadow-soft: 0 20px 40px rgba(0, 0, 0, 0.55);
+      --shadow-chip: 0 8px 20px rgba(0, 0, 0, 0.45);
       --filter-chip-bg: #020617;
       --filter-chip-active: #f97316;
     }
@@ -195,8 +196,8 @@
 
     .filters-wrapper {
       padding: 0 20px 8px;
-      border-bottom: 1px solid rgba(15,23,42,0.85);
-      background: radial-gradient(circle at top right, rgba(59,130,246,0.08), transparent 60%);
+      border-bottom: 1px solid rgba(15, 23, 42, 0.85);
+      background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 60%);
     }
 
     .filters {
@@ -393,6 +394,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="shell">
     <header>
@@ -434,6 +436,10 @@
         <button class="filter-chip" data-tag="simulation">
           <span class="dot"></span>
           Simulation
+        </button>
+        <button class="filter-chip" data-tag="games">
+          <span class="dot"></span>
+          Games
         </button>
         <button class="filter-chip" data-tag="tools">
           <span class="dot"></span>
@@ -504,7 +510,8 @@
                 <span class="icon">▶</span>
                 <span>Open demo</span>
               </a>
-              <a class="btn-link" href="https://github.com/vislupus/ai-generated-web-tools/tree/main/n5-kanji-drill" target="_blank" rel="noopener noreferrer">
+              <a class="btn-link" href="https://github.com/vislupus/ai-generated-web-tools/tree/main/n5-kanji-drill"
+                target="_blank" rel="noopener noreferrer">
                 <span class="icon">💾</span>
                 <span>Source</span>
               </a>
@@ -533,7 +540,9 @@
                 <span class="icon">▶</span>
                 <span>Open demo</span>
               </a>
-              <a class="btn-link" href="https://github.com/vislupus/ai-generated-web-tools/tree/main/boids-predator-prey" target="_blank" rel="noopener noreferrer">
+              <a class="btn-link"
+                href="https://github.com/vislupus/ai-generated-web-tools/tree/main/boids-predator-prey" target="_blank"
+                rel="noopener noreferrer">
                 <span class="icon">💾</span>
                 <span>Source</span>
               </a>
@@ -562,7 +571,8 @@
                 <span class="icon">▶</span>
                 <span>Open demo</span>
               </a>
-              <a class="btn-link" href="https://github.com/vislupus/ai-generated-web-tools/tree/main/localnotes" target="_blank" rel="noopener noreferrer">
+              <a class="btn-link" href="https://github.com/vislupus/ai-generated-web-tools/tree/main/localnotes"
+                target="_blank" rel="noopener noreferrer">
                 <span class="icon">💾</span>
                 <span>Source</span>
               </a>
@@ -592,7 +602,9 @@
                 <span class="icon">▶</span>
                 <span>Open demo</span>
               </a>
-              <a class="btn-link" href="https://github.com/vislupus/ai-generated-web-tools/tree/main/jp-text-highlighter" target="_blank" rel="noopener noreferrer">
+              <a class="btn-link"
+                href="https://github.com/vislupus/ai-generated-web-tools/tree/main/jp-text-highlighter" target="_blank"
+                rel="noopener noreferrer">
                 <span class="icon">💾</span>
                 <span>Source</span>
               </a>
@@ -622,12 +634,70 @@
                 <span class="icon">▶</span>
                 <span>Open demo</span>
               </a>
-              <a class="btn-link" href="https://github.com/vislupus/ai-generated-web-tools/tree/main/sheetclone" target="_blank" rel="noopener noreferrer">
+              <a class="btn-link" href="https://github.com/vislupus/ai-generated-web-tools/tree/main/sheetclone"
+                target="_blank" rel="noopener noreferrer">
                 <span class="icon">💾</span>
                 <span>Source</span>
               </a>
             </div>
             <span class="small">AI-assisted • Gemini</span>
+          </div>
+        </article>
+
+        <!-- Lunar Miner -->
+        <article class="card" data-tags="games,p5.js,experiment,claude">
+          <div class="card-tag">Experiment · Arcade Game</div>
+          <h3><span class="emoji">🌒</span> Lunar Miner</h3>
+          <p>
+            A 2D lunar mining arcade experiment made with p5.js: dig through low-gravity terrain, collect crystals, avoid collapsing tiles, and survive as long as possible.
+          </p>
+          <div class="meta">
+            <div class="pill"><span class="icon">🕹️</span>Arcade platformer</div>
+            <div class="pill"><span class="icon">💎</span>Crystal collecting</div>
+            <div class="pill"><span class="icon">⌨️</span>Keyboard controls</div>
+            <div class="pill"><span class="icon">🧪</span>p5.js experiment</div>
+          </div>
+          <div class="card-actions">
+            <div class="buttons">
+              <a class="btn-link primary" href="./lunar_miner/" target="_blank" rel="noopener noreferrer">
+                <span class="icon">▶</span>
+                <span>Open demo</span>
+              </a>
+              <a class="btn-link" href="https://vislupus.github.io/ai-generated-web-tools/lunar_miner/" target="_blank" rel="noopener noreferrer">
+                <span class="icon">💾</span>
+                <span>Source</span>
+              </a>
+            </div>
+            <span class="small">AI-assisted · Claude</span>
+          </div>
+        </article>
+
+        <!-- Drone Light Show -->
+        <article class="card" data-tags="visuals,simulation,3d,babylon,experiment,claude">
+          <div class="card-tag">Experiment · 3D Visuals</div>
+          <h3><span class="emoji">✨</span> Drone Light Show</h3>
+          <p>
+            An interactive 3D drone light show built with Babylon.js: dynamic formations,
+            adjustable drone count, animation speed, and cinematic camera paths.
+          </p>
+          <div class="meta">
+            <div class="pill"><span class="icon">🛰️</span>Drone swarm</div>
+            <div class="pill"><span class="icon">🧭</span>Camera paths</div>
+            <div class="pill"><span class="icon">📐</span>Babylon.js scene</div>
+            <div class="pill"><span class="icon">🧪</span>Graphics experiment</div>
+          </div>
+          <div class="card-actions">
+            <div class="buttons">
+              <a class="btn-link primary" href="./drone-light-show/" target="_blank" rel="noopener noreferrer">
+                <span class="icon">▶</span>
+                <span>Open demo</span>
+              </a>
+              <a class="btn-link" href="https://vislupus.github.io/ai-generated-web-tools/drone-light-show/" target="_blank" rel="noopener noreferrer">
+                <span class="icon">💾</span>
+                <span>Source</span>
+              </a>
+            </div>
+            <span class="small">AI-assisted · Claude</span>
           </div>
         </article>
 
@@ -706,4 +776,5 @@
     })();
   </script>
 </body>
+
 </html>

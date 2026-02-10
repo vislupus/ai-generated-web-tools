@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lunar Miner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<script>
+// ============================================================
+// LUNAR MINER — p5.js Game
+// Combines Mario platforming, Tetris falling shapes, and mining
+// Set on the Moon with low gravity, crystals, and oxygen mechanics
+// ============================================================
+
+// --- CONSTANTS ---
+const TILE_SIZE = 32;
+const GRID_COLS = 40;       // world width in tiles
+const GRID_ROWS = 30;       // world height in tiles
+const GROUND_ROW = 22;      // row index where ground starts
+const VOID_Y = GRID_ROWS * TILE_SIZE + 200; // fall death threshold
+const CANVAS_W = 800;
+const CANVAS_H = 600;
+
+// Gravity per level (pixels/frame²)
+const LEVEL_GRAVITY = [0.08, 0.12, 0.18, 0.25];
+const LEVEL_NAMES = ["Very Low Gravity", "Low Gravity", "Medium Gravity", "Higher Gravity"];
+
+// Shape fall intervals (frames between drops) per level
+const SHAPE_FALL_INTERVAL = [90, 70, 55, 40];
+const SHAPE_SPAWN_INTERVAL = [300, 240, 200, 160];
+
+// Tetris-like shape templates (relative grid offsets)
+const SHAPE_TEMPLATES = [
+  // I-piece
+  [[0,0],[1,0],[2,0],[3,0]],
+  // O-piece
+  [[0,0],[1,0],[0,1],[1,1]],
+  // T-piece
+  [[0,0],[1,0],[2,0],[1,1]],
+  // S-piece
+  [[1,0],[2,0],[0,1],[1,1]],
+  // Z-piece
+  [[0,0],[1,0],[1,1],[2,1]],
+  // L-piece
+  [[0,0],[0,1],[0,2],[1,2]],
+  // J-piece
+  [[1,0],[1,1],[1,2],[0,2]],
+  // Small 2-block
+  [[0,0],[1,0]],
+  // Single block
+  [[0,0]],
+];
+
+// --- GLOBAL STATE ---
+let grid;          // 2D array [col][row] of Tile or null
+let player;
+let shapes = [];   // active falling shapes
+let settledShapes = []; // shapes that have landed (for group-fall logic)
+let camera;
+let stars = [];
+let crystalsCollected = 0;
+let score = 0;
+let survivalFrames = 0;
+let currentLevel = 0;
+let gameState = "playing"; // "playing", "gameover", "title"
+let gameOverMsg = "";
+let shapeSpawnTimer = 0;
+let particles = [];
+let earthAngle = 0;
+
+// ============================================================
+// TILE CLASS — individual grid cell that can be solid or crystal
+// ============================================================
+class Tile {
+  constructor(col, row, isWeak = false, hasCrystal = false) {
+    this.col = col;
+    this.row = row;
+    this.isWeak = isWeak;
+    this.hasCrystal = hasCrystal;
+    this.shapeId = -1;        // which settled shape group this belongs to
+    this.weightAbove = 0;     // computed weight for weak tile breaking
+    this.breakThreshold = isWeak ? floor(random(2, 5)) : Infinity;
+  }
+
+  /** Draw this tile at world coordinates */
+  draw() {
+    let x = this.col * TILE_SIZE;
+    let y = this.row * TILE_SIZE;
+
+    if (this.isWeak) {
+      // Weak tiles: reddish-brown with cracks
+      fill(140, 80, 60);
+      stroke(100, 55, 40);
+    } else {
+      // Normal tile: lunar grey
+      fill(90, 90, 100);
+      stroke(65, 65, 75);
+    }
+    strokeWeight(1);
+    rect(x, y, TILE_SIZE, TILE_SIZE);
+
+    // Crystal sparkle
+    if (this.hasCrystal) {
+      noStroke();
+      fill(100, 220, 255, 200);
+      let cx = x + TILE_SIZE / 2;
+      let cy = y + TILE_SIZE / 2;
+      // Diamond shape
+      beginShape();
+      vertex(cx, cy - 8);
+      vertex(cx + 6, cy);
+      vertex(cx, cy + 8);
+      vertex(cx - 6, cy);
+      endShape(CLOSE);
+      // Shine
+      fill(200, 240, 255, 150);
+      ellipse(cx - 2, cy - 3, 3, 3);
+    }
+
+    // Crack marks on weak tiles
+    if (this.isWeak) {
+      stroke(60, 40, 30);
+      strokeWeight(1);
+      line(x + 5, y + 8, x + 14, y + 16);
+      line(x + 18, y + 4, x + 26, y + 14);
+    }
+  }
+}
+
+// ============================================================
+// SHAPE CLASS — a Tetris-like group of connected tiles
+// ============================================================
+class Shape {
+  constructor(tiles, id) {
+    this.id = id;
+    this.tiles = tiles;       // array of Tile objects
+    this.falling = true;
+    this.fallTimer = 0;
+    this.settled = false;
+
+    // Mark all tiles with this shape's ID
+    for (let t of this.tiles) {
+      t.shapeId = this.id;
+    }
+  }
+
+  /** Get bounding box in grid coords */
+  getBounds() {
+    let minC = Infinity, maxC = -Infinity, minR = Infinity, maxR = -Infinity;
+    for (let t of this.tiles) {
+      minC = min(minC, t.col);
+      maxC = max(maxC, t.col);
+      minR = min(minR, t.row);
+      maxR = max(maxR, t.row);
+    }
+    return { minC, maxC, minR, maxR };
+  }
+
+  /** Check if shape can move down by 1 row */
+  canFall() {
+    for (let t of this.tiles) {
+      let nextRow = t.row + 1;
+      // Hit bottom of world
+      if (nextRow >= GRID_ROWS) return false;
+      // Hit another tile not in this shape
+      if (grid[t.col][nextRow] && grid[t.col][nextRow].shapeId !== this.id) return false;
+    }
+    return true;
+  }
+
+  /** Move all tiles down 1 row */
+  moveDown() {
+    // Remove from grid
+    for (let t of this.tiles) {
+      grid[t.col][t.row] = null;
+    }
+    // Update row
+    for (let t of this.tiles) {
+      t.row += 1;
+    }
+    // Place back
+    for (let t of this.tiles) {
+      grid[t.col][t.row] = t;
+    }
+  }
+
+  /** Try to shift horizontally for better placement (basic heuristic) */
+  tryShiftToFill() {
+    // Simple heuristic: check if shifting left or right fills more gaps below
+    let bestShift = 0;
+    let bestScore = this.countSupportBelow(0);
+
+    for (let dx of [-1, 1, -2, 2]) {
+      if (this.canShift(dx)) {
+        let s = this.countSupportBelow(dx);
+        if (s > bestScore) {
+          bestScore = s;
+          bestShift = dx;
+        }
+      }
+    }
+
+    if (bestShift !== 0) {
+      // Remove from grid
+      for (let t of this.tiles) grid[t.col][t.row] = null;
+      for (let t of this.tiles) t.col += bestShift;
+      for (let t of this.tiles) grid[t.col][t.row] = t;
+    }
+  }
+
+  canShift(dx) {
+    for (let t of this.tiles) {
+      let nc = t.col + dx;
+      if (nc < 0 || nc >= GRID_COLS) return false;
+      if (grid[nc][t.row] && grid[nc][t.row].shapeId !== this.id) return false;
+    }
+    return true;
+  }
+
+  countSupportBelow(dx) {
+    let count = 0;
+    for (let t of this.tiles) {
+      let nc = t.col + dx;
+      let nr = t.row + 1;
+      if (nr >= GRID_ROWS) { count += 2; continue; }
+      if (nc >= 0 && nc < GRID_COLS && grid[nc][nr] && grid[nc][nr].shapeId !== this.id) count++;
+    }
+    return count;
+  }
+
+  /** Settle the shape — stop falling */
+  settle() {
+    this.falling = false;
+    this.settled = true;
+    settledShapes.push(this);
+  }
+
+  /** Draw all tiles */
+  draw() {
+    for (let t of this.tiles) t.draw();
+  }
+
+  /** Update falling logic */
+  update() {
+    if (!this.falling) return;
+
+    this.fallTimer++;
+    let interval = SHAPE_FALL_INTERVAL[currentLevel] || 40;
+
+    if (this.fallTimer >= interval) {
+      this.fallTimer = 0;
+
+      // Heuristic shift before landing
+      if (!this.canFall()) {
+        this.settle();
+        return;
+      }
+
+      // Occasionally try to shift for denser packing
+      if (random() < 0.3) this.tryShiftToFill();
+
+      if (this.canFall()) {
+        this.moveDown();
+      } else {
+        this.settle();
+      }
+    }
+  }
+}
+
+// ============================================================
+// PLAYER CLASS — the lunar miner
+// ============================================================
+class Player {
+  constructor(x, y) {
+    // Player is half-tile wide, slightly shorter than one tile
+    this.w = TILE_SIZE * 0.5;
+    this.h = TILE_SIZE * 0.85;
+    this.x = x;          // world pixel coords (top-left of bounding box)
+    this.y = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.speed = 2.5;
+    this.jumpStrength = -4;
+    this.onGround = false;
+    this.facingRight = true;
+    this.digCooldown = 0;
+    this.walkFrame = 0;
+    this.alive = true;
+  }
+
+  /** Get current gravity based on level */
+  getGravity() {
+    return LEVEL_GRAVITY[currentLevel] || 0.25;
+  }
+
+  /** Convert pixel position to grid column/row */
+  getGridPos() {
+    return {
+      col: floor((this.x + this.w / 2) / TILE_SIZE),
+      row: floor((this.y + this.h / 2) / TILE_SIZE)
+    };
+  }
+
+  update() {
+    if (!this.alive) return;
+
+    // --- Horizontal movement ---
+    this.vx = 0;
+    if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) { // A
+      this.vx = -this.speed;
+      this.facingRight = false;
+    }
+    if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) { // D
+      this.vx = this.speed;
+      this.facingRight = true;
+    }
+
+    // Walking animation
+    if (this.vx !== 0 && this.onGround) {
+      this.walkFrame += 0.15;
+    } else {
+      this.walkFrame = 0;
+    }
+
+    // --- Apply gravity ---
+    this.vy += this.getGravity();
+    if (this.vy > 8) this.vy = 8; // terminal velocity
+
+    // --- Move and collide ---
+    // Horizontal
+    this.x += this.vx;
+    this.resolveCollisionX();
+
+    // Vertical
+    this.y += this.vy;
+    this.onGround = false;
+    this.resolveCollisionY();
+
+    // World bounds (horizontal)
+    if (this.x < 0) this.x = 0;
+    if (this.x + this.w > GRID_COLS * TILE_SIZE) this.x = GRID_COLS * TILE_SIZE - this.w;
+
+    // Void death
+    if (this.y > VOID_Y) {
+      this.die("Game Over – You fell into the void.");
+    }
+
+    // Dig cooldown
+    if (this.digCooldown > 0) this.digCooldown--;
+  }
+
+  /** Resolve horizontal tile collisions */
+  resolveCollisionX() {
+    let left = floor(this.x / TILE_SIZE);
+    let right = floor((this.x + this.w - 0.01) / TILE_SIZE);
+    let top = floor(this.y / TILE_SIZE);
+    let bot = floor((this.y + this.h - 0.01) / TILE_SIZE);
+
+    for (let c = left; c <= right; c++) {
+      for (let r = top; r <= bot; r++) {
+        if (c < 0 || c >= GRID_COLS || r < 0 || r >= GRID_ROWS) continue;
+        if (grid[c][r]) {
+          // Push out
+          if (this.vx > 0) {
+            this.x = c * TILE_SIZE - this.w;
+          } else if (this.vx < 0) {
+            this.x = (c + 1) * TILE_SIZE;
+          }
+          this.vx = 0;
+          return;
+        }
+      }
+    }
+  }
+
+  /** Resolve vertical tile collisions */
+  resolveCollisionY() {
+    let left = floor(this.x / TILE_SIZE);
+    let right = floor((this.x + this.w - 0.01) / TILE_SIZE);
+    let top = floor(this.y / TILE_SIZE);
+    let bot = floor((this.y + this.h - 0.01) / TILE_SIZE);
+
+    for (let c = left; c <= right; c++) {
+      for (let r = top; r <= bot; r++) {
+        if (c < 0 || c >= GRID_COLS || r < 0 || r >= GRID_ROWS) continue;
+        if (grid[c][r]) {
+          if (this.vy > 0) {
+            // Landing on top
+            this.y = r * TILE_SIZE - this.h;
+            this.vy = 0;
+            this.onGround = true;
+          } else if (this.vy < 0) {
+            // Hit ceiling
+            this.y = (r + 1) * TILE_SIZE;
+            this.vy = 0;
+          }
+          return;
+        }
+      }
+    }
+  }
+
+  /** Jump if on ground */
+  jump() {
+    if (this.onGround && this.alive) {
+      // Jump strength scales slightly with gravity for feel
+      this.vy = this.jumpStrength * (0.7 + this.getGravity() * 3);
+      this.onGround = false;
+    }
+  }
+
+  /** Dig in a direction: 'left', 'right', 'up', 'down' */
+  dig(dir) {
+    if (this.digCooldown > 0 || !this.alive) return;
+
+    let gp = this.getGridPos();
+    let tc = gp.col;
+    let tr = gp.row;
+
+    if (dir === "left") tc--;
+    else if (dir === "right") tc++;
+    else if (dir === "up") tr--;
+    else if (dir === "down") tr++;
+
+    if (tc < 0 || tc >= GRID_COLS || tr < 0 || tr >= GRID_ROWS) return;
+
+    let tile = grid[tc][tr];
+    if (!tile) return;
+
+    // Collect crystal
+    if (tile.hasCrystal) {
+      crystalsCollected++;
+      score += 50;
+      spawnParticles(tc * TILE_SIZE + TILE_SIZE/2, tr * TILE_SIZE + TILE_SIZE/2, [100, 220, 255]);
+    }
+
+    // Remove tile from its shape group
+    let shapeId = tile.shapeId;
+    grid[tc][tr] = null;
+
+    // Remove from settled shape
+    for (let s of settledShapes) {
+      if (s.id === shapeId) {
+        s.tiles = s.tiles.filter(t => !(t.col === tc && t.row === tr));
+        // If shape now has no tiles, remove it
+        if (s.tiles.length === 0) {
+          settledShapes = settledShapes.filter(ss => ss !== s);
+        }
+      }
+    }
+
+    // Spawn dig particles
+    spawnParticles(tc * TILE_SIZE + TILE_SIZE/2, tr * TILE_SIZE + TILE_SIZE/2, [140, 140, 150]);
+
+    // Check if any shapes above are now unsupported → make them fall
+    checkUnsupportedShapes();
+
+    this.digCooldown = 12;
+    score += 10;
+  }
+
+  /** Check if player is crushed by a falling shape */
+  checkCrushing() {
+    let left = floor(this.x / TILE_SIZE);
+    let right = floor((this.x + this.w - 0.01) / TILE_SIZE);
+    let top = floor(this.y / TILE_SIZE);
+    let bot = floor((this.y + this.h - 0.01) / TILE_SIZE);
+
+    for (let c = left; c <= right; c++) {
+      for (let r = top; r <= bot; r++) {
+        if (c < 0 || c >= GRID_COLS || r < 0 || r >= GRID_ROWS) continue;
+        if (grid[c][r]) {
+          this.die("Game Over – Crushed by debris.");
+          return;
+        }
+      }
+    }
+  }
+
+  /** Kill the player with a message */
+  die(msg) {
+    this.alive = false;
+    gameOverMsg = msg;
+    gameState = "gameover";
+  }
+
+  /** Draw the miner character */
+  draw() {
+    if (!this.alive) return;
+
+    let px = this.x;
+    let py = this.y;
+    let pw = this.w;
+    let ph = this.h;
+
+    push();
+    translate(px + pw/2, py + ph);
+
+    // Flip direction
+    if (!this.facingRight) scale(-1, 1);
+
+    // Legs (walk animation)
+    let legSwing = this.onGround ? sin(this.walkFrame * 8) * 3 : 2;
+    stroke(200);
+    strokeWeight(2);
+    // Left leg
+    line(-3, 0, -3 - legSwing, 5);
+    // Right leg
+    line(3, 0, 3 + legSwing, 5);
+
+    // Body (space suit - white/grey)
+    noStroke();
+    fill(220, 220, 230);
+    rectMode(CENTER);
+    rect(0, -ph * 0.4, pw * 0.8, ph * 0.45, 3);
+
+    // Helmet (golden visor)
+    fill(200, 200, 210);
+    ellipse(0, -ph * 0.72, pw * 0.7, pw * 0.7);
+    // Visor
+    fill(220, 180, 50, 200);
+    arc(0, -ph * 0.72, pw * 0.55, pw * 0.5, -PI * 0.4, PI * 0.4, CHORD);
+
+    // Backpack (oxygen tank)
+    fill(160, 160, 170);
+    rect(-pw * 0.5, -ph * 0.4, 4, 12, 2);
+
+    // Pickaxe arm
+    stroke(180, 180, 190);
+    strokeWeight(2);
+    let armAngle = sin(frameCount * 0.1) * 0.15;
+    push();
+    translate(pw * 0.3, -ph * 0.35);
+    rotate(armAngle + 0.3);
+    line(0, 0, 10, -8);
+    // Pickaxe head
+    stroke(200, 170, 80);
+    strokeWeight(2.5);
+    line(8, -7, 14, -4);
+    line(8, -7, 12, -12);
+    pop();
+
+    pop();
+    rectMode(CORNER);
+  }
+}
+
+// ============================================================
+// CAMERA — follows player smoothly
+// ============================================================
+class Camera {
+  constructor() {
+    this.x = 0;
+    this.y = 0;
+  }
+
+  update(targetX, targetY) {
+    // Smooth follow
+    let desiredX = targetX - CANVAS_W / 2;
+    let desiredY = targetY - CANVAS_H / 2;
+
+    this.x += (desiredX - this.x) * 0.1;
+    this.y += (desiredY - this.y) * 0.1;
+
+    // Clamp to world bounds
+    this.x = constrain(this.x, 0, GRID_COLS * TILE_SIZE - CANVAS_W);
+    this.y = constrain(this.y, -200, GRID_ROWS * TILE_SIZE - CANVAS_H + 100);
+  }
+
+  apply() {
+    translate(-this.x, -this.y);
+  }
+}
+
+// ============================================================
+// PARTICLES — simple visual feedback
+// ============================================================
+function spawnParticles(x, y, col) {
+  for (let i = 0; i < 8; i++) {
+    particles.push({
+      x, y,
+      vx: random(-2, 2),
+      vy: random(-3, 0),
+      life: 30,
+      col: col
+    });
+  }
+}
+
+function updateAndDrawParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    let p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.05;
+    p.life--;
+
+    fill(p.col[0], p.col[1], p.col[2], map(p.life, 0, 30, 0, 255));
+    noStroke();
+    rect(p.x, p.y, 3, 3);
+
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+// ============================================================
+// WORLD GENERATION
+// ============================================================
+
+function initGrid() {
+  grid = [];
+  for (let c = 0; c < GRID_COLS; c++) {
+    grid[c] = [];
+    for (let r = 0; r < GRID_ROWS; r++) {
+      grid[c][r] = null;
+    }
+  }
+}
+
+let groundShapeIdCounter = 0;
+
+function generateGround() {
+  // Create lunar surface tiles (ground layer)
+  for (let c = 0; c < GRID_COLS; c++) {
+    for (let r = GROUND_ROW; r < GRID_ROWS; r++) {
+      let isWeak = (r === GROUND_ROW && random() < 0.1); // some surface tiles weak
+      let hasCrystal = (r > GROUND_ROW && random() < 0.08);
+      let tile = new Tile(c, r, isWeak, hasCrystal);
+      tile.shapeId = groundShapeIdCounter; // all ground is one big shape
+      grid[c][r] = tile;
+    }
+  }
+
+  // Create a settled shape for the ground
+  let groundTiles = [];
+  for (let c = 0; c < GRID_COLS; c++) {
+    for (let r = GROUND_ROW; r < GRID_ROWS; r++) {
+      if (grid[c][r]) groundTiles.push(grid[c][r]);
+    }
+  }
+  let groundShape = new Shape(groundTiles, groundShapeIdCounter);
+  groundShape.falling = false;
+  groundShape.settled = true;
+  settledShapes.push(groundShape);
+
+  // Carve some small tunnels/caves in the ground
+  for (let i = 0; i < 5; i++) {
+    let cx = floor(random(3, GRID_COLS - 3));
+    let cy = floor(random(GROUND_ROW + 1, GRID_ROWS - 2));
+    let len = floor(random(2, 6));
+    for (let dx = 0; dx < len; dx++) {
+      let tc = cx + dx;
+      if (tc >= 0 && tc < GRID_COLS && grid[tc][cy]) {
+        // Remove tile from ground shape
+        let tile = grid[tc][cy];
+        groundShape.tiles = groundShape.tiles.filter(t => t !== tile);
+        grid[tc][cy] = null;
+      }
+    }
+  }
+}
+
+// ============================================================
+// SHAPE SPAWNING
+// ============================================================
+
+let shapeIdCounter = 1;
+
+function spawnShape() {
+  let template = random(SHAPE_TEMPLATES);
+  let spawnCol = floor(random(2, GRID_COLS - 6));
+  let spawnRow = -3; // start above visible area
+
+  let tiles = [];
+  let valid = true;
+
+  for (let [dc, dr] of template) {
+    let c = spawnCol + dc;
+    let r = spawnRow + dr;
+    if (c < 0 || c >= GRID_COLS) { valid = false; break; }
+    if (r >= 0 && r < GRID_ROWS && grid[c][r]) { valid = false; break; }
+
+    let isWeak = random() < 0.15;
+    let hasCrystal = random() < 0.2;
+    let tile = new Tile(c, r, isWeak, hasCrystal);
+    tiles.push(tile);
+  }
+
+  if (!valid || tiles.length === 0) return;
+
+  let shape = new Shape(tiles, shapeIdCounter++);
+
+  // Place tiles in grid (only for rows >= 0)
+  for (let t of tiles) {
+    if (t.row >= 0 && t.row < GRID_ROWS) {
+      grid[t.col][t.row] = t;
+    }
+  }
+
+  shapes.push(shape);
+}
+
+// ============================================================
+// PHYSICS: Check unsupported shapes after digging
+// ============================================================
+
+function checkUnsupportedShapes() {
+  for (let s of settledShapes) {
+    if (s.tiles.length === 0) continue;
+    if (s.id === 0) continue; // skip ground
+
+    let supported = false;
+    for (let t of s.tiles) {
+      let below = t.row + 1;
+      if (below >= GRID_ROWS) { supported = true; break; } // on world bottom
+      if (grid[t.col][below] && grid[t.col][below].shapeId !== s.id) {
+        supported = true;
+        break;
+      }
+    }
+
+    if (!supported) {
+      // Make this shape fall again
+      s.falling = true;
+      s.settled = false;
+      s.fallTimer = 0;
+      // Move from settled to active shapes
+      settledShapes = settledShapes.filter(ss => ss !== s);
+      shapes.push(s);
+    }
+  }
+}
+
+// ============================================================
+// WEAK TILE BREAKING
+// ============================================================
+
+function checkWeakTiles() {
+  for (let c = 0; c < GRID_COLS; c++) {
+    for (let r = 0; r < GRID_ROWS; r++) {
+      let tile = grid[c][r];
+      if (!tile || !tile.isWeak) continue;
+
+      // Count weight above (consecutive tiles going up)
+      let weight = 0;
+      for (let rr = r - 1; rr >= 0; rr--) {
+        if (grid[c][rr]) weight++;
+        else break;
+      }
+
+      if (weight >= tile.breakThreshold) {
+        // Break this tile
+        let shapeId = tile.shapeId;
+        grid[c][r] = null;
+        spawnParticles(c * TILE_SIZE + TILE_SIZE/2, r * TILE_SIZE + TILE_SIZE/2, [180, 100, 60]);
+
+        // Remove from its shape
+        for (let s of settledShapes) {
+          if (s.id === shapeId) {
+            s.tiles = s.tiles.filter(t => !(t.col === c && t.row === r));
+          }
+        }
+
+        // Check for unsupported shapes above
+        checkUnsupportedShapes();
+      }
+    }
+  }
+}
+
+// ============================================================
+// OXYGEN CHECK (BFS flood fill)
+// ============================================================
+
+function checkOxygen() {
+  if (!player.alive) return;
+
+  let gp = player.getGridPos();
+
+  // BFS from player position to check if there's a path to open air (row < 0 or unblocked sky)
+  let visited = new Set();
+  let queue = [[gp.col, gp.row]];
+  visited.add(gp.col + "," + gp.row);
+
+  while (queue.length > 0) {
+    let [c, r] = queue.shift();
+
+    // If we reach above the world or a row above all tiles, we have air
+    if (r < 0) return; // has oxygen, we're fine
+
+    // Check if this row at this column is open to the sky
+    let openAbove = true;
+    for (let rr = r; rr >= 0; rr--) {
+      if (grid[c] && grid[c][rr]) { openAbove = false; break; }
+    }
+    if (openAbove) return; // has path to open air
+
+    // Explore neighbors (4-directional)
+    let neighbors = [[c-1,r],[c+1,r],[c,r-1],[c,r+1]];
+    for (let [nc, nr] of neighbors) {
+      let key = nc + "," + nr;
+      if (visited.has(key)) continue;
+      if (nc < 0 || nc >= GRID_COLS) continue;
+      // Allow going above grid (open sky)
+      if (nr < 0) { return; } // found open air
+      if (nr >= GRID_ROWS) continue;
+      if (grid[nc][nr]) continue; // blocked by tile
+      visited.add(key);
+      queue.push([nc, nr]);
+    }
+  }
+
+  // No path found to open air
+  player.die("Game Over – Oxygen depleted.");
+}
+
+// ============================================================
+// LEVEL PROGRESSION
+// ============================================================
+
+function checkLevelUp() {
+  let newLevel = floor(score / 500);
+  if (newLevel > currentLevel && newLevel < LEVEL_GRAVITY.length) {
+    currentLevel = newLevel;
+  }
+}
+
+// ============================================================
+// BACKGROUND — stars, Earth, lunar surface
+// ============================================================
+
+function generateStars() {
+  stars = [];
+  for (let i = 0; i < 150; i++) {
+    stars.push({
+      x: random(-200, GRID_COLS * TILE_SIZE + 200),
+      y: random(-400, GRID_ROWS * TILE_SIZE * 0.5),
+      size: random(1, 3),
+      twinkle: random(0.02, 0.06)
+    });
+  }
+}
+
+function drawBackground() {
+  // Deep space gradient
+  background(5, 5, 15);
+
+  push();
+  camera.apply();
+
+  // Stars
+  noStroke();
+  for (let s of stars) {
+    let alpha = 150 + sin(frameCount * s.twinkle) * 100;
+    fill(255, 255, 240, alpha);
+    ellipse(s.x, s.y, s.size, s.size);
+  }
+
+  // Earth in the sky
+  earthAngle += 0.001;
+  let earthX = GRID_COLS * TILE_SIZE * 0.7;
+  let earthY = -100;
+  push();
+  translate(earthX, earthY);
+  // Earth glow
+  noStroke();
+  fill(50, 100, 200, 30);
+  ellipse(0, 0, 100, 100);
+  // Earth body
+  fill(40, 80, 180);
+  ellipse(0, 0, 60, 60);
+  // Continents (simplified)
+  fill(60, 160, 80, 180);
+  ellipse(-8, -5, 18, 15);
+  ellipse(10, 8, 12, 20);
+  ellipse(-5, 15, 8, 6);
+  // Clouds
+  fill(255, 255, 255, 80);
+  ellipse(-5, -12, 25, 6);
+  ellipse(12, 2, 20, 5);
+  pop();
+
+  // Lunar horizon line (subtle glow)
+  let horizonY = GROUND_ROW * TILE_SIZE;
+  for (let i = 0; i < 5; i++) {
+    fill(80, 80, 100, 20 - i * 4);
+    rect(0, horizonY - i * 8, GRID_COLS * TILE_SIZE, 8);
+  }
+
+  pop();
+}
+
+// ============================================================
+// UI DRAWING
+// ============================================================
+
+function drawUI() {
+  // Semi-transparent HUD bar
+  noStroke();
+  fill(0, 0, 0, 150);
+  rect(0, 0, CANVAS_W, 42);
+
+  fill(255);
+  textSize(14);
+  textFont('monospace');
+  textAlign(LEFT, CENTER);
+
+  // Score
+  text("Score: " + score, 15, 20);
+
+  // Crystals with icon
+  fill(100, 220, 255);
+  text("💎 Crystals: " + crystalsCollected, 160, 20);
+
+  // Level
+  fill(200, 200, 100);
+  let lvlName = LEVEL_NAMES[currentLevel] || "???";
+  text("Level: " + (currentLevel + 1) + " (" + lvlName + ")", 360, 20);
+
+  // Survival time
+  fill(180, 220, 180);
+  let seconds = floor(survivalFrames / 60);
+  text("Time: " + seconds + "s", 660, 20);
+
+  // Controls hint
+  fill(150, 150, 150, 180);
+  textSize(10);
+  textAlign(RIGHT, BOTTOM);
+  text("ARROWS: Move  |  SPACE: Jump  |  SHIFT+Arrow: Dig  |  R: Restart", CANVAS_W - 10, CANVAS_H - 8);
+}
+
+function drawGameOver() {
+  // Darken screen
+  fill(0, 0, 0, 180);
+  rect(0, 0, CANVAS_W, CANVAS_H);
+
+  // Game over box
+  fill(20, 20, 35);
+  stroke(200, 50, 50);
+  strokeWeight(2);
+  rectMode(CENTER);
+  rect(CANVAS_W/2, CANVAS_H/2, 500, 200, 10);
+  rectMode(CORNER);
+
+  noStroke();
+  fill(255, 80, 80);
+  textSize(28);
+  textAlign(CENTER, CENTER);
+  textFont('monospace');
+  text(gameOverMsg, CANVAS_W/2, CANVAS_H/2 - 30);
+
+  fill(200);
+  textSize(16);
+  text("Final Score: " + score + "  |  Crystals: " + crystalsCollected, CANVAS_W/2, CANVAS_H/2 + 15);
+
+  fill(150, 200, 150);
+  textSize(14);
+  text("Press R to restart", CANVAS_W/2, CANVAS_H/2 + 55);
+}
+
+function drawTitleScreen() {
+  background(5, 5, 15);
+
+  // Stars on title
+  noStroke();
+  for (let i = 0; i < 80; i++) {
+    let alpha = 150 + sin(frameCount * 0.03 + i) * 100;
+    fill(255, 255, 240, alpha);
+    let sx = (sin(i * 47.3) * 0.5 + 0.5) * CANVAS_W;
+    let sy = (cos(i * 23.7) * 0.5 + 0.5) * CANVAS_H;
+    ellipse(sx, sy, random(1, 2.5));
+  }
+
+  // Title
+  textAlign(CENTER, CENTER);
+  textFont('monospace');
+
+  // Glow effect
+  fill(100, 200, 255, 40);
+  textSize(56);
+  text("LUNAR MINER", CANVAS_W/2, CANVAS_H/2 - 80);
+
+  fill(220, 240, 255);
+  textSize(52);
+  text("LUNAR MINER", CANVAS_W/2, CANVAS_H/2 - 80);
+
+  // Subtitle
+  fill(180, 180, 200);
+  textSize(16);
+  text("Mine crystals. Dodge falling debris. Survive the Moon.", CANVAS_W/2, CANVAS_H/2 - 20);
+
+  // Controls
+  fill(150, 150, 170);
+  textSize(13);
+  text("← → / A D : Move    SPACE : Jump    SHIFT + Arrow : Dig", CANVAS_W/2, CANVAS_H/2 + 40);
+
+  // Start prompt
+  let pulse = sin(frameCount * 0.06) * 30 + 225;
+  fill(pulse, 220, 150);
+  textSize(20);
+  text("Press SPACE or ENTER to start", CANVAS_W/2, CANVAS_H/2 + 100);
+
+  // Small miner illustration
+  push();
+  translate(CANVAS_W/2, CANVAS_H/2 + 170);
+  // Helmet
+  fill(200, 200, 210);
+  ellipse(0, -12, 18, 18);
+  fill(220, 180, 50, 200);
+  arc(0, -12, 14, 12, -PI * 0.4, PI * 0.4, CHORD);
+  // Body
+  fill(220, 220, 230);
+  noStroke();
+  rect(-6, -4, 12, 14, 2);
+  // Pickaxe
+  stroke(180);
+  strokeWeight(1.5);
+  line(8, -2, 16, -10);
+  stroke(200, 170, 80);
+  line(14, -9, 18, -6);
+  line(14, -9, 16, -14);
+  pop();
+}
+
+// ============================================================
+// GAME INITIALIZATION & RESTART
+// ============================================================
+
+function initGame() {
+  initGrid();
+  shapes = [];
+  settledShapes = [];
+  particles = [];
+  crystalsCollected = 0;
+  score = 0;
+  survivalFrames = 0;
+  currentLevel = 0;
+  shapeSpawnTimer = 0;
+  shapeIdCounter = 1;
+  groundShapeIdCounter = 0;
+  gameState = "playing";
+  gameOverMsg = "";
+
+  generateGround();
+  generateStars();
+
+  // Spawn player on the surface
+  let spawnCol = floor(GRID_COLS / 2);
+  player = new Player(
+    spawnCol * TILE_SIZE + TILE_SIZE * 0.25,
+    (GROUND_ROW - 1) * TILE_SIZE
+  );
+
+  camera = new Camera();
+}
+
+// ============================================================
+// p5.js SETUP
+// ============================================================
+function setup() {
+  createCanvas(CANVAS_W, CANVAS_H);
+  gameState = "title";
+  generateStars();
+}
+
+// ============================================================
+// p5.js DRAW LOOP
+// ============================================================
+function draw() {
+  if (gameState === "title") {
+    drawTitleScreen();
+    return;
+  }
+
+  if (gameState === "playing") {
+    // --- UPDATE ---
+    survivalFrames++;
+    score = floor(survivalFrames / 6) + crystalsCollected * 50;
+    checkLevelUp();
+
+    // Spawn new shapes periodically
+    shapeSpawnTimer++;
+    let spawnInterval = SHAPE_SPAWN_INTERVAL[currentLevel] || 160;
+    if (shapeSpawnTimer >= spawnInterval) {
+      spawnShape();
+      shapeSpawnTimer = 0;
+    }
+
+    // Update falling shapes
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      let s = shapes[i];
+      s.update();
+
+      // Handle tiles entering the grid from above
+      for (let t of s.tiles) {
+        if (t.row >= 0 && t.row < GRID_ROWS && !grid[t.col][t.row]) {
+          grid[t.col][t.row] = t;
+        }
+      }
+
+      // If settled, move to settled list
+      if (s.settled && !shapes.includes(s)) continue;
+      if (s.settled) {
+        shapes.splice(i, 1);
+      }
+    }
+
+    // Update player
+    player.update();
+
+    // Check crushing (player overlaps solid tile)
+    if (player.alive) player.checkCrushing();
+
+    // Check weak tiles breaking
+    if (frameCount % 30 === 0) checkWeakTiles();
+
+    // Check oxygen (every 60 frames to save performance)
+    if (frameCount % 60 === 0 && player.alive) checkOxygen();
+
+    // Update camera
+    camera.update(player.x + player.w / 2, player.y + player.h / 2);
+  }
+
+  // --- DRAW ---
+  drawBackground();
+
+  push();
+  camera.apply();
+
+  // Draw all grid tiles
+  for (let c = 0; c < GRID_COLS; c++) {
+    for (let r = 0; r < GRID_ROWS; r++) {
+      if (grid[c][r]) grid[c][r].draw();
+    }
+  }
+
+  // Draw falling shape tiles above grid (row < 0)
+  for (let s of shapes) {
+    for (let t of s.tiles) {
+      if (t.row < 0) t.draw();
+    }
+  }
+
+  // Draw particles
+  updateAndDrawParticles();
+
+  // Draw player
+  player.draw();
+
+  pop();
+
+  // Draw UI overlay
+  drawUI();
+
+  // Game over overlay
+  if (gameState === "gameover") {
+    drawGameOver();
+  }
+}
+
+// ============================================================
+// INPUT HANDLING
+// ============================================================
+function keyPressed() {
+  if (gameState === "title") {
+    if (keyCode === 32 || keyCode === ENTER) { // SPACE or ENTER
+      initGame();
+    }
+    return;
+  }
+
+  if (gameState === "gameover") {
+    if (key === 'r' || key === 'R') {
+      initGame();
+    }
+    return;
+  }
+
+  // Jump
+  if (keyCode === 32) { // SPACE
+    player.jump();
+  }
+
+  // Digging: SHIFT + arrow keys
+  if (keyIsDown(SHIFT)) {
+    if (keyCode === LEFT_ARROW) player.dig("left");
+    if (keyCode === RIGHT_ARROW) player.dig("right");
+    if (keyCode === UP_ARROW) player.dig("up");
+    if (keyCode === DOWN_ARROW) player.dig("down");
+  }
+
+  // Restart
+  if (key === 'r' || key === 'R') {
+    initGame();
+  }
+}
+
+// Prevent default for arrow keys and space (no page scroll)
+window.addEventListener("keydown", function(e) {
+  if ([32, 37, 38, 39, 40].includes(e.keyCode)) {
+    e.preventDefault();
+  }
+});
+</script>
+</body>
+</html>

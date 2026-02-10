@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drone Light Show</title>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     EXTERNAL DEPENDENCIES: Babylon.js from CDN
+     ═══════════════════════════════════════════════════════════════ -->
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     STYLES: All CSS inline
+     ═══════════════════════════════════════════════════════════════ -->
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    overflow: hidden;
+    background: #000;
+    font-family: 'Rajdhani', sans-serif;
+    color: #e0e8ff;
+  }
+
+  #renderCanvas {
+    width: 100vw;
+    height: 100vh;
+    display: block;
+    outline: none;
+    touch-action: none;
+  }
+
+  /* ── Top Controls Bar ── */
+  #topBar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: linear-gradient(180deg, rgba(5,8,22,0.92) 0%, rgba(5,8,22,0.0) 100%);
+    z-index: 100;
+    pointer-events: none;
+  }
+  #topBar > * { pointer-events: auto; }
+
+  .logo {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 20px;
+    letter-spacing: 3px;
+    background: linear-gradient(135deg, #00e5ff, #7c4dff, #ff4081);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-transform: uppercase;
+  }
+
+  .controls-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(15,20,50,0.7);
+    border: 1px solid rgba(100,140,255,0.15);
+    border-radius: 8px;
+    padding: 5px 12px;
+    backdrop-filter: blur(8px);
+  }
+
+  .ctrl-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: rgba(160,180,255,0.7);
+    white-space: nowrap;
+  }
+
+  .ctrl-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #00e5ff;
+    min-width: 36px;
+    text-align: center;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100px;
+    height: 4px;
+    background: rgba(100,140,255,0.2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #00e5ff;
+    box-shadow: 0 0 8px rgba(0,229,255,0.6);
+    cursor: pointer;
+  }
+
+  /* ── Playback Controls ── */
+  .playback-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .btn {
+    background: rgba(15,20,50,0.7);
+    border: 1px solid rgba(100,140,255,0.2);
+    color: #c0d0ff;
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .btn:hover {
+    background: rgba(30,40,90,0.8);
+    border-color: rgba(100,140,255,0.4);
+    color: #fff;
+  }
+  .btn.active {
+    background: rgba(0,229,255,0.15);
+    border-color: rgba(0,229,255,0.5);
+    color: #00e5ff;
+  }
+  .btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+  .btn-icon {
+    padding: 7px 9px;
+    border-radius: 50%;
+    min-width: 34px;
+    min-height: 34px;
+    justify-content: center;
+  }
+
+  /* ── Timeline Bar (Bottom) ── */
+  #timeline {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: linear-gradient(0deg, rgba(5,8,22,0.95) 0%, rgba(5,8,22,0.0) 100%);
+    padding: 50px 20px 16px 20px;
+    z-index: 100;
+    pointer-events: none;
+  }
+  #timeline > * { pointer-events: auto; }
+
+  .timeline-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(160,180,255,0.5);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .timeline-slots {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .timeline-slot {
+    flex: 1;
+    max-width: 220px;
+    min-width: 150px;
+    background: rgba(10,15,40,0.8);
+    border: 1px solid rgba(100,140,255,0.12);
+    border-radius: 10px;
+    padding: 10px;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s;
+    position: relative;
+  }
+  .timeline-slot.active-slot {
+    border-color: rgba(0,229,255,0.6);
+    box-shadow: 0 0 20px rgba(0,229,255,0.15), inset 0 0 20px rgba(0,229,255,0.05);
+  }
+  .timeline-slot.has-shape {
+    border-color: rgba(100,140,255,0.25);
+  }
+
+  .slot-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .slot-index {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(160,180,255,0.5);
+  }
+  .timeline-slot.active-slot .slot-index { color: #00e5ff; }
+
+  .slot-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #c0d0ff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+  }
+
+  .slot-actions {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .slot-btn {
+    background: rgba(30,40,80,0.6);
+    border: 1px solid rgba(100,140,255,0.15);
+    color: rgba(160,180,255,0.7);
+    border-radius: 6px;
+    padding: 3px 7px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .slot-btn:hover {
+    background: rgba(50,60,120,0.7);
+    color: #fff;
+  }
+  .slot-btn.vis-on { color: #00e5ff; border-color: rgba(0,229,255,0.3); }
+
+  .slot-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    border: 1px dashed rgba(100,140,255,0.2);
+    border-radius: 6px;
+    color: rgba(160,180,255,0.4);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .slot-empty:hover {
+    border-color: rgba(100,140,255,0.4);
+    color: rgba(160,180,255,0.7);
+    background: rgba(30,40,80,0.3);
+  }
+
+  .progress-bar {
+    height: 3px;
+    background: rgba(100,140,255,0.1);
+    border-radius: 2px;
+    margin-top: 6px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00e5ff, #7c4dff);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.1s linear;
+  }
+
+  .slot-duration {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 5px;
+  }
+  .slot-duration input {
+    width: 40px;
+    background: rgba(20,25,60,0.8);
+    border: 1px solid rgba(100,140,255,0.2);
+    border-radius: 4px;
+    color: #00e5ff;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    padding: 2px 4px;
+    text-align: center;
+    outline: none;
+  }
+  .slot-duration input:focus { border-color: rgba(0,229,255,0.5); }
+  .slot-duration span {
+    font-size: 10px;
+    color: rgba(160,180,255,0.5);
+  }
+
+  /* Hidden file input */
+  .hidden-input { display: none; }
+
+  /* Transition overlay */
+  #transitionOverlay {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    letter-spacing: 3px;
+    color: rgba(0,229,255,0.8);
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.4s;
+    z-index: 200;
+    pointer-events: none;
+    text-shadow: 0 0 20px rgba(0,229,255,0.5);
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .timeline-slot { min-width: 120px; max-width: 160px; padding: 8px; }
+    .controls-row { gap: 8px; }
+    input[type="range"] { width: 70px; }
+    .ctrl-group { padding: 4px 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     HTML STRUCTURE
+     ═══════════════════════════════════════════════════════════════ -->
+<canvas id="renderCanvas"></canvas>
+
+<!-- Top Controls -->
+<div id="topBar">
+  <div class="logo">Drone Show</div>
+  <div class="controls-row">
+    <!-- Drone Count -->
+    <div class="ctrl-group">
+      <span class="ctrl-label">Drones</span>
+      <input type="range" id="droneCount" min="50" max="3000" value="800" step="50">
+      <span class="ctrl-value" id="droneCountVal">800</span>
+    </div>
+    <!-- Speed -->
+    <div class="ctrl-group">
+      <span class="ctrl-label">Speed</span>
+      <input type="range" id="speedSlider" min="1" max="200" value="50">
+      <span class="ctrl-value" id="speedVal">50</span>
+    </div>
+    <!-- Playback -->
+    <div class="playback-controls">
+      <button class="btn btn-icon" id="prevBtn" title="Previous shape">
+        <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+      </button>
+      <button class="btn btn-icon active" id="playPauseBtn" title="Play/Pause">
+        <svg id="pauseIcon" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        <svg id="playIcon" viewBox="0 0 24 24" style="display:none"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <button class="btn btn-icon" id="nextBtn" title="Next shape">
+        <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+      </button>
+    </div>
+    <!-- Camera Reset -->
+    <button class="btn" id="resetCamBtn">Reset Cam</button>
+  </div>
+</div>
+
+<!-- Transition text -->
+<div id="transitionOverlay"></div>
+
+<!-- Timeline -->
+<div id="timeline">
+  <div class="timeline-label">Timeline</div>
+  <div class="timeline-slots" id="timelineSlots"></div>
+</div>
+
+<!-- Hidden file inputs for each slot -->
+<input type="file" class="hidden-input" id="fileInput0" accept=".gltf,.glb">
+<input type="file" class="hidden-input" id="fileInput1" accept=".gltf,.glb">
+<input type="file" class="hidden-input" id="fileInput2" accept=".gltf,.glb">
+<input type="file" class="hidden-input" id="fileInput3" accept=".gltf,.glb">
+<input type="file" class="hidden-input" id="fileInput4" accept=".gltf,.glb">
+
+<!-- ═══════════════════════════════════════════════════════════════
+     JAVASCRIPT: All logic inline
+     ═══════════════════════════════════════════════════════════════ -->
+<script>
+// ================================================================
+// SECTION 1: CONFIGURATION & STATE
+// ================================================================
+
+const CONFIG = {
+  defaultDroneCount: 800,
+  defaultSpeed: 50,
+  transitionDuration: 2.0,  // seconds to morph between shapes
+  droneBaseSize: 0.06,
+  glowIntensity: 1.5,
+  shapeCenterY: 6,         // height of shapes above ground
+  shapeScale: 3.0,         // scale of default shapes
+};
+
+// Timeline state: 5 slots, first 3 filled with defaults
+const timelineSlots = [
+  { name: 'Sphere', type: 'builtin', shape: 'sphere', duration: 8, active: true, visible: false, meshRef: null, points: [] },
+  { name: 'Torus Knot', type: 'builtin', shape: 'torusKnot', duration: 8, active: true, visible: false, meshRef: null, points: [] },
+  { name: 'Star', type: 'builtin', shape: 'star', duration: 8, active: true, visible: false, meshRef: null, points: [] },
+  { name: null, type: 'empty', shape: null, duration: 8, active: false, visible: false, meshRef: null, points: [] },
+  { name: null, type: 'empty', shape: null, duration: 8, active: false, visible: false, meshRef: null, points: [] },
+];
+
+let state = {
+  playing: true,
+  currentSlotIndex: 0,
+  slotTimer: 0,
+  droneCount: CONFIG.defaultDroneCount,
+  speed: CONFIG.defaultSpeed,
+  transitioning: false,
+  transitionProgress: 0,
+  previousPoints: [],
+};
+
+// ================================================================
+// SECTION 2: BABYLON.JS SCENE SETUP
+// ================================================================
+
+const canvas = document.getElementById('renderCanvas');
+const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+const scene = new BABYLON.Scene(engine);
+
+// Dark sky background
+scene.clearColor = new BABYLON.Color4(0.01, 0.015, 0.04, 1);
+scene.ambientColor = new BABYLON.Color3(0.05, 0.05, 0.1);
+scene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
+scene.fogDensity = 0.003;
+scene.fogColor = new BABYLON.Color3(0.01, 0.015, 0.04);
+
+// Camera: ArcRotateCamera for orbit/zoom/pan
+const camera = new BABYLON.ArcRotateCamera('cam', -Math.PI / 2, Math.PI / 3.5, 18, new BABYLON.Vector3(0, CONFIG.shapeCenterY, 0), scene);
+camera.attachControl(canvas, true);
+camera.lowerRadiusLimit = 4;
+camera.upperRadiusLimit = 60;
+camera.wheelPrecision = 20;
+camera.panningSensibility = 80;
+camera.minZ = 0.1;
+
+// Subtle light for GLTF models
+const hemiLight = new BABYLON.HemisphericLight('hemi', new BABYLON.Vector3(0, 1, 0), scene);
+hemiLight.intensity = 0.4;
+hemiLight.diffuse = new BABYLON.Color3(0.4, 0.45, 0.7);
+
+// Optional ground reference — subtle grid
+const ground = BABYLON.MeshBuilder.CreateGround('ground', { width: 80, height: 80 }, scene);
+const groundMat = new BABYLON.StandardMaterial('groundMat', scene);
+groundMat.diffuseColor = new BABYLON.Color3(0.02, 0.025, 0.06);
+groundMat.specularColor = BABYLON.Color3.Black();
+groundMat.alpha = 0.5;
+ground.material = groundMat;
+
+// ================================================================
+// SECTION 3: DRONE COLOR PALETTE
+// Each drone gets a color from this palette for the "light show" feel
+// ================================================================
+
+function generatePalette(count) {
+  const colors = [];
+  for (let i = 0; i < count; i++) {
+    const t = i / count;
+    // Cycle through hues with high saturation/lightness
+    const hue = (t * 360 + Math.random() * 30) % 360;
+    const [r, g, b] = hslToRgb(hue / 360, 0.85 + Math.random() * 0.15, 0.55 + Math.random() * 0.2);
+    colors.push(new BABYLON.Color3(r, g, b));
+  }
+  return colors;
+}
+
+function hslToRgb(h, s, l) {
+  let r, g, b;
+  if (s === 0) { r = g = b = l; }
+  else {
+    const hue2rgb = (p, q, t) => { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1/6) return p + (q-p)*6*t; if (t < 1/2) return q; if (t < 2/3) return p + (q-p)*(2/3-t)*6; return p; };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  return [r, g, b];
+}
+
+// ================================================================
+// SECTION 4: SURFACE POINT SAMPLING
+// Generate points on the surface of various shapes for drone placement
+// ================================================================
+
+/**
+ * Sample N points uniformly on a unit sphere surface, then scale.
+ */
+function sampleSphere(n, scale = CONFIG.shapeScale) {
+  const points = [];
+  for (let i = 0; i < n; i++) {
+    // Fibonacci sphere
+    const golden = Math.PI * (3 - Math.sqrt(5));
+    const y = 1 - (i / (n - 1)) * 2;
+    const radius = Math.sqrt(1 - y * y);
+    const theta = golden * i;
+    points.push(new BABYLON.Vector3(
+      Math.cos(theta) * radius * scale,
+      y * scale + CONFIG.shapeCenterY,
+      Math.sin(theta) * radius * scale
+    ));
+  }
+  return points;
+}
+
+/**
+ * Sample N points on a torus knot surface.
+ * p=2, q=3 for a standard trefoil torus knot
+ */
+function sampleTorusKnot(n, scale = CONFIG.shapeScale) {
+  const points = [];
+  const p = 2, q = 3;
+  const R = scale * 0.7, r = scale * 0.25;
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * Math.PI * 2 * p;
+    const phi = (Math.random() - 0.5) * Math.PI * 2;
+    // Torus knot parametric center
+    const rr = R + r * Math.cos(q * t / p);
+    const cx = rr * Math.cos(t);
+    const cy = rr * Math.sin(t);
+    const cz = r * Math.sin(q * t / p);
+    // Add surface offset
+    const nx = Math.cos(t) * Math.cos(phi);
+    const ny = Math.sin(t) * Math.cos(phi);
+    const nz = Math.sin(phi);
+    const tubeR = scale * 0.12;
+    points.push(new BABYLON.Vector3(
+      cx + nx * tubeR * Math.cos(phi),
+      cz + CONFIG.shapeCenterY + tubeR * Math.sin(phi),
+      cy + ny * tubeR * Math.cos(phi)
+    ));
+  }
+  return points;
+}
+
+/**
+ * Sample N points on a 3D star shape (stellated polyhedron outline).
+ */
+function sampleStar(n, scale = CONFIG.shapeScale) {
+  const points = [];
+  const spikes = 5;
+  const outerR = scale * 1.1;
+  const innerR = scale * 0.45;
+  const depth = scale * 0.3;
+  // Create star outline vertices
+  const starVerts = [];
+  for (let i = 0; i < spikes * 2; i++) {
+    const angle = (i / (spikes * 2)) * Math.PI * 2 - Math.PI / 2;
+    const r = i % 2 === 0 ? outerR : innerR;
+    starVerts.push(new BABYLON.Vector3(Math.cos(angle) * r, CONFIG.shapeCenterY, Math.sin(angle) * r));
+  }
+  // Distribute points along edges + some on front/back faces
+  const totalEdges = starVerts.length;
+  for (let i = 0; i < n; i++) {
+    const edgeIdx = Math.floor(Math.random() * totalEdges);
+    const nextIdx = (edgeIdx + 1) % totalEdges;
+    const t = Math.random();
+    const base = BABYLON.Vector3.Lerp(starVerts[edgeIdx], starVerts[nextIdx], t);
+    const zOffset = (Math.random() - 0.5) * depth;
+    points.push(new BABYLON.Vector3(base.x, base.y, base.z + zOffset));
+  }
+  return points;
+}
+
+/**
+ * Sample points from GLTF mesh vertices.
+ * Distributes N drones across all mesh surfaces found in the loaded model.
+ */
+function sampleFromMesh(meshes, n) {
+  // Collect all vertex positions from all meshes
+  const allPositions = [];
+  meshes.forEach(mesh => {
+    if (!mesh.getVerticesData) return;
+    const positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+    if (!positions) return;
+    const indices = mesh.getIndices();
+    if (indices && indices.length > 0) {
+      // Sample from triangles for better surface coverage
+      for (let i = 0; i < indices.length; i += 3) {
+        const i0 = indices[i] * 3, i1 = indices[i+1] * 3, i2 = indices[i+2] * 3;
+        allPositions.push({
+          v0: new BABYLON.Vector3(positions[i0], positions[i0+1], positions[i0+2]),
+          v1: new BABYLON.Vector3(positions[i1], positions[i1+1], positions[i1+2]),
+          v2: new BABYLON.Vector3(positions[i2], positions[i2+1], positions[i2+2]),
+        });
+      }
+    }
+  });
+
+  if (allPositions.length === 0) return sampleSphere(n); // fallback
+
+  const points = [];
+  // Find bounding box to normalize
+  let min = new BABYLON.Vector3(Infinity, Infinity, Infinity);
+  let max = new BABYLON.Vector3(-Infinity, -Infinity, -Infinity);
+  allPositions.forEach(tri => {
+    [tri.v0, tri.v1, tri.v2].forEach(v => {
+      min = BABYLON.Vector3.Minimize(min, v);
+      max = BABYLON.Vector3.Maximize(max, v);
+    });
+  });
+  const center = BABYLON.Vector3.Center(min, max);
+  const extent = max.subtract(min);
+  const maxExtent = Math.max(extent.x, extent.y, extent.z);
+  const scaleFactor = (CONFIG.shapeScale * 2) / (maxExtent || 1);
+
+  for (let i = 0; i < n; i++) {
+    // Pick a random triangle
+    const tri = allPositions[Math.floor(Math.random() * allPositions.length)];
+    // Random barycentric coordinates
+    let u = Math.random(), v = Math.random();
+    if (u + v > 1) { u = 1 - u; v = 1 - v; }
+    const w = 1 - u - v;
+    const pt = tri.v0.scale(u).add(tri.v1.scale(v)).add(tri.v2.scale(w));
+    // Normalize to scene coordinates
+    const normalized = pt.subtract(center).scale(scaleFactor);
+    points.push(new BABYLON.Vector3(normalized.x, normalized.y + CONFIG.shapeCenterY, normalized.z));
+  }
+  return points;
+}
+
+// ================================================================
+// SECTION 5: DRONE SYSTEM (SPS - Solid Particle System)
+// Uses SPS for efficient rendering of thousands of drones as small spheres
+// ================================================================
+
+let SPS, spsMesh;
+let droneColors = [];
+let currentTargets = [];   // current target positions for each drone
+let dronePositions = [];   // actual current positions (animated)
+let droneVelocities = [];  // for smooth movement along surface
+let dronePhases = [];      // phase offset for orbiting animation
+
+function createDroneSystem(count) {
+  // Dispose old SPS if exists
+  if (SPS) { SPS.dispose(); spsMesh.dispose(); }
+
+  const model = BABYLON.MeshBuilder.CreateSphere('droneModel', { diameter: 1, segments: 4 }, scene);
+  SPS = new BABYLON.SolidParticleSystem('drones', scene, { isPickable: false });
+  SPS.addShape(model, count);
+  spsMesh = SPS.buildMesh();
+  model.dispose();
+
+  // Emissive material for self-lit drones
+  const mat = new BABYLON.StandardMaterial('droneMat', scene);
+  mat.disableLighting = true;
+  mat.emissiveColor = new BABYLON.Color3(1, 1, 1);
+  spsMesh.material = mat;
+
+  // Enable color per particle
+  spsMesh.hasVertexAlpha = false;
+
+  // Generate colors
+  droneColors = generatePalette(count);
+  dronePhases = [];
+  dronePositions = [];
+  droneVelocities = [];
+  currentTargets = [];
+
+  // Initialize particles
+  SPS.initParticles = function() {
+    for (let i = 0; i < SPS.nbParticles; i++) {
+      const p = SPS.particles[i];
+      p.scaling.setAll(CONFIG.droneBaseSize);
+      p.color = new BABYLON.Color4(droneColors[i].r, droneColors[i].g, droneColors[i].b, 1);
+      p.position.set(
+        (Math.random() - 0.5) * 10,
+        CONFIG.shapeCenterY + (Math.random() - 0.5) * 5,
+        (Math.random() - 0.5) * 10
+      );
+      dronePhases.push(Math.random() * Math.PI * 2);
+      dronePositions.push(p.position.clone());
+      droneVelocities.push(BABYLON.Vector3.Zero());
+      currentTargets.push(p.position.clone());
+    }
+  };
+
+  SPS.initParticles();
+  SPS.setParticles();
+
+  // Assign initial shape targets
+  updateDroneTargets();
+}
+
+/**
+ * Update drone target positions based on current active shape.
+ * Called when shape changes or drone count changes.
+ */
+function updateDroneTargets() {
+  const slot = getActiveSlot();
+  if (!slot) return;
+
+  let points;
+  if (slot.type === 'builtin') {
+    switch(slot.shape) {
+      case 'sphere': points = sampleSphere(state.droneCount); break;
+      case 'torusKnot': points = sampleTorusKnot(state.droneCount); break;
+      case 'star': points = sampleStar(state.droneCount); break;
+      default: points = sampleSphere(state.droneCount);
+    }
+  } else if (slot.type === 'gltf' && slot.points.length > 0) {
+    points = slot.points;
+  } else {
+    points = sampleSphere(state.droneCount);
+  }
+
+  // Store previous targets for transition
+  state.previousPoints = currentTargets.map(p => p.clone());
+  state.transitioning = true;
+  state.transitionProgress = 0;
+
+  // Assign targets, handling count mismatch
+  currentTargets = [];
+  for (let i = 0; i < state.droneCount; i++) {
+    if (i < points.length) {
+      currentTargets.push(points[i].clone());
+    } else {
+      // Wrap around if more drones than points
+      currentTargets.push(points[i % points.length].clone());
+    }
+  }
+}
+
+function getActiveSlot() {
+  const activeSlots = timelineSlots.filter(s => s.active && s.type !== 'empty');
+  if (activeSlots.length === 0) return null;
+  const idx = state.currentSlotIndex % activeSlots.length;
+  return activeSlots[idx];
+}
+
+function getActiveSlotRealIndex() {
+  const activeSlots = [];
+  timelineSlots.forEach((s, i) => { if (s.active && s.type !== 'empty') activeSlots.push(i); });
+  if (activeSlots.length === 0) return -1;
+  return activeSlots[state.currentSlotIndex % activeSlots.length];
+}
+
+// ================================================================
+// SECTION 6: DRONE UPDATE LOOP
+// Called each frame to animate drones toward targets with orbiting motion
+// ================================================================
+
+function updateDrones(deltaTime) {
+  if (!SPS || SPS.nbParticles === 0) return;
+
+  const speedFactor = state.speed / 50; // normalized around 1.0
+  const time = performance.now() * 0.001;
+
+  // Handle transition interpolation
+  if (state.transitioning) {
+    state.transitionProgress += deltaTime / CONFIG.transitionDuration;
+    if (state.transitionProgress >= 1) {
+      state.transitionProgress = 1;
+      state.transitioning = false;
+    }
+  }
+
+  SPS.updateParticle = function(p) {
+    const i = p.idx;
+    if (i >= currentTargets.length) {
+      p.scaling.setAll(0); // hide extra drones
+      return p;
+    }
+    p.scaling.setAll(CONFIG.droneBaseSize);
+
+    let target = currentTargets[i];
+
+    // During transition, lerp from previous to current target
+    if (state.transitioning && i < state.previousPoints.length) {
+      const t = smoothStep(state.transitionProgress);
+      target = BABYLON.Vector3.Lerp(state.previousPoints[i], currentTargets[i], t);
+    }
+
+    // Add orbiting motion around the target for liveliness
+    const phase = dronePhases[i];
+    const orbitRadius = 0.08 + Math.sin(phase * 3 + time) * 0.04;
+    const orbitSpeed = speedFactor * 1.5;
+    const ox = Math.cos(time * orbitSpeed + phase) * orbitRadius;
+    const oy = Math.sin(time * orbitSpeed * 0.7 + phase * 1.3) * orbitRadius * 0.5;
+    const oz = Math.sin(time * orbitSpeed + phase) * orbitRadius;
+
+    const finalTarget = new BABYLON.Vector3(target.x + ox, target.y + oy, target.z + oz);
+
+    // Smooth movement toward target
+    const lerpFactor = Math.min(1, deltaTime * 3 * speedFactor);
+    p.position.x += (finalTarget.x - p.position.x) * lerpFactor;
+    p.position.y += (finalTarget.y - p.position.y) * lerpFactor;
+    p.position.z += (finalTarget.z - p.position.z) * lerpFactor;
+
+    // Pulse color intensity
+    const pulse = 0.8 + 0.2 * Math.sin(time * 2 + phase);
+    const col = droneColors[i % droneColors.length];
+    p.color.r = col.r * pulse * CONFIG.glowIntensity;
+    p.color.g = col.g * pulse * CONFIG.glowIntensity;
+    p.color.b = col.b * pulse * CONFIG.glowIntensity;
+    p.color.a = 1;
+
+    return p;
+  };
+
+  SPS.setParticles();
+}
+
+function smoothStep(t) {
+  return t * t * (3 - 2 * t);
+}
+
+// ================================================================
+// SECTION 7: TRANSPARENT SHAPE MODEL DISPLAY
+// Show/hide transparent version of the active shape
+// ================================================================
+
+let shapeDisplayMeshes = {};
+
+function createTransparentShape(slotIdx) {
+  // Remove old one if exists
+  removeTransparentShape(slotIdx);
+
+  const slot = timelineSlots[slotIdx];
+  if (slot.type === 'empty') return;
+
+  let mesh;
+  if (slot.type === 'builtin') {
+    switch(slot.shape) {
+      case 'sphere':
+        mesh = BABYLON.MeshBuilder.CreateSphere(`display_${slotIdx}`, { diameter: CONFIG.shapeScale * 2, segments: 24 }, scene);
+        mesh.position.y = CONFIG.shapeCenterY;
+        break;
+      case 'torusKnot':
+        mesh = BABYLON.MeshBuilder.CreateTorusKnot(`display_${slotIdx}`, {
+          radius: CONFIG.shapeScale * 0.7, tube: CONFIG.shapeScale * 0.12,
+          radialSegments: 64, tubularSegments: 16, p: 2, q: 3
+        }, scene);
+        mesh.position.y = CONFIG.shapeCenterY;
+        break;
+      case 'star':
+        // Create star wireframe from line segments
+        const starPoints = [];
+        const spikes = 5;
+        const outerR = CONFIG.shapeScale * 1.1;
+        const innerR = CONFIG.shapeScale * 0.45;
+        for (let si = 0; si <= spikes * 2; si++) {
+          const angle = (si / (spikes * 2)) * Math.PI * 2 - Math.PI / 2;
+          const r = si % 2 === 0 ? outerR : innerR;
+          starPoints.push(new BABYLON.Vector3(Math.cos(angle) * r, 0, Math.sin(angle) * r));
+        }
+        mesh = BABYLON.MeshBuilder.CreateLines(`display_${slotIdx}`, { points: starPoints }, scene);
+        mesh.color = new BABYLON.Color3(0.15, 0.25, 0.7);
+        mesh.alpha = 0.2;
+        mesh.position.y = CONFIG.shapeCenterY;
+        shapeDisplayMeshes[slotIdx] = mesh;
+        mesh.setEnabled(slot.visible);
+        return; // early return since lines don't need material
+    }
+  }
+
+  if (mesh) {
+    const mat = new BABYLON.StandardMaterial(`displayMat_${slotIdx}`, scene);
+    mat.diffuseColor = new BABYLON.Color3(0.2, 0.3, 0.8);
+    mat.emissiveColor = new BABYLON.Color3(0.05, 0.08, 0.2);
+    mat.alpha = 0.12;
+    mat.wireframe = true;
+    mesh.material = mat;
+    mesh.isPickable = false;
+    shapeDisplayMeshes[slotIdx] = mesh;
+    mesh.setEnabled(slot.visible);
+  }
+}
+
+function removeTransparentShape(slotIdx) {
+  if (shapeDisplayMeshes[slotIdx]) {
+    shapeDisplayMeshes[slotIdx].dispose();
+    delete shapeDisplayMeshes[slotIdx];
+  }
+}
+
+// ================================================================
+// SECTION 8: TIMELINE LOGIC
+// Controls the sequence of shapes and transitions between them
+// ================================================================
+
+function advanceTimeline(deltaTime) {
+  if (!state.playing) return;
+
+  const activeSlots = timelineSlots.filter(s => s.active && s.type !== 'empty');
+  if (activeSlots.length === 0) return;
+
+  const currentSlot = activeSlots[state.currentSlotIndex % activeSlots.length];
+  state.slotTimer += deltaTime;
+
+  if (state.slotTimer >= currentSlot.duration) {
+    goToNextShape();
+  }
+}
+
+function goToNextShape() {
+  const activeSlots = timelineSlots.filter(s => s.active && s.type !== 'empty');
+  if (activeSlots.length === 0) return;
+
+  state.currentSlotIndex = (state.currentSlotIndex + 1) % activeSlots.length;
+  state.slotTimer = 0;
+
+  // Show transition text
+  const slot = activeSlots[state.currentSlotIndex];
+  showTransitionText(slot.name || 'Shape');
+
+  updateDroneTargets();
+  updateShapeVisibility();
+  renderTimeline();
+}
+
+function goToPrevShape() {
+  const activeSlots = timelineSlots.filter(s => s.active && s.type !== 'empty');
+  if (activeSlots.length === 0) return;
+
+  state.currentSlotIndex = (state.currentSlotIndex - 1 + activeSlots.length) % activeSlots.length;
+  state.slotTimer = 0;
+
+  const slot = activeSlots[state.currentSlotIndex];
+  showTransitionText(slot.name || 'Shape');
+
+  updateDroneTargets();
+  updateShapeVisibility();
+  renderTimeline();
+}
+
+function updateShapeVisibility() {
+  const activeRealIdx = getActiveSlotRealIndex();
+  // Hide all transparent shapes, show only the active one if visibility is on
+  for (let i = 0; i < 5; i++) {
+    if (shapeDisplayMeshes[i]) {
+      shapeDisplayMeshes[i].setEnabled(i === activeRealIdx && timelineSlots[i].visible);
+    }
+  }
+}
+
+function showTransitionText(text) {
+  const overlay = document.getElementById('transitionOverlay');
+  overlay.textContent = text;
+  overlay.style.opacity = '1';
+  setTimeout(() => { overlay.style.opacity = '0'; }, 1500);
+}
+
+// ================================================================
+// SECTION 9: GLTF/GLB FILE LOADING
+// Load user-provided 3D models and sample their surfaces for drones
+// ================================================================
+
+function loadGLTFIntoSlot(slotIdx, file) {
+  const url = URL.createObjectURL(file);
+  const fileName = file.name;
+
+  // Clear old data
+  timelineSlots[slotIdx].points = [];
+  removeTransparentShape(slotIdx);
+  if (timelineSlots[slotIdx].meshRef) {
+    timelineSlots[slotIdx].meshRef.forEach(m => { try { m.dispose(); } catch(e){} });
+  }
+
+  BABYLON.SceneLoader.ImportMesh('', '', url, scene, function(meshes) {
+    // Collect mesh data for sampling
+    const sampledPoints = sampleFromMesh(meshes, state.droneCount);
+
+    // Store in slot
+    timelineSlots[slotIdx].name = fileName.replace(/\.(gltf|glb)$/i, '');
+    timelineSlots[slotIdx].type = 'gltf';
+    timelineSlots[slotIdx].shape = null;
+    timelineSlots[slotIdx].active = true;
+    timelineSlots[slotIdx].points = sampledPoints;
+    timelineSlots[slotIdx].meshRef = meshes;
+
+    // Hide the loaded meshes (we only want drones)
+    meshes.forEach(m => m.setEnabled(false));
+
+    // Create transparent wireframe version
+    createGLTFTransparentDisplay(slotIdx, meshes);
+
+    // If this is the current shape, update drones
+    if (getActiveSlotRealIndex() === slotIdx) {
+      updateDroneTargets();
+    }
+
+    renderTimeline();
+    URL.revokeObjectURL(url);
+  }, null, function(scene, msg, error) {
+    console.error('Failed to load GLTF:', msg, error);
+    alert('Failed to load model. Make sure it is a valid .gltf or .glb file.');
+    URL.revokeObjectURL(url);
+  }, fileName.toLowerCase().endsWith('.gltf') ? '.gltf' : '.glb');
+}
+
+function createGLTFTransparentDisplay(slotIdx, meshes) {
+  removeTransparentShape(slotIdx);
+
+  // Clone meshes for transparent display
+  const parent = new BABYLON.TransformNode(`display_parent_${slotIdx}`, scene);
+
+  // Find bounding box to normalize
+  let min = new BABYLON.Vector3(Infinity, Infinity, Infinity);
+  let max = new BABYLON.Vector3(-Infinity, -Infinity, -Infinity);
+  meshes.forEach(mesh => {
+    if (!mesh.getVerticesData) return;
+    const positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+    if (!positions) return;
+    for (let i = 0; i < positions.length; i += 3) {
+      min = BABYLON.Vector3.Minimize(min, new BABYLON.Vector3(positions[i], positions[i+1], positions[i+2]));
+      max = BABYLON.Vector3.Maximize(max, new BABYLON.Vector3(positions[i], positions[i+1], positions[i+2]));
+    }
+  });
+  const center = BABYLON.Vector3.Center(min, max);
+  const extent = max.subtract(min);
+  const maxExtent = Math.max(extent.x, extent.y, extent.z);
+  const scaleFactor = (CONFIG.shapeScale * 2) / (maxExtent || 1);
+
+  parent.position = new BABYLON.Vector3(-center.x * scaleFactor, CONFIG.shapeCenterY - center.y * scaleFactor, -center.z * scaleFactor);
+  parent.scaling = new BABYLON.Vector3(scaleFactor, scaleFactor, scaleFactor);
+
+  const mat = new BABYLON.StandardMaterial(`displayMat_${slotIdx}`, scene);
+  mat.diffuseColor = new BABYLON.Color3(0.2, 0.3, 0.8);
+  mat.emissiveColor = new BABYLON.Color3(0.05, 0.08, 0.2);
+  mat.alpha = 0.12;
+  mat.wireframe = true;
+
+  meshes.forEach((mesh, idx) => {
+    if (!mesh.getVerticesData || !mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind)) return;
+    try {
+      const clone = mesh.clone(`display_${slotIdx}_${idx}`);
+      if (clone) {
+        clone.setEnabled(true);
+        clone.parent = parent;
+        clone.material = mat;
+        clone.isPickable = false;
+      }
+    } catch(e) { /* skip non-cloneable meshes */ }
+  });
+
+  shapeDisplayMeshes[slotIdx] = parent;
+  parent.setEnabled(timelineSlots[slotIdx].visible);
+}
+
+// ================================================================
+// SECTION 10: UI RENDERING
+// Build and update the timeline and control UI
+// ================================================================
+
+function renderTimeline() {
+  const container = document.getElementById('timelineSlots');
+  container.innerHTML = '';
+
+  const activeRealIdx = getActiveSlotRealIndex();
+
+  timelineSlots.forEach((slot, i) => {
+    const div = document.createElement('div');
+    div.className = 'timeline-slot' + (i === activeRealIdx ? ' active-slot' : '') + (slot.type !== 'empty' ? ' has-shape' : '');
+
+    if (slot.type === 'empty') {
+      div.innerHTML = `
+        <div class="slot-header">
+          <span class="slot-index">#${i + 1}</span>
+        </div>
+        <div class="slot-empty" onclick="document.getElementById('fileInput${i}').click()">+ Load GLTF/GLB</div>
+      `;
+    } else {
+      const visClass = slot.visible ? 'vis-on' : '';
+      div.innerHTML = `
+        <div class="slot-header">
+          <span class="slot-index">#${i + 1}</span>
+          <span class="slot-name" title="${slot.name}">${slot.name}</span>
+          <div class="slot-actions">
+            <button class="slot-btn ${visClass}" onclick="toggleVisibility(${i})" title="Toggle model visibility">${slot.visible ? '👁' : '◌'}</button>
+            <button class="slot-btn" onclick="document.getElementById('fileInput${i}').click()" title="Replace">↻</button>
+            <button class="slot-btn" onclick="clearSlot(${i})" title="Remove">✕</button>
+          </div>
+        </div>
+        <div class="slot-duration">
+          <span>Duration:</span>
+          <input type="number" value="${slot.duration}" min="2" max="60" onchange="setDuration(${i}, this.value)">
+          <span>s</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progress_${i}"></div></div>
+      `;
+    }
+
+    container.appendChild(div);
+  });
+}
+
+function toggleVisibility(slotIdx) {
+  timelineSlots[slotIdx].visible = !timelineSlots[slotIdx].visible;
+  updateShapeVisibility();
+  renderTimeline();
+}
+
+function clearSlot(slotIdx) {
+  // Remove shape data
+  removeTransparentShape(slotIdx);
+  if (timelineSlots[slotIdx].meshRef) {
+    timelineSlots[slotIdx].meshRef.forEach(m => m.dispose());
+  }
+  timelineSlots[slotIdx] = { name: null, type: 'empty', shape: null, duration: 8, active: false, visible: false, meshRef: null, points: [] };
+
+  // Recalculate current index
+  const activeSlots = timelineSlots.filter(s => s.active && s.type !== 'empty');
+  if (activeSlots.length > 0) {
+    state.currentSlotIndex = state.currentSlotIndex % activeSlots.length;
+    updateDroneTargets();
+  }
+  renderTimeline();
+}
+
+function setDuration(slotIdx, val) {
+  timelineSlots[slotIdx].duration = Math.max(2, Math.min(60, parseInt(val) || 8));
+}
+
+function updateProgressBar() {
+  const activeRealIdx = getActiveSlotRealIndex();
+  for (let i = 0; i < 5; i++) {
+    const bar = document.getElementById(`progress_${i}`);
+    if (bar) {
+      if (i === activeRealIdx && timelineSlots[i].duration > 0) {
+        bar.style.width = Math.min(100, (state.slotTimer / timelineSlots[i].duration) * 100) + '%';
+      } else {
+        bar.style.width = '0%';
+      }
+    }
+  }
+}
+
+// ================================================================
+// SECTION 11: EVENT LISTENERS
+// Wire up all UI controls
+// ================================================================
+
+// Drone count slider
+document.getElementById('droneCount').addEventListener('input', function() {
+  const val = parseInt(this.value);
+  document.getElementById('droneCountVal').textContent = val;
+  state.droneCount = val;
+  createDroneSystem(val);
+});
+
+// Speed slider
+document.getElementById('speedSlider').addEventListener('input', function() {
+  const val = parseInt(this.value);
+  document.getElementById('speedVal').textContent = val;
+  state.speed = val;
+});
+
+// Play/Pause
+document.getElementById('playPauseBtn').addEventListener('click', function() {
+  state.playing = !state.playing;
+  document.getElementById('pauseIcon').style.display = state.playing ? 'block' : 'none';
+  document.getElementById('playIcon').style.display = state.playing ? 'none' : 'block';
+  this.classList.toggle('active', state.playing);
+});
+
+// Next/Previous
+document.getElementById('nextBtn').addEventListener('click', goToNextShape);
+document.getElementById('prevBtn').addEventListener('click', goToPrevShape);
+
+// Camera reset
+document.getElementById('resetCamBtn').addEventListener('click', function() {
+  camera.alpha = -Math.PI / 2;
+  camera.beta = Math.PI / 3.5;
+  camera.radius = 18;
+  camera.target = new BABYLON.Vector3(0, CONFIG.shapeCenterY, 0);
+});
+
+// File inputs for GLTF loading
+for (let i = 0; i < 5; i++) {
+  document.getElementById(`fileInput${i}`).addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) loadGLTFIntoSlot(i, file);
+    this.value = ''; // reset so same file can be re-loaded
+  });
+}
+
+// ================================================================
+// SECTION 12: (Reserved for future extensions)
+// ================================================================
+
+// ================================================================
+// SECTION 13: STAR PARTICLES (ambient floating particles for atmosphere)
+// ================================================================
+
+function createStarField() {
+  const starCount = 500;
+  const starSPS = new BABYLON.SolidParticleSystem('stars', scene);
+  const starModel = BABYLON.MeshBuilder.CreateSphere('starModel', { diameter: 1, segments: 3 }, scene);
+  starSPS.addShape(starModel, starCount);
+  const starMesh = starSPS.buildMesh();
+  starModel.dispose();
+
+  const starMat = new BABYLON.StandardMaterial('starMat', scene);
+  starMat.disableLighting = true;
+  starMat.emissiveColor = new BABYLON.Color3(1, 1, 1);
+  starMesh.material = starMat;
+
+  starSPS.initParticles = function() {
+    for (let i = 0; i < starSPS.nbParticles; i++) {
+      const p = starSPS.particles[i];
+      const angle1 = Math.random() * Math.PI * 2;
+      const angle2 = Math.random() * Math.PI;
+      const dist = 30 + Math.random() * 50;
+      p.position.set(
+        Math.cos(angle1) * Math.sin(angle2) * dist,
+        Math.abs(Math.cos(angle2)) * dist * 0.5 + 5,
+        Math.sin(angle1) * Math.sin(angle2) * dist
+      );
+      const size = 0.02 + Math.random() * 0.04;
+      p.scaling.setAll(size);
+      const brightness = 0.3 + Math.random() * 0.7;
+      p.color = new BABYLON.Color4(brightness * 0.9, brightness * 0.92, brightness, 1);
+    }
+  };
+  starSPS.initParticles();
+  starSPS.setParticles();
+  starSPS.isAlwaysVisible = true;
+
+  // Twinkle animation
+  let twinkleTime = 0;
+  scene.registerBeforeRender(() => {
+    twinkleTime += 0.01;
+    starSPS.updateParticle = function(p) {
+      const twinkle = 0.5 + 0.5 * Math.sin(twinkleTime * 3 + p.idx * 1.7);
+      p.color.a = twinkle;
+      return p;
+    };
+    starSPS.setParticles();
+  });
+}
+
+// ================================================================
+// SECTION 14: MAIN INITIALIZATION & RENDER LOOP
+// ================================================================
+
+function init() {
+  // Create ambient star field
+  createStarField();
+
+  // Create transparent display shapes for built-in defaults
+  for (let i = 0; i < 3; i++) {
+    createTransparentShape(i);
+  }
+
+  // Create drone system
+  createDroneSystem(state.droneCount);
+
+  // Show initial transition text
+  showTransitionText(timelineSlots[0].name);
+
+  // Render timeline UI
+  renderTimeline();
+
+  // Main render loop
+  let lastTime = performance.now();
+  engine.runRenderLoop(function() {
+    const now = performance.now();
+    const delta = Math.min((now - lastTime) / 1000, 0.1); // cap delta for tab switching
+    lastTime = now;
+
+    // Advance timeline
+    advanceTimeline(delta);
+
+    // Update drones
+    updateDrones(delta);
+
+    // Update progress bar
+    updateProgressBar();
+
+    scene.render();
+  });
+}
+
+// Handle window resize
+window.addEventListener('resize', () => engine.resize());
+
+// Start!
+init();
+</script>
+</body>
+</html>

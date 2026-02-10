@@ -83,6 +83,35 @@ A small spreadsheet-like web app with:
 
 ---
 
+### Lunar Miner
+
+A p5.js arcade-style lunar mining experiment:
+
+- Randomly generated lunar terrain and tunnels  
+- Keyboard-based movement (arrows, jump, dig)  
+- Crystal collection and collapsing tiles  
+- Score based on survival time and resources collected  
+
+**Source:** `/lunar_miner/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/lunar_miner/
+
+---
+
+### Drone Light Show
+
+A Babylon.js 3D drone light show:
+
+- Adjustable number of drones  
+- Formation animations (sequences, timing, transitions)  
+- Playback controls (play, pause, next formation)  
+- Smooth cinematic camera movement  
+- Neon HUD-style UI  
+
+**Source:** `/drone-light-show/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/drone-light-show/
+
+---
+
 ## Structure
 
 Each tool lives in its own folder:
