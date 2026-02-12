@@ -122,7 +122,7 @@ A tiny RTS prototype made in pure HTML/JS:
 - Runs fully in the browser, no backend
 
 **Source:** `/micro-rts/`  
-**Live demo:** https://vislupus.github.io/ai-generated-web-tools/micro-rts/.
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/micro-rts/
 
 ---
 
