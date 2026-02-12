@@ -112,6 +112,20 @@ A Babylon.js 3D drone light show:
 
 ---
 
+### MicroRTS – Age of Empires Inspired
+
+A tiny RTS prototype made in pure HTML/JS:
+
+- Villagers, resource gathering and drop-off
+- Buildings, unit training queues, population cap (houses)
+- Minimap, pause + game speed controls
+- Runs fully in the browser, no backend
+
+**Source:** `/micro-rts/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/micro-rts/.
+
+---
+
 ## Structure
 
 Each tool lives in its own folder:
