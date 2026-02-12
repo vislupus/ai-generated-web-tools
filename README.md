@@ -112,7 +112,7 @@ A Babylon.js 3D drone light show:
 
 ---
 
-### MicroRTS – Age of Empires Inspired
+### MicroRTS game – Age of Empires Inspired
 
 A tiny RTS prototype made in pure HTML/JS:
 
@@ -139,4 +139,5 @@ Each tool lives in its own folder:
 ├─ jp-text-highlighter/  # Japanese text highlighter with furigana/romaji
 ├─ sheetclone/           # Spreadsheet-like app
 ├─ lunar_miner/          # Lunar Miner
+├─ micro-rts/            # MicroRTS game
 └─ drone-light-show/     # Drone Light Show
