@@ -126,6 +126,20 @@ A tiny RTS prototype made in pure HTML/JS:
 
 ---
 
+### N-Body Gravitational Simulation (WebGPU)
+
+GPU n-body gravity simulation:
+
+- WebGPU compute shader (tiled shared memory)
+- WebGL2 fallback path
+- Multiple scenarios + real-time controls
+- Additive glow rendering
+
+**Source:** `/nbody-simulation/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/nbody-simulation/
+
+---
+
 ## Structure
 
 Each tool lives in its own folder:
@@ -140,4 +154,5 @@ Each tool lives in its own folder:
 ├─ sheetclone/           # Spreadsheet-like app
 ├─ lunar_miner/          # Lunar Miner
 ├─ micro-rts/            # MicroRTS game
+├─ nbody-simulation/     # N-Body gravity (WebGPU/WebGL2)
 └─ drone-light-show/     # Drone Light Show

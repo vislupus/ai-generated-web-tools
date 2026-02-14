@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>N-Body Gravitational Simulation — WebGPU</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Segoe UI',system-ui,sans-serif}
+canvas{width:100%;height:100%;display:block;touch-action:none}
+#hud{position:fixed;top:12px;left:12px;color:#7bc8f6;font-size:12.5px;font-family:'JetBrains Mono','Courier New',monospace;
+  background:rgba(2,6,18,0.75);padding:10px 16px;border-radius:8px;border:1px solid rgba(80,160,255,0.15);
+  pointer-events:none;z-index:100;line-height:1.8;backdrop-filter:blur(6px);min-width:180px}
+#hud .l{color:#4a7a9b;font-size:11px;text-transform:uppercase;letter-spacing:0.5px}
+#info-btn{position:fixed;top:12px;right:12px;z-index:300;width:32px;height:32px;border-radius:50%;
+  border:1px solid rgba(80,160,255,0.3);background:rgba(2,6,18,0.7);color:#7bc8f6;font-size:16px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+#info-btn:hover{background:rgba(40,80,140,0.5)}
+#info-panel{display:none;position:fixed;top:52px;right:12px;z-index:300;width:360px;max-height:80vh;overflow-y:auto;
+  background:rgba(2,6,18,0.92);border:1px solid rgba(80,160,255,0.2);border-radius:10px;padding:20px;
+  color:#b0c8dc;font-size:13px;line-height:1.7;backdrop-filter:blur(10px)}
+#info-panel h3{color:#7bc8f6;margin:14px 0 6px;font-size:14px;border-bottom:1px solid rgba(80,160,255,0.15);padding-bottom:4px}
+#info-panel h3:first-child{margin-top:0}
+#info-panel dt{color:#8dc8f0;font-weight:600;margin-top:6px}
+#info-panel dd{margin-left:12px;color:#8a9eb3}
+#info-panel .algo{background:rgba(60,120,200,0.1);border:1px solid rgba(80,160,255,0.15);border-radius:6px;padding:10px;margin:8px 0}
+#unsupported{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,10,0.95);
+  color:#cde;justify-content:center;align-items:center;flex-direction:column;text-align:center;padding:40px}
+#unsupported h2{font-size:22px;margin-bottom:14px;color:#ff6b6b}
+#unsupported p{font-size:14px;max-width:480px;line-height:1.7;color:#8a9eb3}
+.dg.ac{z-index:200!important}
+.dg .cr.function .property-name{width:100%!important}
+.dg .c .slider{background:#1a2a40}
+.dg .c .slider:hover{background:#1e3350}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <span class="l">FPS</span> <span id="hFps">--</span><br>
+  <span class="l">Particles</span> <span id="hN">--</span><br>
+  <span class="l">Backend</span> <span id="hBack">--</span><br>
+  <span class="l">Tex/Grid</span> <span id="hTex">--</span><br>
+  <span class="l">Algorithm</span> <span id="hAlgo">--</span>
+</div>
+<button id="info-btn" title="Help & Info">?</button>
+<div id="info-panel">
+<h3>How It Works</h3>
+<div class="algo">
+<strong>Tiled Shared-Memory N-Body</strong><br>
+All N particles attract each other via Newtonian gravity. The naïve approach is O(N²) — every particle
+must sum forces from every other. On the GPU, we use <em>spatial tiling with workgroup shared memory</em>:
+particles are processed in tiles of 256. Each tile is loaded once into fast shared memory, then every thread
+in the workgroup computes forces against that tile. This reduces slow global memory reads by ~256×, making
+the O(N²) computation dramatically faster in practice.
+</div>
+<p><strong>Integration:</strong> Leapfrog (velocity Verlet) — kick velocity by acceleration, then drift position
+by velocity. This is symplectic and conserves energy well over long runs.</p>
+<p><strong>Softening:</strong> A small ε² is added to distance² to prevent infinite forces at zero separation.
+This models extended bodies rather than point masses.</p>
+<p><strong>WebGPU path:</strong> Compute shader runs the physics. Positions are read directly by the render
+shader from GPU storage buffers — <em>zero CPU readback</em>. Particles are drawn as screen-aligned billboard
+quads with additive blending.</p>
+<p><strong>WebGL2 fallback:</strong> Physics runs via fragment shaders writing to floating-point textures
+(ping-pong FBOs). Positions must be read back to CPU each frame for rendering.</p>
+
+<h3>Controls</h3>
+<dl>
+<dt>Particles</dt><dd>Total body count. Higher = more beautiful but slower (O(N²) scaling). WebGPU handles 65K–262K; WebGL2 caps around 16K.</dd>
+<dt>Scenario</dt><dd><b>Sphere</b> — random uniform cloud with small random velocities and zero net momentum. Collapses under gravity.
+<b>Disk</b> — flat rotating galaxy. Particles have approximate circular orbital velocities.
+<b>Merger</b> — two separate clusters on a collision course.</dd>
+<dt>Random Seed</dt><dd>Determines the exact initial positions. Same seed = same simulation every time.</dd>
+<dt>Timestep (dt)</dt><dd>How far physics advances per frame. Smaller = more accurate & stable, but the simulation evolves slower. Too large → particles fly apart. Sweet spot: 0.005–0.015.</dd>
+<dt>Gravity (G)</dt><dd>Gravitational constant. Higher = stronger pull between particles. Scales the force directly.</dd>
+<dt>Softening (ε)</dt><dd>Prevents singularities when particles get very close. Higher = softer, smoother orbits but less realistic close encounters. Lower = more dynamic but risk of numerical blow-ups.</dd>
+<dt>Mass Scale</dt><dd>Multiplier on every particle's mass. Higher = stronger gravity overall (like increasing G, but per-particle).</dd>
+<dt>Mass Jitter</dt><dd>Random variation in particle masses (0 = all identical, 1 = masses vary from 0× to 2× the scale). Adds visual variety.</dd>
+<dt>Particle Size</dt><dd>Visual size of rendered particles. Does not affect physics.</dd>
+<dt>Glow Intensity</dt><dd>Brightness of the additive glow around particles. 0 = solid dots, higher = more bloom-like.</dd>
+<dt>Paused</dt><dd>Freezes the physics simulation. Camera still works.</dd>
+<dt>Reset</dt><dd>Regenerates initial conditions with current settings.</dd>
+</dl>
+</div>
+<div id="unsupported">
+  <h2>GPU Compute Not Available</h2>
+  <p>Your browser supports neither WebGPU nor WebGL2 with float textures.
+  Please use Chrome 113+, Edge 113+, or Firefox 120+ for the best experience.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.9/dat.gui.min.js"></script>
+<script>
+"use strict";
+
+// ============================================================
+// WGSL SHADERS — WebGPU compute & render
+// ============================================================
+
+// -----------------------------------------------------------
+// Compute shader: Tiled N-body with workgroup shared memory
+//
+// ALGORITHM:
+//   For each particle i, we sum gravitational acceleration from
+//   ALL other particles j. To reduce global memory bandwidth,
+//   particles are processed in tiles of TILE_SIZE (256).
+//
+//   Each workgroup (256 threads) cooperatively loads a tile of
+//   256 particle positions into workgroup shared memory. Then
+//   every thread computes forces from that tile using the fast
+//   shared memory. After all tiles are processed, each thread
+//   has the full acceleration vector.
+//
+//   This reduces global memory reads by a factor of TILE_SIZE
+//   (256×), which is the primary bottleneck on GPUs.
+//
+// PHYSICS:
+//   Acceleration: a_i = G * Σ_j m_j * (r_j - r_i) / (|r_j - r_i|² + ε²)^(3/2)
+//   Leapfrog kick:  v_new = v_old + a * dt
+//   Leapfrog drift: x_new = x_old + v_new * dt
+//
+// BUFFER LAYOUT:
+//   posIn/posOut:  vec4(x, y, z, mass)  per particle
+//   velIn/velOut:  vec4(vx, vy, vz, 0)  per particle
+//   Ping-pong: read from In, write to Out, then swap each frame.
+// -----------------------------------------------------------
+const TILE_SIZE = 256;
+
+const WGSL_COMPUTE = `
+const TILE: u32 = ${TILE_SIZE}u;
+
+struct Params {
+  numParticles: u32,
+  dt: f32,
+  G: f32,
+  softening2: f32,
+}
+
+@group(0) @binding(0) var<storage, read>       posIn:  array<vec4f>;
+@group(0) @binding(1) var<storage, read>       velIn:  array<vec4f>;
+@group(0) @binding(2) var<storage, read_write> posOut: array<vec4f>;
+@group(0) @binding(3) var<storage, read_write> velOut: array<vec4f>;
+@group(0) @binding(4) var<uniform>             params: Params;
+
+// Shared memory tile — loaded cooperatively by the workgroup.
+// Each workgroup loads TILE particles at a time into this fast
+// on-chip memory, so every thread can read them without slow
+// global memory fetches. This is the core optimization.
+var<workgroup> tile: array<vec4f, TILE>;
+
+@compute @workgroup_size(TILE)
+fn main(
+  @builtin(global_invocation_id) gid: vec3u,
+  @builtin(local_invocation_id)  lid: vec3u
+) {
+  let i = gid.x;
+  let N = params.numParticles;
+
+  // IMPORTANT: Do NOT early-return here! workgroupBarrier() requires
+  // ALL threads in the workgroup to reach it (uniform control flow).
+  // Threads beyond N will participate in tile loads (writing zero mass)
+  // and barriers, but skip the actual force accumulation and writes.
+  let valid = i < N;
+
+  // Load this thread's position (or zero if out of range)
+  var myPos = vec4f(0.0);
+  if (valid) {
+    myPos = posIn[i];
+  }
+  var acc = vec3f(0.0);
+
+  // How many tiles we need to cover all N particles
+  let numTiles = (N + TILE - 1u) / TILE;
+
+  for (var t = 0u; t < numTiles; t++) {
+    // --- Cooperative tile load into shared memory ---
+    // Every thread loads one particle into the shared tile.
+    // Out-of-range threads load a zero-mass dummy (contributes
+    // zero force, so it's safe to include in the sum).
+    let loadIdx = t * TILE + lid.x;
+    if (loadIdx < N) {
+      tile[lid.x] = posIn[loadIdx];
+    } else {
+      tile[lid.x] = vec4f(0.0, 0.0, 0.0, 0.0); // mass=0 → zero force
+    }
+
+    // ALL threads must reach this barrier — this is why we can't
+    // early-return. The barrier ensures the entire tile is loaded
+    // before any thread starts reading from it.
+    workgroupBarrier();
+
+    // --- Compute forces from this tile ---
+    // Only valid threads accumulate forces (but all threads wait)
+    if (valid) {
+      for (var j = 0u; j < TILE; j++) {
+        let r = tile[j].xyz - myPos.xyz;
+        let dist2 = dot(r, r) + params.softening2;
+        let invDist = inverseSqrt(dist2);
+        let invDist3 = invDist * invDist * invDist;
+        // tile[j].w is mass; zero-mass entries contribute nothing
+        acc += tile[j].w * r * invDist3;
+      }
+    }
+
+    // Second barrier: ensure all threads are done reading the tile
+    // before the next iteration overwrites it.
+    workgroupBarrier();
+  }
+
+  // Only valid threads write results
+  if (valid) {
+    let oldVel = velIn[i].xyz;
+    let newVel = oldVel + params.G * acc * params.dt;
+    let newPos = myPos.xyz + newVel * params.dt;
+    velOut[i] = vec4f(newVel, 0.0);
+    posOut[i] = vec4f(newPos, myPos.w);
+  }
+}`;
+
+// -----------------------------------------------------------
+// Render shaders: billboard point sprites read from storage
+//
+// Each particle is rendered as a screen-aligned quad (6 verts).
+// The vertex shader reads positions and velocities directly
+// from the GPU storage buffers — no CPU readback needed.
+//
+// Billboarding: quad corners are offset in view space using
+// the camera's right and up vectors.
+// -----------------------------------------------------------
+const WGSL_RENDER = `
+struct Uniforms {
+  viewProj:   mat4x4f,
+  camRight:   vec4f,
+  camUp:      vec4f,
+  pSize:      f32,
+  glowIntensity: f32,
+  numParticles: u32,
+  _pad: u32,
+}
+
+struct VOut {
+  @builtin(position) pos: vec4f,
+  @location(0) color: vec3f,
+  @location(1) uv: vec2f,
+  @location(2) glow: f32,
+}
+
+@group(0) @binding(0) var<storage, read> positions:  array<vec4f>;
+@group(0) @binding(1) var<storage, read> velocities: array<vec4f>;
+@group(0) @binding(2) var<uniform>       uni:        Uniforms;
+
+// 6 vertices per quad (2 triangles)
+const QV = array<vec2f, 6>(
+  vec2f(-1,-1), vec2f(1,-1), vec2f(-1,1),
+  vec2f(-1,1),  vec2f(1,-1), vec2f(1,1)
+);
+
+fn speedToColor(speed: f32) -> vec3f {
+  let t = clamp(speed * 2.5, 0.0, 1.0);
+  if (t < 0.25) {
+    return mix(vec3f(0.08, 0.15, 0.55), vec3f(0.15, 0.45, 0.95), t / 0.25);
+  } else if (t < 0.5) {
+    return mix(vec3f(0.15, 0.45, 0.95), vec3f(0.3, 0.85, 1.0), (t - 0.25) / 0.25);
+  } else if (t < 0.75) {
+    return mix(vec3f(0.3, 0.85, 1.0), vec3f(1.0, 0.95, 0.75), (t - 0.5) / 0.25);
+  }
+  return mix(vec3f(1.0, 0.95, 0.75), vec3f(1.0, 0.45, 0.15), (t - 0.75) / 0.25);
+}
+
+@vertex
+fn vs(@builtin(vertex_index) vid: u32) -> VOut {
+  let pid = vid / 6u;
+  let cid = vid % 6u;
+
+  var out: VOut;
+  if (pid >= uni.numParticles) {
+    out.pos = vec4f(0.0, 0.0, -2.0, 1.0);
+    return out;
+  }
+
+  let wpos = positions[pid].xyz;
+  let vel  = velocities[pid].xyz;
+  let speed = length(vel);
+
+  let corner = QV[cid];
+  let right = uni.camRight.xyz;
+  let up    = uni.camUp.xyz;
+  let bpos  = wpos + (right * corner.x + up * corner.y) * uni.pSize;
+
+  out.pos   = uni.viewProj * vec4f(bpos, 1.0);
+  out.color = speedToColor(speed);
+  out.uv    = corner * 0.5 + 0.5;
+  out.glow  = uni.glowIntensity;
+  return out;
+}
+
+@fragment
+fn fs(in: VOut) -> @location(0) vec4f {
+  let d = distance(in.uv, vec2f(0.5));
+  if (d > 0.5) { discard; }
+
+  // Bright core + soft glow
+  let core = smoothstep(0.5, 0.08, d);
+  let glow = exp(-d * d * 12.0) * in.glow;
+  let brightness = core + glow;
+
+  return vec4f(in.color * brightness, brightness * 0.9);
+}`;
+
+// Starfield render shaders
+const WGSL_STARS = `
+struct Uniforms { viewProj: mat4x4f, camRight: vec4f, camUp: vec4f, }
+
+struct VOut { @builtin(position) pos: vec4f, @location(0) bright: f32, @location(1) uv: vec2f, }
+
+@group(0) @binding(0) var<storage,read> starPos: array<vec4f>;
+@group(0) @binding(1) var<uniform> uni: Uniforms;
+
+const QV=array<vec2f,6>(vec2f(-1,-1),vec2f(1,-1),vec2f(-1,1),vec2f(-1,1),vec2f(1,-1),vec2f(1,1));
+
+@vertex fn vs(@builtin(vertex_index) vid:u32)->VOut{
+  let sid=vid/6u; let cid=vid%6u;
+  let p=starPos[sid]; let sz=p.w;
+  let c=QV[cid];
+  let bp=p.xyz+(uni.camRight.xyz*c.x+uni.camUp.xyz*c.y)*sz;
+  var o:VOut;
+  o.pos=uni.viewProj*vec4f(bp,1.0);
+  o.bright=sz*4.0;
+  o.uv=c*0.5+0.5;
+  return o;
+}
+@fragment fn fs(in:VOut)->@location(0) vec4f{
+  let d=distance(in.uv,vec2f(0.5));
+  if(d>0.5){discard;}
+  let a=smoothstep(0.5,0.0,d)*in.bright;
+  return vec4f(vec3f(0.7,0.8,1.0)*a, a*0.6);
+}`;
+
+
+// ============================================================
+// WebGL2 FALLBACK SHADERS (fragment-shader ping-pong)
+// ============================================================
+const GL_FULLSCREEN_VS=`#version 300 es
+in vec2 position; void main(){gl_Position=vec4(position,0,1);}`;
+
+const GL_VEL_FS=`#version 300 es
+precision highp float;
+uniform sampler2D uP,uV; uniform float uG,uDt,uS2; uniform int uTS,uN;
+out vec4 o;
+void main(){
+  ivec2 c=ivec2(gl_FragCoord.xy); int i=c.y*uTS+c.x;
+  if(i>=uN){o=vec4(0);return;}
+  vec4 mp=texelFetch(uP,c,0),mv=texelFetch(uV,c,0);
+  vec3 a=vec3(0);
+  for(int j=0;j<uN;j++){
+    ivec2 jc=ivec2(j%uTS,j/uTS);
+    vec4 pj=texelFetch(uP,jc,0);
+    vec3 r=pj.xyz-mp.xyz;
+    float d2=dot(r,r)+uS2, id=inversesqrt(d2);
+    a+=pj.w*r*id*id*id;
+  }
+  o=vec4(mv.xyz+uG*a*uDt,0);
+}`;
+
+const GL_POS_FS=`#version 300 es
+precision highp float;
+uniform sampler2D uP,uV; uniform float uDt; uniform int uTS,uN;
+out vec4 o;
+void main(){
+  ivec2 c=ivec2(gl_FragCoord.xy); int i=c.y*uTS+c.x;
+  if(i>=uN){o=vec4(0);return;}
+  vec4 mp=texelFetch(uP,c,0),mv=texelFetch(uV,c,0);
+  o=vec4(mp.xyz+mv.xyz*uDt,mp.w);
+}`;
+
+// ============================================================
+// MATH UTILITIES (minimal mat4/vec3)
+// ============================================================
+const _m=()=>new Float32Array(16);
+function mat4Perspective(fov,asp,near,far){
+  const f=1/Math.tan(fov/2),nf=1/(near-far),o=_m();
+  o[0]=f/asp;o[5]=f;o[10]=(far+near)*nf;o[11]=-1;o[14]=2*far*near*nf;return o;
+}
+function mat4LookAt(eye,center,up){
+  let zx=eye[0]-center[0],zy=eye[1]-center[1],zz=eye[2]-center[2];
+  let l=1/Math.sqrt(zx*zx+zy*zy+zz*zz); zx*=l;zy*=l;zz*=l;
+  let xx=up[1]*zz-up[2]*zy, xy=up[2]*zx-up[0]*zz, xz=up[0]*zy-up[1]*zx;
+  l=Math.sqrt(xx*xx+xy*xy+xz*xz); if(l>0){l=1/l;xx*=l;xy*=l;xz*=l;}
+  let yx=zy*xz-zz*xy, yy=zz*xx-zx*xz, yz=zx*xy-zy*xx;
+  const o=_m();
+  o[0]=xx;o[1]=yx;o[2]=zx;o[4]=xy;o[5]=yy;o[6]=zy;
+  o[8]=xz;o[9]=yz;o[10]=zz;
+  o[12]=-(xx*eye[0]+xy*eye[1]+xz*eye[2]);
+  o[13]=-(yx*eye[0]+yy*eye[1]+yz*eye[2]);
+  o[14]=-(zx*eye[0]+zy*eye[1]+zz*eye[2]);o[15]=1;return o;
+}
+function mat4Mul(a,b){
+  const o=_m();
+  for(let i=0;i<4;i++)for(let j=0;j<4;j++){
+    o[j*4+i]=a[i]*b[j*4]+a[4+i]*b[j*4+1]+a[8+i]*b[j*4+2]+a[12+i]*b[j*4+3];
+  }return o;
+}
+
+// ============================================================
+// ORBIT CAMERA
+// ============================================================
+class OrbitCamera{
+  constructor(canvas){
+    this.theta=-Math.PI/4; this.phi=Math.PI/3;
+    this.radius=150; this.target=[0,0,0];
+    this.minR=10; this.maxR=600;
+    this._dragging=false; this._panning=false;
+    this._lx=0; this._ly=0;
+    canvas.addEventListener('mousedown',e=>{
+      if(e.button===0){this._dragging=true;}
+      if(e.button===2||e.shiftKey){this._panning=true;}
+      this._lx=e.clientX;this._ly=e.clientY;
+    });
+    canvas.addEventListener('mousemove',e=>{
+      const dx=e.clientX-this._lx, dy=e.clientY-this._ly;
+      this._lx=e.clientX;this._ly=e.clientY;
+      if(this._dragging&&!this._panning){
+        this.theta-=dx*0.005; this.phi-=dy*0.005;
+        this.phi=Math.max(0.05,Math.min(Math.PI-0.05,this.phi));
+      }
+      if(this._panning){
+        const r=this.right(), u=this.up(), s=this.radius*0.002;
+        this.target[0]-=(r[0]*dx-u[0]*dy)*s;
+        this.target[1]-=(r[1]*dx-u[1]*dy)*s;
+        this.target[2]-=(r[2]*dx-u[2]*dy)*s;
+      }
+    });
+    window.addEventListener('mouseup',()=>{this._dragging=false;this._panning=false;});
+    canvas.addEventListener('wheel',e=>{
+      this.radius*=1+e.deltaY*0.001;
+      this.radius=Math.max(this.minR,Math.min(this.maxR,this.radius));
+      e.preventDefault();
+    },{passive:false});
+    canvas.addEventListener('contextmenu',e=>e.preventDefault());
+    // Touch support
+    let _touches=[];
+    canvas.addEventListener('touchstart',e=>{_touches=[...e.touches];e.preventDefault();},{passive:false});
+    canvas.addEventListener('touchmove',e=>{
+      const nt=[...e.touches];
+      if(nt.length===1&&_touches.length===1){
+        const dx=nt[0].clientX-_touches[0].clientX, dy=nt[0].clientY-_touches[0].clientY;
+        this.theta-=dx*0.005; this.phi-=dy*0.005;
+        this.phi=Math.max(0.05,Math.min(Math.PI-0.05,this.phi));
+      }else if(nt.length===2&&_touches.length===2){
+        const d0=Math.hypot(_touches[0].clientX-_touches[1].clientX,_touches[0].clientY-_touches[1].clientY);
+        const d1=Math.hypot(nt[0].clientX-nt[1].clientX,nt[0].clientY-nt[1].clientY);
+        this.radius*=d0/Math.max(d1,1);
+        this.radius=Math.max(this.minR,Math.min(this.maxR,this.radius));
+      }
+      _touches=nt; e.preventDefault();
+    },{passive:false});
+  }
+  eye(){
+    const sp=Math.sin(this.phi);
+    return[this.target[0]+this.radius*sp*Math.sin(this.theta),
+           this.target[1]+this.radius*Math.cos(this.phi),
+           this.target[2]+this.radius*sp*Math.cos(this.theta)];
+  }
+  right(){
+    return[Math.cos(this.theta),0,-Math.sin(this.theta)];
+  }
+  up(){
+    const cp=Math.cos(this.phi);
+    return[-cp*Math.sin(this.theta),Math.sin(this.phi),-cp*Math.cos(this.theta)];
+  }
+  viewProj(aspect){
+    const proj=mat4Perspective(Math.PI/4,aspect,0.5,2000);
+    const view=mat4LookAt(this.eye(),this.target,[0,1,0]);
+    return mat4Mul(proj,view);
+  }
+}
+
+// ============================================================
+// PRNG & INITIAL CONDITIONS
+// ============================================================
+function makeRng(seed){
+  let s=[(seed)>>>0,(seed*2654435761)>>>0,(seed*340573321)>>>0,(seed*1013904223)>>>0];
+  if(!s[0])s[0]=1;if(!s[1])s[1]=1;
+  function n(){const r=((((s[1]*5)>>>0)<<7)|(((s[1]*5)>>>0)>>>25));const v=(r*9)>>>0;
+    const t=s[1]<<9;s[2]^=s[0];s[3]^=s[1];s[1]^=s[2];s[0]^=s[3];s[2]^=t;s[3]=((s[3]<<11)|(s[3]>>>21))>>>0;return(v>>>0)/4294967296;}
+  for(let i=0;i<20;i++)n();return n;
+}
+function spherePoint(rng){let x,y,z;do{x=rng()*2-1;y=rng()*2-1;z=rng()*2-1;}while(x*x+y*y+z*z>1);return[x,y,z];}
+
+function genSphere(N,rng,ms,mj){
+  const p=new Float32Array(N*4),v=new Float32Array(N*4);
+  let cx=0,cy=0,cz=0,cvx=0,cvy=0,cvz=0;
+  for(let i=0;i<N;i++){
+    const[x,y,z]=spherePoint(rng).map(c=>c*50);
+    const m=ms*(1+(rng()-0.5)*2*mj),vs=0.3;
+    const vx=(rng()-0.5)*vs,vy=(rng()-0.5)*vs,vz=(rng()-0.5)*vs;
+    p[i*4]=x;p[i*4+1]=y;p[i*4+2]=z;p[i*4+3]=m;
+    v[i*4]=vx;v[i*4+1]=vy;v[i*4+2]=vz;
+    cx+=x;cy+=y;cz+=z;cvx+=vx;cvy+=vy;cvz+=vz;
+  }
+  cx/=N;cy/=N;cz/=N;cvx/=N;cvy/=N;cvz/=N;
+  for(let i=0;i<N;i++){p[i*4]-=cx;p[i*4+1]-=cy;p[i*4+2]-=cz;v[i*4]-=cvx;v[i*4+1]-=cvy;v[i*4+2]-=cvz;}
+  return{pos:p,vel:v};
+}
+function genDisk(N,rng,ms,mj){
+  const p=new Float32Array(N*4),v=new Float32Array(N*4);const R=60;let cvx=0,cvy=0,cvz=0;
+  for(let i=0;i<N;i++){
+    const r=Math.sqrt(rng())*R,th=rng()*Math.PI*2;
+    const x=r*Math.cos(th),z=r*Math.sin(th),y=(rng()-0.5)*2;
+    const m=ms*(1+(rng()-0.5)*2*mj);
+    p[i*4]=x;p[i*4+1]=y;p[i*4+2]=z;p[i*4+3]=m;
+    const vc=0.5*Math.sqrt(r/(R+1));
+    const vx=-vc*Math.sin(th),vz=vc*Math.cos(th);
+    v[i*4]=vx;v[i*4+2]=vz;
+    cvx+=vx;cvy+=0;cvz+=vz;
+  }
+  cvx/=N;cvz/=N;
+  for(let i=0;i<N;i++){v[i*4]-=cvx;v[i*4+2]-=cvz;}
+  return{pos:p,vel:v};
+}
+function genMerger(N,rng,ms,mj){
+  const p=new Float32Array(N*4),v=new Float32Array(N*4);
+  const half=N>>1,off=40,R=25;let cvx=0,cvy=0,cvz=0;
+  for(let i=0;i<N;i++){
+    const A=i<half,ox=A?-off:off,ovx=A?0.15:-0.15,ovz=A?0.05:-0.05;
+    const[sx,sy,sz]=spherePoint(rng);
+    const x=sx*R+ox,y=sy*R,z=sz*R,m=ms*(1+(rng()-0.5)*2*mj);
+    p[i*4]=x;p[i*4+1]=y;p[i*4+2]=z;p[i*4+3]=m;
+    const vx=(rng()-0.5)*0.1+ovx,vy=(rng()-0.5)*0.1,vz=(rng()-0.5)*0.1+ovz;
+    v[i*4]=vx;v[i*4+1]=vy;v[i*4+2]=vz;
+    cvx+=vx;cvy+=vy;cvz+=vz;
+  }
+  cvx/=N;cvy/=N;cvz/=N;
+  for(let i=0;i<N;i++){v[i*4]-=cvx;v[i*4+1]-=cvy;v[i*4+2]-=cvz;}
+  return{pos:p,vel:v};
+}
+function genData(N,scenario,seed,ms,mj){
+  const rng=makeRng(seed);
+  if(scenario==='Disk')return genDisk(N,rng,ms,mj);
+  if(scenario==='Merger')return genMerger(N,rng,ms,mj);
+  return genSphere(N,rng,ms,mj);
+}
+
+// ============================================================
+// WEBGPU BACKEND
+// ============================================================
+async function createWebGPUBackend(canvas){
+  if(!navigator.gpu) return null;
+  const adapter=await navigator.gpu.requestAdapter();
+  if(!adapter) return null;
+  const device=await adapter.requestDevice({
+    requiredLimits:{
+      maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
+      maxBufferSize: adapter.limits.maxBufferSize,
+    }
+  });
+  const ctx=canvas.getContext('webgpu');
+  const format=navigator.gpu.getPreferredCanvasFormat();
+  ctx.configure({device,format,alphaMode:'premultiplied'});
+
+  // --- Compute pipeline ---
+  const computeModule=device.createShaderModule({code:WGSL_COMPUTE});
+  const computeBGL=device.createBindGroupLayout({entries:[
+    {binding:0,visibility:GPUShaderStage.COMPUTE,buffer:{type:'read-only-storage'}},
+    {binding:1,visibility:GPUShaderStage.COMPUTE,buffer:{type:'read-only-storage'}},
+    {binding:2,visibility:GPUShaderStage.COMPUTE,buffer:{type:'storage'}},
+    {binding:3,visibility:GPUShaderStage.COMPUTE,buffer:{type:'storage'}},
+    {binding:4,visibility:GPUShaderStage.COMPUTE,buffer:{type:'uniform'}},
+  ]});
+  const computePipeline=device.createComputePipeline({
+    layout:device.createPipelineLayout({bindGroupLayouts:[computeBGL]}),
+    compute:{module:computeModule,entryPoint:'main'},
+  });
+
+  // --- Render pipeline ---
+  const renderModule=device.createShaderModule({code:WGSL_RENDER});
+  const renderBGL=device.createBindGroupLayout({entries:[
+    {binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},
+    {binding:1,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},
+    {binding:2,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},
+  ]});
+  const renderPipeline=device.createRenderPipeline({
+    layout:device.createPipelineLayout({bindGroupLayouts:[renderBGL]}),
+    vertex:{module:renderModule,entryPoint:'vs'},
+    fragment:{module:renderModule,entryPoint:'fs',targets:[{
+      format,
+      blend:{
+        color:{srcFactor:'src-alpha',dstFactor:'one',operation:'add'},
+        alpha:{srcFactor:'one',dstFactor:'one',operation:'add'},
+      },
+    }]},
+    primitive:{topology:'triangle-list'},
+    // No depth test for additive blended particles
+  });
+
+  // --- Star pipeline ---
+  const starModule=device.createShaderModule({code:WGSL_STARS});
+  const starBGL=device.createBindGroupLayout({entries:[
+    {binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},
+    {binding:1,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}},
+  ]});
+  const starPipeline=device.createRenderPipeline({
+    layout:device.createPipelineLayout({bindGroupLayouts:[starBGL]}),
+    vertex:{module:starModule,entryPoint:'vs'},
+    fragment:{module:starModule,entryPoint:'fs',targets:[{
+      format,
+      blend:{
+        color:{srcFactor:'src-alpha',dstFactor:'one',operation:'add'},
+        alpha:{srcFactor:'one',dstFactor:'one',operation:'add'},
+      },
+    }]},
+    primitive:{topology:'triangle-list'},
+  });
+
+  // Create starfield data
+  const NSTARS=2000;
+  const starData=new Float32Array(NSTARS*4);
+  const sr=makeRng(7777);
+  for(let i=0;i<NSTARS;i++){
+    const th=sr()*Math.PI*2,ph=Math.acos(sr()*2-1),r=300+sr()*300;
+    starData[i*4]=r*Math.sin(ph)*Math.cos(th);
+    starData[i*4+1]=r*Math.sin(ph)*Math.sin(th);
+    starData[i*4+2]=r*Math.cos(ph);
+    starData[i*4+3]=0.08+sr()*0.25; // size
+  }
+  const starBuf=device.createBuffer({size:starData.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  device.queue.writeBuffer(starBuf,0,starData);
+  const starUniBuf=device.createBuffer({size:128,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+  const starBG=device.createBindGroup({layout:starBGL,entries:[
+    {binding:0,resource:{buffer:starBuf}},
+    {binding:1,resource:{buffer:starUniBuf}},
+  ]});
+
+  // --- State ---
+  let posBuffers=[null,null], velBuffers=[null,null];
+  let paramsBuf=null, renderUniBuf=null;
+  let computeBGs=[null,null], renderBGs=[null,null];
+  let N=0, readBuf=0; // readBuf = which buffer holds the latest data
+
+  function init(count,posData,velData){
+    N=count;readBuf=0;
+    const sz=N*16; // 4 floats * 4 bytes
+
+    // Double-buffered position and velocity storage
+    for(let i=0;i<2;i++){
+      if(posBuffers[i])posBuffers[i].destroy();
+      if(velBuffers[i])velBuffers[i].destroy();
+      posBuffers[i]=device.createBuffer({size:sz,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+      velBuffers[i]=device.createBuffer({size:sz,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+    }
+    device.queue.writeBuffer(posBuffers[0],0,posData);
+    device.queue.writeBuffer(velBuffers[0],0,velData);
+
+    // Uniform buffers
+    if(paramsBuf)paramsBuf.destroy();
+    if(renderUniBuf)renderUniBuf.destroy();
+    paramsBuf=device.createBuffer({size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+    // Render uniforms: mat4(64)+vec4(16)+vec4(16)+f32+f32+u32+u32 = 112 → pad to 128
+    renderUniBuf=device.createBuffer({size:128,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+
+    // Compute bind groups: [0] reads A→writes B, [1] reads B→writes A
+    computeBGs[0]=device.createBindGroup({layout:computeBGL,entries:[
+      {binding:0,resource:{buffer:posBuffers[0]}},{binding:1,resource:{buffer:velBuffers[0]}},
+      {binding:2,resource:{buffer:posBuffers[1]}},{binding:3,resource:{buffer:velBuffers[1]}},
+      {binding:4,resource:{buffer:paramsBuf}},
+    ]});
+    computeBGs[1]=device.createBindGroup({layout:computeBGL,entries:[
+      {binding:0,resource:{buffer:posBuffers[1]}},{binding:1,resource:{buffer:velBuffers[1]}},
+      {binding:2,resource:{buffer:posBuffers[0]}},{binding:3,resource:{buffer:velBuffers[0]}},
+      {binding:4,resource:{buffer:paramsBuf}},
+    ]});
+
+    // Render bind groups: [i] reads from buffer [i]
+    // We track which buffer holds latest data via `readBuf`
+    renderBGs[0]=device.createBindGroup({layout:renderBGL,entries:[
+      {binding:0,resource:{buffer:posBuffers[0]}},{binding:1,resource:{buffer:velBuffers[0]}},
+      {binding:2,resource:{buffer:renderUniBuf}},
+    ]});
+    renderBGs[1]=device.createBindGroup({layout:renderBGL,entries:[
+      {binding:0,resource:{buffer:posBuffers[1]}},{binding:1,resource:{buffer:velBuffers[1]}},
+      {binding:2,resource:{buffer:renderUniBuf}},
+    ]});
+  }
+
+  const _paramsData=new ArrayBuffer(16);
+  const _pU32=new Uint32Array(_paramsData);
+  const _pF32=new Float32Array(_paramsData);
+
+  function frame(dt,G,softening,paused,viewProj,camRight,camUp,pSize,glowIntensity){
+    // Upload compute params
+    _pU32[0]=N; _pF32[1]=dt; _pF32[2]=G; _pF32[3]=softening*softening;
+    device.queue.writeBuffer(paramsBuf,0,_paramsData);
+
+    // Upload render uniforms
+    const ru=new ArrayBuffer(128);
+    const ruf=new Float32Array(ru);
+    const ruu=new Uint32Array(ru);
+    ruf.set(viewProj,0);            // offset 0: mat4 (16 floats = 64 bytes)
+    ruf.set([...camRight,0],16);    // offset 64: vec4
+    ruf.set([...camUp,0],20);       // offset 80: vec4
+    ruf[24]=pSize;                  // offset 96: f32
+    ruf[25]=glowIntensity;          // offset 100: f32
+    ruu[26]=N;                      // offset 104: u32
+    device.queue.writeBuffer(renderUniBuf,0,ru);
+
+    // Star uniforms (viewProj + camRight + camUp)
+    const su=new Float32Array(24);
+    su.set(viewProj,0);
+    su.set([...camRight,0],16);
+    su.set([...camUp,0],20);
+    device.queue.writeBuffer(starUniBuf,0,su);
+
+    const encoder=device.createCommandEncoder();
+
+    // Compute pass: reads from readBuf, writes to 1-readBuf
+    if(!paused){
+      const cp=encoder.beginComputePass();
+      cp.setPipeline(computePipeline);
+      cp.setBindGroup(0,computeBGs[readBuf]);
+      cp.dispatchWorkgroups(Math.ceil(N/TILE_SIZE));
+      cp.end();
+      readBuf=1-readBuf; // output is now in readBuf
+    }
+
+    // Render pass: always reads from readBuf (latest data)
+    const tex=ctx.getCurrentTexture();
+    const rp=encoder.beginRenderPass({colorAttachments:[{
+      view:tex.createView(),
+      clearValue:{r:0.005,g:0.005,b:0.018,a:1},
+      loadOp:'clear',storeOp:'store',
+    }]});
+
+    // Stars
+    rp.setPipeline(starPipeline);
+    rp.setBindGroup(0,starBG);
+    rp.draw(NSTARS*6);
+
+    // Particles
+    rp.setPipeline(renderPipeline);
+    rp.setBindGroup(0, renderBGs[readBuf]);
+    rp.draw(N*6);
+
+    rp.end();
+    device.queue.submit([encoder.finish()]);
+  }
+
+  return{init,frame,name:'WebGPU',tileInfo:()=>`Tile ${TILE_SIZE}, Workgroups ${Math.ceil(N/TILE_SIZE)}`};
+}
+
+// ============================================================
+// WEBGL2 FALLBACK BACKEND (Babylon.js-free, raw WebGL2)
+// ============================================================
+function createWebGL2Backend(canvas){
+  const gl=canvas.getContext('webgl2',{antialias:false,preserveDrawingBuffer:false});
+  if(!gl)return null;
+  if(!gl.getExtension('EXT_color_buffer_float'))return null;
+  gl.getExtension('OES_texture_float_linear');
+
+  function nextP2(n){let s=1;while(s*s<n)s*=2;return s;}
+  function mkShader(src,type){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
+    if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(s));return s;}
+  function mkProg(vs,fs){const p=gl.createProgram();gl.attachShader(p,mkShader(vs,gl.VERTEX_SHADER));
+    gl.attachShader(p,mkShader(fs,gl.FRAGMENT_SHADER));gl.bindAttribLocation(p,0,'position');gl.linkProgram(p);
+    if(!gl.getProgramParameter(p,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(p));return p;}
+  function mkTex(data,sz){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,sz,sz,0,gl.RGBA,gl.FLOAT,data);gl.bindTexture(gl.TEXTURE_2D,null);return t;}
+  function mkFBO(t){const f=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,f);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return f;}
+
+  const velProg=mkProg(GL_FULLSCREEN_VS,GL_VEL_FS);
+  const posProg=mkProg(GL_FULLSCREEN_VS,GL_POS_FS);
+
+  const quadVAO=gl.createVertexArray();
+  gl.bindVertexArray(quadVAO);
+  const qb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,qb);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+  gl.bindVertexArray(null);
+
+  // Render shader for point sprites (WebGL2 path)
+  const RENDER_VS=`#version 300 es
+  uniform sampler2D uP,uV; uniform mat4 uVP; uniform float uPS; uniform int uTS,uN;
+  out vec3 vCol;
+  vec3 spdCol(float s){float t=clamp(s*2.5,0.,1.);
+    if(t<.25)return mix(vec3(.08,.15,.55),vec3(.15,.45,.95),t/.25);
+    if(t<.5)return mix(vec3(.15,.45,.95),vec3(.3,.85,1),(t-.25)/.25);
+    if(t<.75)return mix(vec3(.3,.85,1),vec3(1,.95,.75),(t-.5)/.25);
+    return mix(vec3(1,.95,.75),vec3(1,.45,.15),(t-.75)/.25);}
+  void main(){
+    int i=gl_VertexID; if(i>=uN){gl_Position=vec4(0,0,-2,1);return;}
+    ivec2 c=ivec2(i%uTS,i/uTS);
+    vec4 p=texelFetch(uP,c,0),v=texelFetch(uV,c,0);
+    gl_Position=uVP*vec4(p.xyz,1); gl_PointSize=max(1.,uPS*40./gl_Position.w);
+    vCol=spdCol(length(v.xyz));}`;
+  const RENDER_FS=`#version 300 es
+  precision highp float;in vec3 vCol;out vec4 o;
+  void main(){float d=distance(gl_PointCoord,vec2(.5));if(d>.5)discard;
+    float a=smoothstep(.5,.1,d);o=vec4(vCol*a,a);}`;
+  const renderProg=mkProg(RENDER_VS,RENDER_FS);
+
+  let pTex=[null,null],vTex=[null,null],pFBO=[null,null],vFBO=[null,null];
+  let N=0,ts=0,cur=0;
+
+  function init(count,posData,velData){
+    N=count;ts=nextP2(N);cur=0;
+    const total=ts*ts*4;
+    const pp=new Float32Array(total),vv=new Float32Array(total);
+    pp.set(posData.subarray(0,Math.min(posData.length,total)));
+    vv.set(velData.subarray(0,Math.min(velData.length,total)));
+    for(let i=0;i<2;i++){
+      if(pTex[i])gl.deleteTexture(pTex[i]);if(vTex[i])gl.deleteTexture(vTex[i]);
+      if(pFBO[i])gl.deleteFramebuffer(pFBO[i]);if(vFBO[i])gl.deleteFramebuffer(vFBO[i]);
+      pTex[i]=mkTex(i?new Float32Array(total):pp,ts);vTex[i]=mkTex(i?new Float32Array(total):vv,ts);
+      pFBO[i]=mkFBO(pTex[i]);vFBO[i]=mkFBO(vTex[i]);
+    }
+  }
+
+  function frame(dt,G,softening,paused,viewProj,camRight,camUp,pSize,glowIntensity){
+    if(!paused){
+      const dst=1-cur;
+      gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
+      gl.viewport(0,0,ts,ts);gl.bindVertexArray(quadVAO);
+
+      gl.useProgram(velProg);gl.bindFramebuffer(gl.FRAMEBUFFER,vFBO[dst]);
+      gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,pTex[cur]);gl.uniform1i(gl.getUniformLocation(velProg,'uP'),0);
+      gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,vTex[cur]);gl.uniform1i(gl.getUniformLocation(velProg,'uV'),1);
+      gl.uniform1f(gl.getUniformLocation(velProg,'uG'),G);
+      gl.uniform1f(gl.getUniformLocation(velProg,'uDt'),dt);
+      gl.uniform1f(gl.getUniformLocation(velProg,'uS2'),softening*softening);
+      gl.uniform1i(gl.getUniformLocation(velProg,'uTS'),ts);
+      gl.uniform1i(gl.getUniformLocation(velProg,'uN'),N);
+      gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+
+      gl.useProgram(posProg);gl.bindFramebuffer(gl.FRAMEBUFFER,pFBO[dst]);
+      gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,pTex[cur]);gl.uniform1i(gl.getUniformLocation(posProg,'uP'),0);
+      gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,vTex[dst]);gl.uniform1i(gl.getUniformLocation(posProg,'uV'),1);
+      gl.uniform1f(gl.getUniformLocation(posProg,'uDt'),dt);
+      gl.uniform1i(gl.getUniformLocation(posProg,'uTS'),ts);
+      gl.uniform1i(gl.getUniformLocation(posProg,'uN'),N);
+      gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+
+      cur=dst;
+    }
+
+    // Render particles as GL_POINTS reading directly from the physics textures
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+    gl.viewport(0,0,canvas.width,canvas.height);
+    gl.clearColor(0.005,0.005,0.018,1);gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+    gl.disable(gl.DEPTH_TEST);
+
+    gl.useProgram(renderProg);
+    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,pTex[cur]);
+    gl.uniform1i(gl.getUniformLocation(renderProg,'uP'),0);
+    gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,vTex[cur]);
+    gl.uniform1i(gl.getUniformLocation(renderProg,'uV'),1);
+    gl.uniformMatrix4fv(gl.getUniformLocation(renderProg,'uVP'),false,viewProj);
+    gl.uniform1f(gl.getUniformLocation(renderProg,'uPS'),pSize);
+    gl.uniform1i(gl.getUniformLocation(renderProg,'uTS'),ts);
+    gl.uniform1i(gl.getUniformLocation(renderProg,'uN'),N);
+
+    gl.bindVertexArray(gl.createVertexArray()); // empty VAO
+    gl.drawArrays(gl.POINTS,0,N);
+    gl.bindVertexArray(null);
+  }
+
+  return{init,frame,name:'WebGL2',tileInfo:()=>`${ts}×${ts} FBO`};
+}
+
+// ============================================================
+// MAIN
+// ============================================================
+(async function(){
+  const canvas=document.getElementById('c');
+  const hFps=document.getElementById('hFps'),hN=document.getElementById('hN');
+  const hBack=document.getElementById('hBack'),hTex=document.getElementById('hTex');
+  const hAlgo=document.getElementById('hAlgo');
+
+  // Info panel toggle
+  const infoBtn=document.getElementById('info-btn'),infoPanel=document.getElementById('info-panel');
+  infoBtn.addEventListener('click',()=>{infoPanel.style.display=infoPanel.style.display==='block'?'none':'block';});
+
+  // Resize canvas to device pixels
+  function resize(){
+    const dpr=window.devicePixelRatio||1;
+    canvas.width=canvas.clientWidth*dpr;
+    canvas.height=canvas.clientHeight*dpr;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+
+  // Camera
+  const cam=new OrbitCamera(canvas);
+
+  // Try WebGPU first, then WebGL2
+  let backend=await createWebGPUBackend(canvas);
+  if(!backend){
+    console.log('[NBody] WebGPU not available, trying WebGL2...');
+    backend=createWebGL2Backend(canvas);
+  }
+  if(!backend){
+    document.getElementById('unsupported').style.display='flex';
+    return;
+  }
+
+  hBack.textContent=backend.name;
+  hAlgo.textContent='Tiled Shared Mem';
+  console.log(`[NBody] Backend: ${backend.name}`);
+
+  // Params
+  const P={
+    particleCount: backend.name==='WebGPU' ? 65536 : 4096,
+    scenario:'Sphere', dt:0.008, G:0.5, softening:2.0,
+    massScale:1.0, massJitter:0.1, particleSize:0.45,
+    glowIntensity:0.7, paused:false, seed:42,
+    reset(){initSim();}
+  };
+
+  function initSim(){
+    const d=genData(P.particleCount,P.scenario,P.seed,P.massScale,P.massJitter);
+    backend.init(P.particleCount,d.pos,d.vel);
+    hN.textContent=P.particleCount.toLocaleString();
+    hTex.textContent=backend.tileInfo();
+    console.log(`[NBody] Init: ${P.particleCount} particles`);
+  }
+
+  // GUI
+  const gui=new dat.GUI({width:290});
+  gui.domElement.style.marginTop='8px';
+
+  const presets = backend.name==='WebGPU'
+    ? {'4K':4096,'16K':16384,'65K':65536,'131K':131072,'262K':262144,'524K':524288}
+    : {'1K':1024,'4K':4096,'16K':16384};
+
+  const fS=gui.addFolder('Simulation');
+  fS.add(P,'particleCount',presets).name('Particles').onChange(()=>initSim());
+  fS.add(P,'scenario',['Sphere','Disk','Merger']).name('Scenario').onChange(()=>initSim());
+  fS.add(P,'seed',1,9999).step(1).name('Random Seed');
+  fS.add(P,'dt',0.001,0.05).step(0.001).name('Timestep (dt)');
+  fS.add(P,'G',0.01,5.0).step(0.01).name('Gravity (G)');
+  fS.add(P,'softening',0.5,10.0).step(0.1).name('Softening (ε)');
+  fS.add(P,'massScale',0.1,5.0).step(0.1).name('Mass Scale');
+  fS.add(P,'massJitter',0.0,1.0).step(0.05).name('Mass Jitter');
+  fS.open();
+
+  const fV=gui.addFolder('Visuals');
+  fV.add(P,'particleSize',0.05,2.0).step(0.05).name('Particle Size');
+  fV.add(P,'glowIntensity',0.0,2.0).step(0.1).name('Glow Intensity');
+  fV.open();
+
+  const fC=gui.addFolder('Controls');
+  fC.add(P,'paused').name('⏸ Paused');
+  fC.add(P,'reset').name('⟳ Reset Simulation');
+  fC.open();
+
+  // Add tooltips to GUI elements
+  const tips={
+    'Particles':'Total number of bodies. More = prettier but O(N²) scaling.',
+    'Scenario':'Initial layout: Sphere (collapse), Disk (galaxy), Merger (collision).',
+    'Random Seed':'Seed for deterministic random generation.',
+    'Timestep (dt)':'Physics step size per frame. Smaller = more accurate.',
+    'Gravity (G)':'Gravitational constant strength.',
+    'Softening (ε)':'Prevents infinite forces at zero distance.',
+    'Mass Scale':'Global mass multiplier for all particles.',
+    'Mass Jitter':'Random mass variation (0=uniform, 1=full range).',
+    'Particle Size':'Visual rendering size (no physics effect).',
+    'Glow Intensity':'Additive bloom brightness around particles.',
+  };
+  gui.__folders['Simulation'].__controllers.forEach(c=>{
+    const t=tips[c.property]||tips[c.__li?.querySelector('.property-name')?.textContent];
+    if(t&&c.domElement?.parentElement)c.domElement.parentElement.title=t;
+  });
+  gui.__folders['Visuals'].__controllers.forEach(c=>{
+    if(c.domElement?.parentElement)c.domElement.parentElement.title=tips[c.__li?.querySelector('.property-name')?.textContent]||'';
+  });
+
+  initSim();
+
+  // Render loop
+  let frameCount=0, lastFpsTime=performance.now(), fpsFrames=0;
+  function loop(){
+    requestAnimationFrame(loop);
+    const aspect=canvas.width/canvas.height;
+    const vp=cam.viewProj(aspect);
+    const cr=cam.right();
+    const cu=cam.up();
+
+    backend.frame(P.dt,P.G,P.softening,P.paused,vp,cr,cu,P.particleSize,P.glowIntensity);
+
+    fpsFrames++;
+    const now=performance.now();
+    if(now-lastFpsTime>=500){
+      hFps.textContent=(fpsFrames/((now-lastFpsTime)/1000)).toFixed(0);
+      fpsFrames=0;lastFpsTime=now;
+    }
+    frameCount++;
+  }
+  requestAnimationFrame(loop);
+
+  console.log('[NBody] Simulation started');
+})();
+</script>
+</body>
+</html>
