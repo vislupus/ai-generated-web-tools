@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOID COMMAND — 2D RTS Space Battle Simulator</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+:root{
+--bg:#080a0e;--panel:#0c1018;--panel2:#10141c;--border:#1a2230;--accent:#00e5ff;--accent2:#ff3d71;
+--blue:#4499ff;--red:#ff4466;--green:#44ff88;--yellow:#ffcc00;--text:#c0cfe0;
+--text-dim:#4a5a6e;--font:'Share Tech Mono',monospace;--hd:'Orbitron',sans-serif;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);font-size:12px}
+canvas#gc{position:absolute;top:0;left:0;cursor:crosshair}
+
+/* ── TOP BAR ── */
+#top{position:fixed;top:0;left:0;right:0;height:34px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 8px;gap:6px;z-index:100;user-select:none}
+#top .t{font-family:var(--hd);font-size:12px;color:var(--accent);letter-spacing:3px;margin-right:12px}
+#top button{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:2px 9px;cursor:pointer;font-family:var(--font);font-size:10px;border-radius:2px;white-space:nowrap}
+#top button:hover,#top button.on{background:var(--accent);color:var(--bg)}
+#top select{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:2px 4px;font-family:var(--font);font-size:10px;border-radius:2px}
+#top .s{width:1px;height:18px;background:var(--border);margin:0 2px}
+#top .l{color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:1px}
+
+/* ── SIDE PANEL ── */
+#side{position:fixed;top:34px;right:0;width:255px;bottom:0;background:var(--panel);border-left:1px solid var(--border);z-index:90;overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:4px;user-select:none}
+#side h3{font-family:var(--hd);font-size:9px;color:var(--accent);letter-spacing:2px;margin:6px 0 2px;text-transform:uppercase}
+#side .r{display:flex;align-items:center;gap:5px;margin:1px 0}
+#side .r label{flex:1;color:var(--text-dim);font-size:10px}
+#side .r input[type=range]{flex:1.2;accent-color:var(--accent);height:14px}
+#side .r input[type=number]{width:48px;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:1px 3px;font-family:var(--font);font-size:10px}
+#side .r .v{color:var(--accent);min-width:32px;text-align:right;font-size:10px}
+#side button{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:3px 6px;cursor:pointer;font-family:var(--font);font-size:10px;border-radius:2px;width:100%}
+#side button:hover{background:var(--accent);color:var(--bg)}
+#side textarea{background:#060810;border:1px solid var(--border);color:var(--text);font-family:var(--font);font-size:9px;resize:vertical;min-height:50px;padding:3px}
+.si{background:#060810;border:1px solid var(--border);padding:5px;font-size:10px;line-height:1.5}
+.hb{height:4px;background:#1a2030;border-radius:2px;overflow:hidden;margin:2px 0}
+.hb .f{height:100%}
+
+/* ── BOTTOM BAR ── */
+#bot{position:fixed;bottom:0;left:0;right:255px;height:44px;background:var(--panel);border-top:1px solid var(--border);z-index:90;display:flex;align-items:center;padding:0 10px;gap:8px;user-select:none}
+
+/* ── MINIMAP ── */
+#mm{position:fixed;bottom:50px;right:261px;width:175px;height:175px;background:#050810;border:1px solid var(--border);z-index:95;cursor:pointer}
+
+/* ── MODALS ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:200;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--panel);border:1px solid var(--accent);padding:20px;max-height:90vh;overflow-y:auto}
+.modal h2{font-family:var(--hd);color:var(--accent);margin-bottom:14px;letter-spacing:3px;font-size:15px}
+.modal .fr{display:flex;align-items:center;gap:8px;margin:5px 0}
+.modal .fr label{width:130px;color:var(--text-dim);font-size:11px}
+.modal .fr input{flex:1;background:#060810;border:1px solid var(--border);color:var(--text);padding:3px 6px;font-family:var(--font)}
+.modal button.go{background:var(--accent);color:var(--bg);border:none;padding:8px 22px;font-family:var(--hd);font-size:12px;cursor:pointer;margin-top:14px;letter-spacing:2px}
+.modal button.go:hover{background:#00ffd5}
+.modal table{width:100%;border-collapse:collapse;font-size:10px;margin:8px 0}
+.modal th,.modal td{padding:3px 6px;border:1px solid var(--border);text-align:left}
+.modal th{background:var(--panel2);color:var(--accent)}
+
+/* ── TOAST ── */
+#toast{position:fixed;top:40px;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--bg);padding:4px 14px;font-size:10px;z-index:300;border-radius:2px;opacity:0;transition:opacity .3s;pointer-events:none}
+#toast.show{opacity:1}
+
+/* ── REPLAY ── */
+#rbar{position:fixed;bottom:50px;left:0;right:255px;height:26px;background:var(--panel);border-top:1px solid var(--border);z-index:91;display:none;align-items:center;padding:0 8px;gap:6px}
+#rbar input[type=range]{flex:1;accent-color:var(--accent)}
+#rbar span{font-size:9px;color:var(--text-dim)}
+
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- ═══ SETUP ═══ -->
+<div class="modal-bg" id="setup">
+<div class="modal" style="width:480px">
+<h2>⬡ VOID COMMAND</h2>
+<p style="color:var(--text-dim);margin-bottom:14px;font-size:10px">2D RTS Space Battle — Total Annihilation</p>
+<div class="fr"><label>Total ships/side</label><input type="number" id="sTotal" value="30" min="4" max="250"></div>
+<h3 style="color:var(--blue);margin:10px 0 4px;font-size:10px">BLUE FLEET (You)</h3>
+<div class="fr"><label>Fighters (light)</label><input type="number" id="bF" value="14" min="0"></div>
+<div class="fr"><label>Tanks (heavy)</label><input type="number" id="bT" value="10" min="0"></div>
+<div class="fr"><label>Repair ships</label><input type="number" id="bR" value="5" min="0"></div>
+<p style="font-size:9px;color:var(--text-dim);margin:2px 0">+1 Capital ship always</p>
+<h3 style="color:var(--red);margin:10px 0 4px;font-size:10px">RED FLEET (AI)</h3>
+<div class="fr"><label>Fighters (light)</label><input type="number" id="rF" value="14" min="0"></div>
+<div class="fr"><label>Tanks (heavy)</label><input type="number" id="rT" value="10" min="0"></div>
+<div class="fr"><label>Repair ships</label><input type="number" id="rR" value="5" min="0"></div>
+<div class="fr"><label>Random seed</label><input type="number" id="sSeed" value="42"></div>
+<button class="go" onclick="startGame()">▶ LAUNCH BATTLE</button>
+</div>
+</div>
+
+<!-- ═══ TOP BAR ═══ -->
+<div id="top" style="display:none">
+<span class="t">VOID COMMAND</span><div class="s"></div>
+<button id="bPause" onclick="togglePause()">❚❚</button>
+<button onclick="SS(.5)" id="sh">½</button><button onclick="SS(1)" class="on" id="s1">1×</button><button onclick="SS(2)" id="s2">2×</button><button onclick="SS(4)" id="s4">4×</button>
+<div class="s"></div>
+<span class="l">Form</span>
+<select id="selF" onchange="cmdForm(this.value)"><option value="none">—</option><option value="line">Line</option><option value="wedge">Wedge</option><option value="circle">Circle</option><option value="spread">Spread</option></select>
+<div class="s"></div>
+<span class="l">Mode</span>
+<select id="selM" onchange="cmdMode(this.value)"><option value="advance">Advance</option><option value="hold">Hold</option><option value="disperse">Disperse</option><option value="harass">Harass</option></select>
+<div class="s"></div>
+<span class="l">Target</span>
+<select id="selT" onchange="cmdTgt(this.value)"><option value="nearest">Nearest</option><option value="lowestHP">Low HP</option><option value="captain">Captain</option><option value="missiles">Missiles</option><option value="focus">Focus</option></select>
+<div class="s"></div>
+<button id="bPath" onclick="togglePath()">✏ Path</button>
+<button onclick="cmdStop()">■ Stop</button>
+<button onclick="cmdAtkMv()">⚔ A-Move</button>
+<div class="s"></div>
+<span id="info" style="color:var(--text-dim);font-size:9px;margin-left:auto">Drag=select | RMB=move/attack | Space=pause | Ctrl+A=all</span>
+</div>
+
+<!-- ═══ SIDE ═══ -->
+<div id="side" style="display:none">
+<h3>Selected / Hovered</h3>
+<div id="shipInfo" class="si">—</div>
+
+<h3>Battle Tuning</h3>
+<div class="r"><label>HP ×</label><input type="range" min="0.5" max="3" step=".1" value="1" oninput="CFG.hpMul=+this.value;this.nextElementSibling.textContent=this.value"><span class="v">1</span></div>
+<div class="r"><label>Armor ×</label><input type="range" min="0.5" max="3" step=".1" value="1" oninput="CFG.armorMul=+this.value;this.nextElementSibling.textContent=this.value"><span class="v">1</span></div>
+<div class="r"><label>Missile Dmg ×</label><input type="range" min="0.5" max="3" step=".1" value="1" oninput="CFG.missileMul=+this.value;this.nextElementSibling.textContent=this.value"><span class="v">1</span></div>
+<div class="r"><label>Shrapnel ×</label><input type="range" min="0" max="3" step=".1" value="1" oninput="CFG.shrapMul=+this.value;this.nextElementSibling.textContent=this.value"><span class="v">1</span></div>
+<div class="r"><label>Collision Dmg ×</label><input type="range" min="0" max="3" step=".1" value="1" oninput="CFG.collMul=+this.value;this.nextElementSibling.textContent=this.value"><span class="v">1</span></div>
+<div class="r"><label>Retreat HP %</label><input type="range" min="5" max="50" step="1" value="20" oninput="CFG.retreatPct=+this.value/100;this.nextElementSibling.textContent=this.value+'%'"><span class="v">20%</span></div>
+<div class="r"><label>Overheat Rate</label><input type="range" min="0.5" max="3" step=".1" value="1" oninput="CFG.heatMul=+this.value;this.nextElementSibling.textContent=this.value"><span class="v">1</span></div>
+
+<h3>Batch Sim</h3>
+<div class="r"><label>Runs</label><input type="number" id="batchN" value="10" min="1" max="200" style="width:55px"></div>
+<button onclick="runBatch()">▶ Run Batch</button>
+<button onclick="runTraining()">🧠 Training (10 iter)</button>
+
+<h3>Scenario</h3>
+<button onclick="exportJSON()">📋 Export</button>
+<button onclick="importJSON()">📥 Import</button>
+<textarea id="scJSON" placeholder="JSON..."></textarea>
+
+<h3>Replay</h3>
+<button onclick="toggleReplay()">⏪ Replay</button>
+
+<h3>Live Stats</h3>
+<div id="stats" style="font-size:9px;line-height:1.4;color:var(--text-dim)">—</div>
+</div>
+
+<!-- ═══ BOTTOM ═══ -->
+<div id="bot" style="display:none">
+<span id="timer" style="font-size:10px;color:var(--accent)">0:00</span>
+<span id="bCnt" style="color:var(--blue);font-size:10px;margin-left:8px">Blue: 0</span>
+<span id="rCnt" style="color:var(--red);font-size:10px;margin-left:6px">Red: 0</span>
+<span id="victory" style="color:var(--yellow);font-size:13px;font-family:var(--hd);letter-spacing:3px;display:none;margin-left:auto"></span>
+</div>
+
+<!-- ═══ REPLAY BAR ═══ -->
+<div id="rbar"><span>⏪</span><input type="range" id="rSlider" min="0" max="1" value="0" oninput="seekRep(+this.value)"><span id="rTime">0s</span><button onclick="toggleReplay()" style="width:auto;padding:2px 8px">✕</button></div>
+
+<!-- ═══ MINIMAP ═══ -->
+<canvas id="mm" width="175" height="175" style="display:none"></canvas>
+
+<!-- ═══ BATCH MODAL ═══ -->
+<div class="modal-bg" id="batchM" style="display:none"><div class="modal" style="width:580px" id="batchC"></div></div>
+
+<div id="toast"></div>
+<canvas id="gc"></canvas>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+
+/* ═══════════ CONFIG ═══════════ */
+const CFG={
+  W:4000,H:4000,
+  hpMul:1,armorMul:1,missileMul:1,shrapMul:1,collMul:1,heatMul:1,
+  retreatPct:.20,
+  sepDist:28,sepForce:70,collDmgBase:18,
+  shrapN:6,shrapSpd:320,shrapLife:.75,shrapDmg:9,
+  ramShrapMul:2.5,ramDmgMul:3,friendlyFire:true,dt:1/60,
+  types:{
+    capital:{hp:800,arm:40,r:24,spd:48,acc:22,trn:.7,
+      guns:10,gCd:2,gDmg:18,gRng:360,gHeat:8,gMax:80,gCool:14,
+      mis:20,mDmg:65,mSpd:260,mHP:14,mRng:720,mAcq:.5,
+      ciws:8,cCd:.12,cDmg:5,cRng:160},
+    fighter:{hp:80,arm:5,r:7,spd:190,acc:130,trn:3.8,
+      guns:0,mis:2,mDmg:65,mSpd:260,mHP:14,mRng:520,mAcq:.4,
+      ciws:2,cCd:.10,cDmg:3,cRng:130},
+    tank:{hp:360,arm:32,r:14,spd:68,acc:32,trn:1.1,
+      guns:2,gCd:2.5,gDmg:24,gRng:310,gHeat:10,gMax:80,gCool:11,
+      mis:4,mDmg:65,mSpd:260,mHP:14,mRng:560,mAcq:.45,
+      ciws:3,cCd:.14,cDmg:4,cRng:145},
+    repair:{hp:130,arm:10,r:11,spd:58,acc:28,trn:1.4,
+      guns:0,mis:0,ciws:0,repRate:28,repRng:90}
+  }
+};
+
+/* ═══════════ MATH ═══════════ */
+class V{constructor(x=0,y=0){this.x=x;this.y=y}
+  cp(){return new V(this.x,this.y)}add(v){return new V(this.x+v.x,this.y+v.y)}
+  sub(v){return new V(this.x-v.x,this.y-v.y)}mul(s){return new V(this.x*s,this.y*s)}
+  len(){return Math.sqrt(this.x*this.x+this.y*this.y)}
+  norm(){const l=this.len();return l>1e-6?this.mul(1/l):new V}
+  dist(v){return this.sub(v).len()}ang(){return Math.atan2(this.y,this.x)}
+  rot(a){const c=Math.cos(a),s=Math.sin(a);return new V(this.x*c-this.y*s,this.x*s+this.y*c)}
+  lim(m){const l=this.len();return l>m?this.norm().mul(m):this.cp()}}
+const vv=(x,y)=>new V(x,y);
+const clamp=(n,a,b)=>n<a?a:n>b?b:n;
+let _s=42;const seed=s=>{_s=s};
+const rng=()=>{_s=((_s*1103515245+12345)&0x7fffffff);return(_s%1000000)/1e6};
+const rr=(a,b)=>a+rng()*(b-a);const ra=()=>rng()*Math.PI*2;
+const toast=m=>{const t=$('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)};
+
+/* ═══════════ STATE ═══════════ */
+let G={ships:[],proj:[],mis:[],shrap:[],expl:[],
+  sel:[],paused:true,speed:1,time:0,winner:null,batch:false,
+  pathMode:false,pathPts:[],atkMv:false,
+  cam:{x:2000,y:2000,z:.4},
+  drag:null,dragEnd:null,dragging:false,
+  mx:0,my:0,wx:0,wy:0,hover:null,
+  rep:{on:true,frames:[],play:false,idx:0},
+  st:{blue:{k:0,l:0,mS:0,mD:0,ff:0,co:0,rp:0},red:{k:0,l:0,mS:0,mD:0,ff:0,co:0,rp:0}},
+  aiW:{blue:{ag:.5,sp:.5,fo:.5},red:{ag:.5,sp:.5,fo:.5}},
+  nid:0};
+
+/* ═══════════ ENTITIES ═══════════ */
+class Ship{constructor(type,team,x,y){
+  const t=CFG.types[type];this.id=G.nid++;this.type=type;this.team=team;
+  this.pos=vv(x,y);this.vel=vv(0,0);this.hdg=team==='blue'?0:Math.PI;
+  this.hp=t.hp*CFG.hpMul;this.maxHp=this.hp;this.arm=t.arm*CFG.armorMul;this.r=t.r;
+  this.spd=t.spd;this.acc=t.acc;this.trn=t.trn;
+  this.gN=t.guns||0;this.gCd=t.gCd||2;this.gDmg=t.gDmg||0;this.gRng=t.gRng||0;
+  this.gT=new Array(Math.max(this.gN,1)).fill(0);
+  this.heat=0;this.hMax=t.gMax||80;this.cool=t.gCool||12;this.hShot=t.gHeat||8;this.overH=false;
+  this.mMax=t.mis||0;this.mLeft=this.mMax;this.mDmg=t.mDmg||0;this.mSpd=t.mSpd||0;
+  this.mHP=t.mHP||0;this.mRng=t.mRng||0;this.mAcq=t.mAcq||.5;this.mTm=0;
+  this.cN=t.ciws||0;this.cCd=t.cCd||.15;this.cDmg=t.cDmg||3;this.cRng=t.cRng||120;this.cTm=0;
+  this.repRate=t.repRate||0;this.repRng=t.repRng||0;
+  this.state='idle';this.tgt=null;this.moveTo=null;this.wps=[];this.wpi=0;
+  this.form='none';this.mode='advance';this.tPri='nearest';
+  this.sel=false;this.alive=true;this.fOff=vv(0,0);
+  this.harD=1;this.harT=0;this.atkDest=null;}}
+
+class Proj{constructor(x,y,vx,vy,d,tm,rng){this.pos=vv(x,y);this.vel=vv(vx,vy);this.dmg=d;this.team=tm;this.alive=true;this.d=0;this.md=rng}}
+class Mis{constructor(x,y,tg,d,sp,hp,tm,rng){this.pos=vv(x,y);this.tgt=tg;this.dmg=d*CFG.missileMul;this.spd=sp;this.hp=hp;this.team=tm;this.alive=true;this.vel=vv(0,0);this.d=0;this.md=rng;this.age=0}}
+class Shrap{constructor(x,y,vx,vy,d){this.pos=vv(x,y);this.vel=vv(vx,vy);this.dmg=d*CFG.shrapMul;this.alive=true;this.life=CFG.shrapLife}}
+class Expl{constructor(x,y,r,d){this.pos=vv(x,y);this.mr=r;this.dur=d;this.t=0}get alive(){return this.t<this.dur}}
+
+/* ═══════════ CANVAS ═══════════ */
+const cv=$('gc'),cc=cv.getContext('2d');
+const mc=$('mm'),mx=mc.getContext('2d');
+const resize=()=>{cv.width=innerWidth;cv.height=innerHeight};
+addEventListener('resize',resize);resize();
+const s2w=(sx,sy)=>{const c=G.cam;return vv((sx-cv.width/2)/c.z+c.x,(sy-cv.height/2)/c.z+c.y)};
+const w2s=(wx,wy)=>{const c=G.cam;return vv((wx-c.x)*c.z+cv.width/2,(wy-c.y)*c.z+cv.height/2)};
+
+/* ═══════════ INPUT ═══════════ */
+const keys={};
+addEventListener('keydown',e=>{
+  keys[e.key.toLowerCase()]=true;
+  if(e.key===' '){togglePause();e.preventDefault()}
+  if(G.pathMode){
+    if(e.key==='Enter'){confirmPath();e.preventDefault()}
+    if(e.key==='Escape'){cancelPath();e.preventDefault()}
+    if(e.key==='Backspace'){G.pathPts.pop();e.preventDefault()}
+  }else if(e.key==='Escape'){G.sel.forEach(s=>s.sel=false);G.sel=[];G.atkMv=false}
+  if(e.key==='a'&&(e.ctrlKey||e.metaKey)){e.preventDefault();G.sel.forEach(s=>s.sel=false);G.sel=G.ships.filter(s=>s.alive&&s.team==='blue');G.sel.forEach(s=>s.sel=true)}
+});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+
+cv.addEventListener('wheel',e=>{G.cam.z=clamp(G.cam.z*(e.deltaY>0?.9:1.1),.1,4);e.preventDefault()},{passive:false});
+
+let midDrag=false,midS=null;
+cv.addEventListener('mousedown',e=>{
+  const w=s2w(e.clientX,e.clientY);
+  if(e.button===1){midDrag=true;midS={x:e.clientX,y:e.clientY,cx:G.cam.x,cy:G.cam.y};e.preventDefault();return}
+  if(e.button===0){
+    if(G.pathMode){G.pathPts.push(vv(w.x,w.y));return}
+    if(G.atkMv){
+      for(const s of G.sel){s.atkDest=vv(w.x,w.y);s.wps=[vv(w.x,w.y)];s.wpi=0;s.state='moving'}
+      G.atkMv=false;toast('Attack-move set');return}
+    G.drag=vv(e.clientX,e.clientY);G.dragging=true}
+  if(e.button===2){
+    e.preventDefault();if(!G.sel.length)return;
+    const enemy=G.ships.find(s=>s.alive&&s.team==='red'&&s.pos.dist(vv(w.x,w.y))<s.r+10);
+    if(enemy){
+      for(const s of G.sel){s.tgt=enemy;s.state='attacking';s.wps=[];s.atkDest=null}
+      toast('Focus attack #'+enemy.id);
+    }else{
+      const center=G.sel.reduce((a,s)=>a.add(s.pos),vv(0,0)).mul(1/G.sel.length);
+      for(const s of G.sel){
+        const off=s.fOff||vv(0,0);
+        s.wps=[vv(w.x,w.y).add(off)];s.wpi=0;s.state='moving';s.atkDest=null;s.tgt=null}
+    }
+  }
+});
+cv.addEventListener('mousemove',e=>{
+  G.mx=e.clientX;G.my=e.clientY;
+  const w=s2w(e.clientX,e.clientY);G.wx=w.x;G.wy=w.y;
+  if(G.dragging)G.dragEnd=vv(e.clientX,e.clientY);
+  if(midDrag&&midS){G.cam.x=midS.cx-(e.clientX-midS.x)/G.cam.z;G.cam.y=midS.cy-(e.clientY-midS.y)/G.cam.z}
+  G.hover=null;for(const s of G.ships)if(s.alive&&s.pos.dist(w)<s.r+6){G.hover=s;break}
+});
+cv.addEventListener('mouseup',e=>{
+  if(e.button===1){midDrag=false;return}
+  if(e.button===0&&G.dragging){
+    const dx=e.clientX-G.drag.x,dy=e.clientY-G.drag.y;
+    if(Math.abs(dx)<5&&Math.abs(dy)<5){
+      if(!keys.shift){G.sel.forEach(s=>s.sel=false);G.sel=[]}
+      if(G.hover&&G.hover.team==='blue'){G.hover.sel=true;if(!G.sel.includes(G.hover))G.sel.push(G.hover)}
+    }else{
+      const x1=Math.min(G.drag.x,e.clientX),y1=Math.min(G.drag.y,e.clientY);
+      const x2=Math.max(G.drag.x,e.clientX),y2=Math.max(G.drag.y,e.clientY);
+      if(!keys.shift){G.sel.forEach(s=>s.sel=false);G.sel=[]}
+      for(const s of G.ships){if(!s.alive||s.team!=='blue')continue;
+        const sp=w2s(s.pos.x,s.pos.y);
+        if(sp.x>=x1&&sp.x<=x2&&sp.y>=y1&&sp.y<=y2){s.sel=true;if(!G.sel.includes(s))G.sel.push(s)}}
+    }
+    G.dragging=false;G.drag=null;G.dragEnd=null}
+});
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+mc.addEventListener('mousedown',e=>{const r=mc.getBoundingClientRect();G.cam.x=(e.clientX-r.left)/175*CFG.W;G.cam.y=(e.clientY-r.top)/175*CFG.H});
+
+/* ═══════════ COMMANDS ═══════════ */
+function togglePause(){G.paused=!G.paused;$('bPause').textContent=G.paused?'▶':'❚❚';$('bPause').classList.toggle('on',!G.paused)}
+function SS(s){G.speed=s;['sh','s1','s2','s4'].forEach(id=>$(id).classList.remove('on'));
+  s===.5?$('sh').classList.add('on'):s===1?$('s1').classList.add('on'):s===2?$('s2').classList.add('on'):$('s4').classList.add('on')}
+function cmdForm(f){for(const s of G.sel)s.form=f;if(G.sel.length>1)applyForm(G.sel,f)}
+function cmdMode(m){for(const s of G.sel)s.mode=m}
+function cmdTgt(p){for(const s of G.sel)s.tPri=p}
+function cmdStop(){for(const s of G.sel){s.wps=[];s.state='idle';s.tgt=null;s.moveTo=null;s.atkDest=null}}
+function cmdAtkMv(){if(!G.sel.length){toast('Select first');return}G.atkMv=!G.atkMv;toast(G.atkMv?'Click destination for A-Move':'Cancelled')}
+function togglePath(){
+  G.pathMode=!G.pathMode;$('bPath').classList.toggle('on',G.pathMode);
+  if(G.pathMode){G.pathPts=[];toast('PATH: Click points → Enter=confirm | Esc=cancel | Backspace=undo')}else G.pathPts=[]}
+function confirmPath(){
+  if(G.pathPts.length&&G.sel.length){for(const s of G.sel){s.wps=G.pathPts.map(p=>p.cp());s.wpi=0;s.state='moving'}toast(G.pathPts.length+' waypoints')}
+  G.pathMode=false;G.pathPts=[];$('bPath').classList.remove('on')}
+function cancelPath(){G.pathMode=false;G.pathPts=[];$('bPath').classList.remove('on')}
+
+/* ═══════════ FORMATIONS ═══════════ */
+function applyForm(ships,type){
+  if(ships.length<2)return;
+  const h=ships[0].hdg;
+  for(let i=0;i<ships.length;i++){
+    let off;const n=ships.length;
+    switch(type){
+      case'line':off=vv((i-n/2)*32,0).rot(h+Math.PI/2);break;
+      case'wedge':{const row=Math.floor(i/2),side=i%2?-1:1;off=vv(side*row*28,-row*24).rot(h)}break;
+      case'circle':{const a=(i/n)*Math.PI*2,r=Math.max(35,n*4.5);off=vv(Math.cos(a)*r,Math.sin(a)*r)}break;
+      case'spread':off=vv((rng()-.5)*n*14,(rng()-.5)*n*14);break;
+      default:off=vv(0,0)}
+    ships[i].fOff=off}}
+
+/* ═══════════ START ═══════════ */
+function startGame(){
+  const bF=+$('bF').value,bT=+$('bT').value,bR=+$('bR').value;
+  const rF=+$('rF').value,rT=+$('rT').value,rR=+$('rR').value;
+  seed(+$('sSeed').value);
+  G.ships=[];G.proj=[];G.mis=[];G.shrap=[];G.expl=[];
+  G.sel=[];G.time=0;G.winner=null;G.paused=false;G.batch=false;G.nid=0;
+  G.rep={on:true,frames:[],play:false,idx:0};G.pathMode=false;G.pathPts=[];G.atkMv=false;
+  G.st={blue:{k:0,l:0,mS:0,mD:0,ff:0,co:0,rp:0},red:{k:0,l:0,mS:0,mD:0,ff:0,co:0,rp:0}};
+  const bX=500,rX=3500,cY=CFG.H/2;
+  const sp=(tp,tm,cx,cy,n)=>{for(let i=0;i<n;i++)G.ships.push(new Ship(tp,tm,cx+rr(-180,180),cy+rr(-250,250)))};
+  G.ships.push(new Ship('capital','blue',bX,cY));G.ships.push(new Ship('capital','red',rX,cY));
+  sp('fighter','blue',bX+120,cY,bF);sp('tank','blue',bX-60,cY,bT);sp('repair','blue',bX-220,cY,bR);
+  sp('fighter','red',rX-120,cY,rF);sp('tank','red',rX+60,cY,rT);sp('repair','red',rX+220,cY,rR);
+  for(const s of G.ships)if(s.team==='red'){s.mode='advance';s.tPri='nearest'}
+  $('setup').style.display='none';$('top').style.display='flex';$('side').style.display='flex';$('bot').style.display='flex';$('mm').style.display='block';$('victory').style.display='none';
+  $('bPause').textContent='❚❚';$('bPause').classList.add('on');
+  G.cam={x:2000,y:2000,z:.38};
+  if(!loopOn){loopOn=true;lastT=performance.now();requestAnimationFrame(loop)}}
+
+/* ═══════════ TICK ═══════════ */
+function tick(dt){
+  if(G.winner)return;G.time+=dt;
+  const cs=350*dt/G.cam.z;
+  if(keys.w||keys.arrowup)G.cam.y-=cs;if(keys.s&&!keys.shift||keys.arrowdown)G.cam.y+=cs;
+  if(keys.a&&!keys.ctrl&&!keys.meta||keys.arrowleft)G.cam.x-=cs;if(keys.d||keys.arrowright)G.cam.x+=cs;
+
+  const alive=G.ships.filter(s=>s.alive);
+  const blues=alive.filter(s=>s.team==='blue'),reds=alive.filter(s=>s.team==='red');
+  const foes=t=>t==='blue'?reds:blues;const pals=t=>t==='blue'?blues:reds;
+
+  for(const s of alive){
+    const en=foes(s.team),fr=pals(s.team);
+    // REPAIR
+    if(s.type==='repair'){
+      let best=null,bp=Infinity;
+      for(const a of fr){if(a===s||a.type==='repair'||a.hp>=a.maxHp*.92)continue;
+        const p=a.pos.dist(s.pos)+(a.hp/a.maxHp)*400;if(p<bp){bp=p;best=a}}
+      if(best){s.moveTo=best.pos.cp();s.state='moving';
+        if(s.pos.dist(best.pos)<s.repRng+best.r){const h=s.repRate*dt;best.hp=Math.min(best.maxHp,best.hp+h);
+          if(!G.batch)G.st[s.team].rp+=h;if(best.state==='repairing'&&best.hp>best.maxHp*.55)best.state='idle'}}
+      else s.state='idle';move(s,dt);continue}
+
+    // RETREAT/RAM
+    if(s.hp<s.maxHp*CFG.retreatPct&&s.state!=='ramming'){
+      let nf=0;for(const f of en)if(s.pos.dist(f.pos)<180)nf++;
+      if(nf>=3&&s.hp<s.maxHp*.07){s.state='ramming';let cd=Infinity,cl=null;
+        for(const f of en){const d=s.pos.dist(f.pos);if(d<cd){cd=d;cl=f}}s.tgt=cl}
+      else{s.state='retreating';let rep=null,rd=Infinity;
+        for(const a of fr)if(a.type==='repair'&&a.alive){const d=s.pos.dist(a.pos);if(d<rd){rd=d;rep=a}}
+        s.moveTo=rep?rep.pos.cp():vv(s.team==='blue'?80:CFG.W-80,s.pos.y);
+        if(rep&&s.pos.dist(rep.pos)<90)s.state='repairing'}}
+    else if(s.state==='repairing'&&s.hp>s.maxHp*.6)s.state='idle';
+    else if(s.state==='retreating'&&s.hp>s.maxHp*.45)s.state='idle';
+
+    // TARGET
+    if(s.state!=='retreating'&&s.state!=='repairing'&&s.state!=='ramming'){
+      // Keep manual target if alive
+      if(!s.tgt||!s.tgt.alive)s.tgt=pickTgt(s,en);
+      // Attack-move: engage en route
+      if(s.atkDest&&s.tgt&&s.pos.dist(s.tgt.pos)<(s.gRng||s.cRng||250))s.state='attacking';
+      else if(s.tgt&&!s.wps.length&&(s.mode==='advance'||s.mode==='harass'))s.state='attacking'}
+
+    // HARASS
+    if(s.mode==='harass'&&s.tgt&&s.tgt.alive&&s.state==='attacking'){
+      s.harT+=dt;const r=s.gRng||s.cRng||200;
+      if(s.harT>2.5+rng()){s.harD*=-1;s.harT=0}
+      if(s.harD>0){if(s.pos.dist(s.tgt.pos)>r*.9)s.moveTo=s.tgt.pos.cp()}
+      else{s.moveTo=s.pos.add(s.pos.sub(s.tgt.pos).norm().mul(r*1.1))}}
+
+    if(s.state==='ramming'&&s.tgt&&s.tgt.alive)s.moveTo=s.tgt.pos.cp();
+    fire(s,dt,en);move(s,dt)}
+
+  // COLLISIONS
+  for(let i=0;i<alive.length;i++)for(let j=i+1;j<alive.length;j++){
+    const a=alive[i],b=alive[j],d=a.pos.dist(b.pos),minD=a.r+b.r;
+    if(d<minD&&d>.1){const push=a.pos.sub(b.pos).norm().mul((minD-d)*.5);a.pos=a.pos.add(push);b.pos=b.pos.sub(push);
+      const rs=a.vel.sub(b.vel).len();if(rs>25){
+        const rm=(a.state==='ramming'||b.state==='ramming')?CFG.ramDmgMul:1;
+        const dmg=CFG.collDmgBase*CFG.collMul*(rs/90)*rm;
+        hit(a,dmg,b.team);hit(b,dmg,a.team);
+        if(!G.batch){G.st[a.team].co+=dmg;G.st[b.team].co+=dmg}
+        if(a.state==='ramming'||b.state==='ramming'){boom(a.pos.x,a.pos.y,45,.6);shrapB(a.pos.x,a.pos.y,Math.floor(CFG.shrapN*CFG.ramShrapMul))}}}
+    if(d<CFG.sepDist+a.r+b.r&&d>.1){const f=a.pos.sub(b.pos).norm().mul(CFG.sepForce*dt);a.vel=a.vel.add(f);b.vel=b.vel.sub(f)}}
+
+  // PROJECTILES
+  for(const p of G.proj){if(!p.alive)continue;p.pos=p.pos.add(p.vel.mul(dt));p.d+=p.vel.len()*dt;
+    if(p.d>p.md||p.pos.x<0||p.pos.x>CFG.W||p.pos.y<0||p.pos.y>CFG.H){p.alive=false;continue}
+    for(const s of alive){if(!CFG.friendlyFire&&s.team===p.team)continue;
+      if(s.pos.dist(p.pos)<s.r){hit(s,p.dmg,p.team);if(s.team===p.team&&!G.batch)G.st[p.team].ff+=p.dmg;p.alive=false;break}}}
+
+  // MISSILES
+  for(const m of G.mis){if(!m.alive)continue;m.age+=dt;
+    if(m.tgt&&m.tgt.alive){const d=m.tgt.pos.sub(m.pos).norm().mul(m.spd);m.vel=m.vel.add(d.sub(m.vel).mul(3.5*dt)).lim(m.spd)}
+    m.pos=m.pos.add(m.vel.mul(dt));m.d+=m.vel.len()*dt;if(m.d>m.md){m.alive=false;continue}
+    for(const s of alive){if(!CFG.friendlyFire&&s.team===m.team)continue;
+      if(s.pos.dist(m.pos)<s.r+4){hit(s,m.dmg,m.team);if(s.team===m.team&&!G.batch)G.st[m.team].ff+=m.dmg;
+        boom(m.pos.x,m.pos.y,18,.35);shrapB(m.pos.x,m.pos.y,3);m.alive=false;break}}
+    if(m.alive&&m.hp<=0){m.alive=false;boom(m.pos.x,m.pos.y,7,.18);if(!G.batch)G.st[m.team==='blue'?'red':'blue'].mD++}}
+
+  // SHRAPNEL
+  for(const h of G.shrap){if(!h.alive)continue;h.pos=h.pos.add(h.vel.mul(dt));h.life-=dt;
+    if(h.life<=0){h.alive=false;continue}
+    for(const s of alive)if(s.pos.dist(h.pos)<s.r){hit(s,h.dmg,null);h.alive=false;break}}
+
+  for(const e of G.expl)e.t+=dt;
+  G.proj=G.proj.filter(p=>p.alive);G.mis=G.mis.filter(m=>m.alive);G.shrap=G.shrap.filter(h=>h.alive);G.expl=G.expl.filter(e=>e.alive);
+
+  // VICTORY
+  const ba=blues.length,ra=reds.length;
+  if(ba===0&&!G.winner){G.winner='red';onWin('RED')}
+  if(ra===0&&!G.winner){G.winner='blue';onWin('BLUE')}
+
+  redAI(dt);
+
+  if(!G.batch){const t=Math.floor(G.time);$('timer').textContent=`${Math.floor(t/60)}:${(t%60).toString().padStart(2,'0')}`;
+    $('bCnt').textContent='Blue: '+ba;$('rCnt').textContent='Red: '+ra}
+  if(G.rep.on&&!G.batch&&Math.floor(G.time*3)>G.rep.frames.length)G.rep.frames.push(snap());
+  if(!G.batch&&Math.floor(G.time)%2===0)updSt()}
+
+function pickTgt(s,en){if(!en.length)return null;
+  switch(s.tPri){
+    case'nearest':return en.reduce((b,f)=>s.pos.dist(f.pos)<s.pos.dist(b.pos)?f:b,en[0]);
+    case'lowestHP':return en.reduce((b,f)=>f.hp<b.hp?f:b,en[0]);
+    case'captain':{const c=en.find(f=>f.type==='capital');return c||en[0]}
+    case'missiles':return en.reduce((b,f)=>s.pos.dist(f.pos)<s.pos.dist(b.pos)?f:b,en[0]);
+    case'focus':{const ir=en.filter(f=>s.pos.dist(f.pos)<(s.gRng||s.cRng||300)*1.5);
+      return ir.length?ir.reduce((b,f)=>f.hp<b.hp?f:b,ir[0]):en[0]}
+    default:return en[0]}}
+
+function fire(s,dt,en){
+  if(s.heat>0){s.heat-=s.cool*dt/CFG.heatMul;if(s.heat<0)s.heat=0}
+  if(s.overH&&s.heat<s.hMax*.25)s.overH=false;
+  // CIWS
+  if(s.cN>0){s.cTm-=dt;if(s.cTm<=0){
+    let tm=null,td=Infinity;for(const m of G.mis){if(m.team===s.team||!m.alive)continue;const d=s.pos.dist(m.pos);if(d<s.cRng&&d<td){td=d;tm=m}}
+    if(tm){tm.hp-=s.cDmg*s.cN;s.cTm=s.cCd}
+    else if(s.tgt&&s.tgt.alive&&s.pos.dist(s.tgt.pos)<s.cRng){hit(s.tgt,s.cDmg*s.cN*.4,s.team);s.cTm=s.cCd}}}
+  if(s.state==='retreating'||s.state==='repairing')return;
+  if(!s.tgt||!s.tgt.alive)return;const d=s.pos.dist(s.tgt.pos);
+  // Guns
+  if(s.gN>0&&d<s.gRng&&!s.overH){for(let i=0;i<s.gN;i++){s.gT[i]-=dt;
+    if(s.gT[i]<=0){const a=s.pos.sub(s.tgt.pos).mul(-1).ang()+(rng()-.5)*.09;
+      G.proj.push(new Proj(s.pos.x,s.pos.y,Math.cos(a)*520,Math.sin(a)*520,s.gDmg,s.team,s.gRng*1.15));
+      s.gT[i]=s.gCd+rng()*.25;s.heat+=s.hShot*CFG.heatMul;if(s.heat>=s.hMax)s.overH=true;break}}}
+  // Missiles
+  if(s.mLeft>0&&d<s.mRng){s.mTm-=dt;if(s.mTm<=0){const a=s.pos.sub(s.tgt.pos).mul(-1).ang();
+    const m=new Mis(s.pos.x,s.pos.y,s.tgt,s.mDmg,s.mSpd,s.mHP,s.team,s.mRng);
+    m.vel=vv(Math.cos(a),Math.sin(a)).mul(s.mSpd*.4);G.mis.push(m);s.mLeft--;s.mTm=s.mAcq+rng()*.3;
+    if(!G.batch)G.st[s.team].mS++}}}
+
+function move(s,dt){
+  if(s.wps.length>0&&(s.state==='moving'||s.state==='idle')){
+    const wp=s.wps[s.wpi]||s.wps[s.wps.length-1];s.moveTo=wp;
+    if(s.pos.dist(wp)<18){s.wpi++;if(s.wpi>=s.wps.length){s.wps=[];s.wpi=0;s.state='idle';s.moveTo=null}}}
+  let desired=null;
+  if(s.state==='ramming'&&s.tgt&&s.tgt.alive)desired=s.tgt.pos.sub(s.pos).norm().mul(s.spd*1.6);
+  else if(s.moveTo){const to=s.moveTo.sub(s.pos),dist=to.len();if(dist>4)desired=to.norm().mul(Math.min(s.spd,dist*.6))}
+  else if(s.state==='attacking'&&s.tgt&&s.tgt.alive){
+    const r=s.gRng||s.cRng||200;const to=s.tgt.pos.sub(s.pos),dist=to.len();
+    if(s.mode==='hold')desired=vv(0,0);
+    else if(s.mode==='disperse'){const a=ra();desired=vv(Math.cos(a),Math.sin(a)).mul(s.spd*.45)}
+    else{const ideal=r*.65;if(dist>ideal)desired=to.norm().mul(s.spd);else if(dist<ideal*.4)desired=to.norm().mul(-s.spd*.35);else desired=vv(0,0)}}
+  if(desired){const st=desired.sub(s.vel).lim(s.acc*dt);s.vel=s.vel.add(st).lim(s.state==='ramming'?s.spd*1.6:s.spd)}
+  else{s.vel=s.vel.mul(1-2.5*dt);if(s.vel.len()<.8)s.vel=vv(0,0)}
+  s.pos=s.pos.add(s.vel.mul(dt));s.pos.x=clamp(s.pos.x,15,CFG.W-15);s.pos.y=clamp(s.pos.y,15,CFG.H-15);
+  if(s.vel.len()>4){const ta=s.vel.ang();let d=ta-s.hdg;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;s.hdg+=clamp(d,-s.trn*dt,s.trn*dt)}}
+
+function hit(ship,dmg,from){if(!ship.alive)return;const eff=Math.max(1,dmg-ship.arm*CFG.armorMul*.3);ship.hp-=eff;
+  if(ship.hp<=0){ship.alive=false;boom(ship.pos.x,ship.pos.y,ship.r*2.2,.55);shrapB(ship.pos.x,ship.pos.y,CFG.shrapN);
+    if(from&&!G.batch)G.st[from].k++;if(!G.batch)G.st[ship.team].l++;G.sel=G.sel.filter(x=>x!==ship)}}
+function boom(x,y,r,d){G.expl.push(new Expl(x,y,r,d))}
+function shrapB(x,y,n){for(let i=0;i<n;i++){const a=(i/n)*Math.PI*2+(rng()-.5)*.5;const sp=CFG.shrapSpd*(.65+rng()*.7);
+  G.shrap.push(new Shrap(x,y,Math.cos(a)*sp,Math.sin(a)*sp,CFG.shrapDmg))}}
+
+function onWin(team){if(G.batch)return;$('victory').textContent=team+' WINS — TOTAL ANNIHILATION';
+  $('victory').style.color=team==='BLUE'?'var(--blue)':'var(--red)';$('victory').style.display='inline';
+  G.paused=true;$('bPause').textContent='▶'}
+
+/* ═══════════ RED AI ═══════════ */
+let rT=0;
+function redAI(dt){rT+=dt;if(rT<.8)return;rT=0;
+  const reds=G.ships.filter(s=>s.alive&&s.team==='red'&&s.type!=='repair');
+  const blues=G.ships.filter(s=>s.alive&&s.team==='blue');
+  if(!reds.length||!blues.length)return;
+  const w=G.aiW.red;
+  const bC=blues.reduce((a,s)=>a.add(s.pos),vv(0,0)).mul(1/blues.length);
+  for(const s of reds){if(s.state==='ramming'||s.state==='repairing'||s.state==='retreating')continue;
+    s.tPri=w.fo>.6?'focus':w.ag>.7?'lowestHP':'nearest';
+    s.mode=w.ag>.4?'advance':'hold';
+    if(s.state==='idle'||(!s.tgt||!s.tgt.alive)){s.wps=[bC.add(vv(rr(-120,120),rr(-120,120)))];s.wpi=0;s.state='moving'}}}
+
+/* ═══════════ RENDER ═══════════ */
+function render(){
+  cc.clearRect(0,0,cv.width,cv.height);cc.fillStyle='#050810';cc.fillRect(0,0,cv.width,cv.height);
+  // Stars
+  cc.fillStyle='#ffffff0c';const ss=_s;seed(7777);for(let i=0;i<150;i++)cc.fillRect(rng()*cv.width,rng()*cv.height,1,1);_s=ss;
+
+  cc.save();cc.translate(cv.width/2,cv.height/2);cc.scale(G.cam.z,G.cam.z);cc.translate(-G.cam.x,-G.cam.y);
+
+  if(G.rep.play&&G.rep.frames.length){drawRep(G.rep.frames[clamp(G.rep.idx,0,G.rep.frames.length-1)]);cc.restore();drawMM();return}
+
+  // Grid
+  cc.strokeStyle='#ffffff05';cc.lineWidth=1;
+  for(let x=0;x<=CFG.W;x+=250){cc.beginPath();cc.moveTo(x,0);cc.lineTo(x,CFG.H);cc.stroke()}
+  for(let y=0;y<=CFG.H;y+=250){cc.beginPath();cc.moveTo(0,y);cc.lineTo(CFG.W,y);cc.stroke()}
+  cc.strokeStyle='#1a223040';cc.lineWidth=3;cc.strokeRect(0,0,CFG.W,CFG.H);
+
+  // Waypoints for selected
+  for(const s of G.sel){if(s.wps.length>0){cc.strokeStyle='#00e5ff30';cc.lineWidth=1;cc.setLineDash([5,4]);
+    cc.beginPath();cc.moveTo(s.pos.x,s.pos.y);for(let i=s.wpi;i<s.wps.length;i++)cc.lineTo(s.wps[i].x,s.wps[i].y);cc.stroke();cc.setLineDash([])}}
+
+  // Path draw
+  if(G.pathMode&&G.pathPts.length){cc.strokeStyle='#00e5ff70';cc.lineWidth=2;cc.setLineDash([6,4]);
+    cc.beginPath();cc.moveTo(G.pathPts[0].x,G.pathPts[0].y);
+    for(let i=1;i<G.pathPts.length;i++)cc.lineTo(G.pathPts[i].x,G.pathPts[i].y);cc.stroke();cc.setLineDash([]);
+    for(const p of G.pathPts){cc.beginPath();cc.arc(p.x,p.y,4,0,Math.PI*2);cc.fillStyle='#00e5ff';cc.fill()}}
+
+  // Shrapnel
+  cc.fillStyle='#ffaa3399';for(const h of G.shrap)if(h.alive)cc.fillRect(h.pos.x-1,h.pos.y-1,2,2);
+  // Projectiles
+  for(const p of G.proj){if(!p.alive)continue;cc.fillStyle=p.team==='blue'?'#88bbffcc':'#ff8888cc';cc.fillRect(p.pos.x-1,p.pos.y-1,3,2)}
+  // Missiles
+  for(const m of G.mis){if(!m.alive)continue;cc.fillStyle=m.team==='blue'?'#4499ffdd':'#ff4466dd';
+    cc.beginPath();cc.arc(m.pos.x,m.pos.y,3,0,Math.PI*2);cc.fill();
+    cc.strokeStyle=m.team==='blue'?'#4499ff44':'#ff446644';cc.lineWidth=1;
+    cc.beginPath();cc.moveTo(m.pos.x,m.pos.y);cc.lineTo(m.pos.x-m.vel.x*.04,m.pos.y-m.vel.y*.04);cc.stroke()}
+  // Explosions
+  for(const e of G.expl){if(!e.alive)continue;const t=e.t/e.dur,r=e.mr*t,a=1-t;
+    cc.beginPath();cc.arc(e.pos.x,e.pos.y,r,0,Math.PI*2);cc.fillStyle=`rgba(255,${150-t*80|0},${40-t*40|0},${a*.55})`;cc.fill();
+    cc.strokeStyle=`rgba(255,200,80,${a*.25})`;cc.lineWidth=2;cc.stroke()}
+
+  // Ships
+  for(const s of G.ships){if(!s.alive)continue;
+    cc.save();cc.translate(s.pos.x,s.pos.y);cc.rotate(s.hdg);
+    const c=s.team==='blue'?'#4499ff':'#ff4466',cd=s.team==='blue'?'#224488':'#882244';
+    cc.fillStyle=c;cc.strokeStyle=s.sel?'#00e5ff':G.hover===s?'#ffffffaa':cd;cc.lineWidth=s.sel?2.5:1;
+    switch(s.type){
+      case'capital':cc.beginPath();for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2-Math.PI/2;cc.lineTo(Math.cos(a)*s.r,Math.sin(a)*s.r)}
+        cc.closePath();cc.fill();cc.stroke();cc.fillStyle=cd;cc.beginPath();cc.arc(0,0,s.r*.35,0,Math.PI*2);cc.fill();
+        cc.fillStyle='#ffffff44';cc.fillRect(-2,-s.r*.15,4,s.r*.3);break;
+      case'fighter':cc.beginPath();cc.moveTo(s.r*1.1,0);cc.lineTo(-s.r*.65,-s.r*.65);cc.lineTo(-s.r*.25,0);cc.lineTo(-s.r*.65,s.r*.65);cc.closePath();cc.fill();cc.stroke();break;
+      case'tank':cc.beginPath();cc.moveTo(s.r*1.05,0);cc.lineTo(0,-s.r*.75);cc.lineTo(-s.r*1.05,0);cc.lineTo(0,s.r*.75);cc.closePath();cc.fill();cc.stroke();
+        cc.strokeStyle=cd;cc.lineWidth=1.5;cc.beginPath();cc.moveTo(-s.r*.4,0);cc.lineTo(s.r*.4,0);cc.stroke();break;
+      case'repair':cc.beginPath();cc.arc(0,0,s.r,0,Math.PI*2);cc.fill();cc.stroke();
+        cc.strokeStyle='#44ff88';cc.lineWidth=2;cc.beginPath();cc.moveTo(-s.r*.5,0);cc.lineTo(s.r*.5,0);cc.stroke();
+        cc.beginPath();cc.moveTo(0,-s.r*.5);cc.lineTo(0,s.r*.5);cc.stroke();break}
+    cc.restore();
+    if(s.sel){cc.beginPath();cc.arc(s.pos.x,s.pos.y,s.r+5,0,Math.PI*2);cc.strokeStyle='#00e5ff55';cc.lineWidth=1;cc.stroke()}
+    // HP bar
+    if(s.hp<s.maxHp){const bw=s.r*2.4,bh=3,bx=s.pos.x-bw/2,by=s.pos.y-s.r-9;
+      cc.fillStyle='#1a2030';cc.fillRect(bx,by,bw,bh);const pct=s.hp/s.maxHp;
+      cc.fillStyle=pct>.5?'#44ff88':pct>.2?'#ffcc00':'#ff4466';cc.fillRect(bx,by,bw*pct,bh)}
+    // State
+    cc.font='8px monospace';const ix=s.pos.x+s.r+4,iy=s.pos.y+3;
+    if(s.state==='retreating'){cc.fillStyle='#ffcc0088';cc.fillText('↤',ix,iy)}
+    else if(s.state==='repairing'){cc.fillStyle='#44ff8888';cc.fillText('+',ix,iy)}
+    else if(s.state==='ramming'){cc.fillStyle='#ff446688';cc.fillText('☠',ix,iy)}
+    if(s.overH){cc.fillStyle='#ff660088';cc.font='7px monospace';cc.fillText('HOT',s.pos.x-7,s.pos.y+s.r+10)}
+    if(s.sel&&s.moveTo){cc.beginPath();cc.arc(s.moveTo.x,s.moveTo.y,4,0,Math.PI*2);cc.strokeStyle='#00e5ff33';cc.lineWidth=1;cc.stroke()}}
+
+  cc.restore();
+  // Selection box
+  if(G.dragging&&G.drag&&G.dragEnd){cc.strokeStyle='#00e5ff88';cc.lineWidth=1;cc.setLineDash([4,4]);
+    const x1=Math.min(G.drag.x,G.dragEnd.x),y1=Math.min(G.drag.y,G.dragEnd.y);
+    cc.strokeRect(x1,y1,Math.abs(G.dragEnd.x-G.drag.x),Math.abs(G.dragEnd.y-G.drag.y));
+    cc.fillStyle='#00e5ff0d';cc.fillRect(x1,y1,Math.abs(G.dragEnd.x-G.drag.x),Math.abs(G.dragEnd.y-G.drag.y));cc.setLineDash([])}
+  if(G.atkMv){cc.fillStyle='#ff3d7166';cc.font='bold 16px sans-serif';cc.fillText('⚔',G.mx-8,G.my+6)}
+  updSI();drawMM()}
+
+function drawRep(fr){
+  cc.strokeStyle='#ffffff05';cc.lineWidth=1;
+  for(let x=0;x<=CFG.W;x+=250){cc.beginPath();cc.moveTo(x,0);cc.lineTo(x,CFG.H);cc.stroke()}
+  for(const d of fr.s){if(!d.a)continue;cc.save();cc.translate(d.x,d.y);cc.rotate(d.h);
+    const r=CFG.types[d.t].r;cc.fillStyle=d.m==='blue'?'#4499ff':'#ff4466';cc.strokeStyle='#ffffff33';cc.lineWidth=1;
+    switch(d.t){
+      case'capital':cc.beginPath();for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2-Math.PI/2;cc.lineTo(Math.cos(a)*r,Math.sin(a)*r)}cc.closePath();cc.fill();cc.stroke();break;
+      case'fighter':cc.beginPath();cc.moveTo(r*1.1,0);cc.lineTo(-r*.65,-r*.65);cc.lineTo(-r*.25,0);cc.lineTo(-r*.65,r*.65);cc.closePath();cc.fill();cc.stroke();break;
+      case'tank':cc.beginPath();cc.moveTo(r*1.05,0);cc.lineTo(0,-r*.75);cc.lineTo(-r*1.05,0);cc.lineTo(0,r*.75);cc.closePath();cc.fill();cc.stroke();break;
+      case'repair':cc.beginPath();cc.arc(0,0,r,0,Math.PI*2);cc.fill();cc.stroke();break}cc.restore()}
+  for(const m of fr.m){cc.fillStyle=m.m==='blue'?'#4499ff':'#ff4466';cc.beginPath();cc.arc(m.x,m.y,3,0,Math.PI*2);cc.fill()}
+  for(const e of fr.e){const r=e.r*e.p;cc.beginPath();cc.arc(e.x,e.y,r,0,Math.PI*2);cc.fillStyle=`rgba(255,140,40,${(1-e.p)*.4})`;cc.fill()}}
+
+function drawMM(){mx.fillStyle='#050810';mx.fillRect(0,0,175,175);const sc=175/CFG.W;
+  for(const s of G.ships){if(!s.alive)continue;mx.fillStyle=s.team==='blue'?'#4499ff':'#ff4466';
+    const sz=s.type==='capital'?3.5:s.type==='tank'?2:1.5;mx.fillRect(s.pos.x*sc-sz/2,s.pos.y*sc-sz/2,sz,sz)}
+  const vw=cv.width/G.cam.z,vh=cv.height/G.cam.z;mx.strokeStyle='#00e5ff44';mx.lineWidth=1;
+  mx.strokeRect((G.cam.x-vw/2)*sc,(G.cam.y-vh/2)*sc,vw*sc,vh*sc)}
+
+function updSI(){const el=$('shipInfo');
+  const s=G.hover||(G.sel.length===1?G.sel[0]:null);
+  if(!s||!s.alive){el.innerHTML=G.sel.length>1?`<span style="color:var(--accent)">${G.sel.length} units</span><br>Types: ${[...new Set(G.sel.map(s=>s.type))].join(', ')}`:'<span style="color:var(--text-dim)">Hover / select a ship</span>';return}
+  const hp=s.hp/s.maxHp,hc=hp>.5?'var(--green)':hp>.2?'var(--yellow)':'var(--accent2)',heat=s.hMax>0?(s.heat/s.hMax*100).toFixed(0):'—';
+  el.innerHTML=`<div style="color:${s.team==='blue'?'var(--blue)':'var(--red)'};font-family:var(--hd);font-size:10px;letter-spacing:1px;margin-bottom:2px">${s.type.toUpperCase()} #${s.id}</div>
+    HP: <span style="color:${hc}">${Math.ceil(s.hp)}/${Math.ceil(s.maxHp)}</span><div class="hb"><div class="f" style="width:${(hp*100).toFixed(0)}%;background:${hc}"></div></div>
+    Armor: ${s.arm.toFixed(0)} | Spd: ${s.vel.len().toFixed(0)}<br>State: <b>${s.state}</b> | Mode: ${s.mode}<br>
+    Missiles: ${s.mLeft}/${s.mMax} | Heat: ${heat}%${s.overH?' ⚠':''}<br>Target: ${s.tPri} | ${s.pos.x.toFixed(0)},${s.pos.y.toFixed(0)}
+    ${s.type==='repair'?'<br>Repair: '+s.repRate+'/s':''}`}
+
+function updSt(){const el=$('stats');const b=G.st.blue,r=G.st.red;
+  el.innerHTML=`<span style="color:var(--blue)">BLU</span> K:${b.k} L:${b.l} M:${b.mS}↑${b.mD}↓ FF:${b.ff.toFixed(0)} Rep:${b.rp.toFixed(0)}<br>
+    <span style="color:var(--red)">RED</span> K:${r.k} L:${r.l} M:${r.mS}↑${r.mD}↓ FF:${r.ff.toFixed(0)} Rep:${r.rp.toFixed(0)}`}
+
+/* ═══════════ REPLAY ═══════════ */
+function snap(){return{t:G.time,s:G.ships.map(s=>({t:s.type,m:s.team,x:s.pos.x,y:s.pos.y,h:s.hdg,a:s.alive})),
+  m:G.mis.slice(0,60).map(m=>({x:m.pos.x,y:m.pos.y,m:m.team})),e:G.expl.map(e=>({x:e.pos.x,y:e.pos.y,r:e.mr,p:e.t/e.dur}))}}
+function toggleReplay(){const b=$('rbar');if(G.rep.play){G.rep.play=false;b.style.display='none'}
+  else{G.rep.play=true;G.paused=true;b.style.display='flex';$('rSlider').max=G.rep.frames.length-1}}
+function seekRep(i){G.rep.idx=i;$('rTime').textContent=(i/3).toFixed(1)+'s'}
+
+/* ═══════════ BATCH ═══════════ */
+function resetB(sd){seed(sd);const bF=+$('bF').value,bT=+$('bT').value,bR=+$('bR').value,rF=+$('rF').value,rT=+$('rT').value,rR=+$('rR').value;
+  G.ships=[];G.proj=[];G.mis=[];G.shrap=[];G.expl=[];G.time=0;G.winner=null;G.batch=true;G.nid=0;
+  G.rep={on:false,frames:[],play:false,idx:0};
+  G.st={blue:{k:0,l:0,mS:0,mD:0,ff:0,co:0,rp:0},red:{k:0,l:0,mS:0,mD:0,ff:0,co:0,rp:0}};
+  const bX=500,rX=3500,cY=CFG.H/2;
+  const sp=(tp,tm,cx,cy,n)=>{for(let i=0;i<n;i++)G.ships.push(new Ship(tp,tm,cx+rr(-180,180),cy+rr(-250,250)))};
+  G.ships.push(new Ship('capital','blue',bX,cY));G.ships.push(new Ship('capital','red',rX,cY));
+  sp('fighter','blue',bX+120,cY,bF);sp('tank','blue',bX-60,cY,bT);sp('repair','blue',bX-220,cY,bR);
+  sp('fighter','red',rX-120,cY,rF);sp('tank','red',rX+60,cY,rT);sp('repair','red',rX+220,cY,rR);
+  for(const s of G.ships){s.mode='advance';s.tPri='nearest'}}
+
+function runBatch(){const n=+$('batchN').value;toast(`Running ${n} sims...`);
+  setTimeout(()=>{const res=[];for(let i=0;i<n;i++){resetB((+$('sSeed').value)+i);
+    let s=0;while(!G.winner&&s<25000){tick(CFG.dt*4);s++}
+    res.push({w:G.winner||'draw',t:G.time,bL:G.ships.filter(s=>s.alive&&s.team==='blue').length,
+      rL:G.ships.filter(s=>s.alive&&s.team==='red').length,st:JSON.parse(JSON.stringify(G.st))})}
+    showB(res);startGame()},60)}
+
+function showB(res){const bw=res.filter(r=>r.w==='blue').length,rw=res.filter(r=>r.w==='red').length,n=res.length,avg=f=>res.reduce((a,r)=>a+f(r),0)/n;
+  $('batchM').style.display='flex';$('batchC').innerHTML=`<h2>BATCH: ${n} runs</h2>
+    <table><tr><th></th><th style="color:var(--blue)">Blue</th><th style="color:var(--red)">Red</th></tr>
+    <tr><td>Win Rate</td><td>${(bw/n*100).toFixed(1)}%</td><td>${(rw/n*100).toFixed(1)}%</td></tr>
+    <tr><td>Avg Time</td><td colspan="2">${avg(r=>r.t).toFixed(1)}s</td></tr>
+    <tr><td>Avg Survivors</td><td>${avg(r=>r.bL).toFixed(1)}</td><td>${avg(r=>r.rL).toFixed(1)}</td></tr>
+    <tr><td>Avg Missiles</td><td>${avg(r=>r.st.blue.mS).toFixed(1)}</td><td>${avg(r=>r.st.red.mS).toFixed(1)}</td></tr>
+    <tr><td>Avg FF Dmg</td><td>${avg(r=>r.st.blue.ff).toFixed(0)}</td><td>${avg(r=>r.st.red.ff).toFixed(0)}</td></tr>
+    <tr><td>Avg Coll Dmg</td><td>${avg(r=>r.st.blue.co).toFixed(0)}</td><td>${avg(r=>r.st.red.co).toFixed(0)}</td></tr></table>
+    <button onclick="$('batchM').style.display='none'" style="margin-top:10px">Close</button>`}
+
+function runTraining(){toast('Training (10 iter × 5 sims)...');
+  setTimeout(()=>{const w={...G.aiW.red};let best=0;const log=[];
+    for(let it=0;it<10;it++){const tw={ag:clamp(w.ag+(rng()-.5)*.15,0,1),sp:clamp(w.sp+(rng()-.5)*.15,0,1),fo:clamp(w.fo+(rng()-.5)*.15,0,1)};
+      const old={...G.aiW.red};G.aiW.red=tw;let wins=0;
+      for(let i=0;i<5;i++){resetB(42+it*5+i);let s=0;while(!G.winner&&s<18000){tick(CFG.dt*4);s++}if(G.winner==='red')wins++}
+      const wr=wins/5;if(wr>=best){best=wr;Object.assign(w,tw)}else G.aiW.red=old;
+      log.push({it:it+1,wr,w:{...G.aiW.red}})}
+    G.aiW.red={...w};
+    $('batchM').style.display='flex';$('batchC').innerHTML=`<h2>TRAINING</h2>
+      <p>Best Red WR: <span style="color:var(--accent)">${(best*100).toFixed(0)}%</span></p>
+      <table><tr><th>Weight</th><th>Value</th></tr>
+      <tr><td>Aggression</td><td>${w.ag.toFixed(3)}</td></tr><tr><td>Spacing</td><td>${w.sp.toFixed(3)}</td></tr>
+      <tr><td>Focus Fire</td><td>${w.fo.toFixed(3)}</td></tr></table>
+      <h3 style="margin-top:8px;color:var(--accent);font-size:10px">Log</h3>
+      <table><tr><th>#</th><th>WR</th><th>Agg</th><th>Foc</th></tr>
+      ${log.map(l=>`<tr><td>${l.it}</td><td>${(l.wr*100).toFixed(0)}%</td><td>${l.w.ag.toFixed(2)}</td><td>${l.w.fo.toFixed(2)}</td></tr>`).join('')}</table>
+      <button onclick="$('batchM').style.display='none';startGame()" style="margin-top:10px">Close & Restart</button>`},60)}
+
+/* ═══════════ SCENARIO ═══════════ */
+function exportJSON(){$('scJSON').value=JSON.stringify({
+  blue:{f:+$('bF').value,t:+$('bT').value,r:+$('bR').value},red:{f:+$('rF').value,t:+$('rT').value,r:+$('rR').value},
+  seed:+$('sSeed').value,tune:{hpMul:CFG.hpMul,armorMul:CFG.armorMul,missileMul:CFG.missileMul,shrapMul:CFG.shrapMul,collMul:CFG.collMul,retreatPct:CFG.retreatPct,heatMul:CFG.heatMul},aiW:G.aiW},null,2);toast('Exported')}
+function importJSON(){try{const d=JSON.parse($('scJSON').value);
+  if(d.blue){$('bF').value=d.blue.f||0;$('bT').value=d.blue.t||0;$('bR').value=d.blue.r||0}
+  if(d.red){$('rF').value=d.red.f||0;$('rT').value=d.red.t||0;$('rR').value=d.red.r||0}
+  if(d.seed)$('sSeed').value=d.seed;if(d.tune)Object.assign(CFG,d.tune);if(d.aiW)G.aiW=d.aiW;
+  toast('Imported!');$('setup').style.display='flex'}catch(e){toast('Bad JSON: '+e.message)}}
+
+/* ═══════════ LOOP ═══════════ */
+let loopOn=false,lastT=0,acc=0;
+function loop(ts){if(!loopOn)return;const raw=(ts-lastT)/1000;lastT=ts;const dt=Math.min(raw,.06);
+  if(!G.paused&&!G.rep.play){acc+=dt*G.speed;let steps=0;while(acc>=CFG.dt&&steps<10){tick(CFG.dt);acc-=CFG.dt;steps++}if(steps>=10)acc=0}
+  render();requestAnimationFrame(loop)}
+lastT=performance.now();
+</script>
+</body>
+</html>

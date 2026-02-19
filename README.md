@@ -140,6 +140,48 @@ GPU n-body gravity simulation:
 
 ---
 
+### VOID COMMAND – 2D RTS Space Battle Simulator
+
+Fleet-scale RTS space battle sandbox:
+
+- Configure fighters, tanks, repair and capital ships for each side  
+- Formation, targeting and behavior modes (advance, hold, harass, etc.)  
+- Batch simulations and simple “training” runs for testing setups  
+- Replay bar, minimap and detailed live stats  
+
+**Source:** `/void-command/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/void-command/.
+
+---
+
+### WebGPU Fireworks
+
+High-density WebGPU fireworks show:
+
+- Multiple firework types mapped to number keys (1–0)  
+- Auto show with per-type rate sliders  
+- Color controls (hue, saturation, intensity)  
+- Scene sliders for buildings, density and detail  
+
+**Source:** `/fireworks/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/fireworks/.
+
+---
+
+### Black Hole – Gravitational Lensing
+
+WebGPU black hole visualizer with gravitational lensing:
+
+- Schwarzschild-inspired ray marching around a black hole  
+- Adjustable Schwarzschild radius, lensing strength and ray steps  
+- Accretion disk with Doppler brightening and falloff  
+- Procedural starfield + nebula and cinematic camera mode  
+
+**Source:** `/blackhole/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/blackhole/
+
+---
+
 ## Structure
 
 Each tool lives in its own folder:
@@ -155,4 +197,7 @@ Each tool lives in its own folder:
 ├─ lunar_miner/          # Lunar Miner
 ├─ micro-rts/            # MicroRTS game
 ├─ nbody-simulation/     # N-Body gravity (WebGPU/WebGL2)
-└─ drone-light-show/     # Drone Light Show
+├─ drone-light-show/     # Drone Light Show
+├─ void-command/         # 2D RTS space battle simulator (Web)
+├─ fireworks/            # Fireworks visual experiment
+└─ blackhole/            # Black hole lensing renderer

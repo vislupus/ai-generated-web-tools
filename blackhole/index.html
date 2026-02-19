@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebGPU Black Hole — Gravitational Lensing</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000; overflow: hidden;
+    font-family: 'Courier New', monospace; color: #d0d0d0;
+  }
+  canvas { display: block; width: 100vw; height: 100vh; }
+
+  #error-overlay {
+    display: none; position: fixed; inset: 0; background: #0a0a0a;
+    z-index: 1000; justify-content: center; align-items: center;
+    flex-direction: column; gap: 16px; font-size: 14px; text-align: center; padding: 40px;
+  }
+  #error-overlay h1 { color: #ff6644; font-size: 22px; }
+  #error-overlay p  { max-width: 500px; line-height: 1.6; color: #888; }
+
+  #hud {
+    position: fixed; top: 16px; left: 16px; z-index: 100;
+    pointer-events: none; user-select: none;
+  }
+  #hud .title {
+    font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+    color: #ff9944; margin-bottom: 6px; font-weight: bold;
+  }
+  #hud .stats { font-size: 10px; color: #555; line-height: 1.8; }
+  #hud .stats span { color: #888; }
+
+  #controls {
+    position: fixed; top: 16px; right: 16px; z-index: 100; width: 215px;
+    background: rgba(8,8,8,0.88); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px; padding: 14px 16px; font-size: 10px;
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  #controls.hidden { opacity: 0; pointer-events: none; transform: translateX(10px); }
+  #controls h2 {
+    font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+    color: #ff9944; margin-bottom: 10px; font-weight: bold;
+  }
+  .cr { display: flex; align-items: center; margin-bottom: 5px; }
+  .cr label { color: #666; width: 52px; flex-shrink: 0; }
+  .cr .v { color: #999; width: 34px; text-align: right; font-size: 9px; }
+  .cr input[type=range] { flex: 1; margin: 0 5px; accent-color: #ff8833; height: 2px; }
+  .cb {
+    display: inline-block; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 4px;
+    color: #888; font-size: 9px; padding: 4px 9px; margin: 2px 2px 0 0;
+    cursor: pointer; font-family: inherit; transition: background 0.2s, color 0.2s;
+  }
+  .cb:hover { background: rgba(255,153,68,0.12); color: #ff9944; }
+  .cb.on { color: #ff9944; border-color: rgba(255,153,68,0.3); }
+  .sep { border-top: 1px solid rgba(255,255,255,0.04); margin: 8px 0; }
+
+  #toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 100; font-size: 10px; color: #555; letter-spacing: 1px;
+    transition: opacity 2s;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="error-overlay">
+  <h1>WebGPU Not Available</h1>
+  <p>This demo requires a browser with WebGPU support (Chrome 113+, Edge 113+, or Firefox Nightly with flags). Please update your browser or enable WebGPU.</p>
+</div>
+
+<div id="hud">
+  <div class="title">Black Hole Lensing</div>
+  <div class="stats">
+    <span id="d-fps">0</span> fps · <span id="d-res">—</span> · scale <span id="d-scl">0.75</span><br>
+    Drag orbit · Scroll zoom · <span style="color:#ff9944">H</span> panel · <span style="color:#ff9944">Space</span> cinematic
+  </div>
+</div>
+
+<div id="controls">
+  <h2>Parameters</h2>
+  <div class="cr"><label>Rs</label><input type="range" id="s-rs" min="0.3" max="3.0" step="0.05" value="1.0"><div class="v" id="v-rs">1.00</div></div>
+  <div class="cr"><label>Lens</label><input type="range" id="s-ln" min="0.5" max="4.0" step="0.1" value="1.5"><div class="v" id="v-ln">1.50</div></div>
+  <div class="cr"><label>Steps</label><input type="range" id="s-st" min="24" max="128" step="4" value="64"><div class="v" id="v-st">64</div></div>
+  <div class="cr"><label>Disk In</label><input type="range" id="s-di" min="1.5" max="4.0" step="0.1" value="2.6"><div class="v" id="v-di">2.60</div></div>
+  <div class="cr"><label>Disk Out</label><input type="range" id="s-do" min="4.0" max="14.0" step="0.5" value="8.0"><div class="v" id="v-do">8.00</div></div>
+  <div class="cr"><label>Bright</label><input type="range" id="s-br" min="0.3" max="4.0" step="0.1" value="1.8"><div class="v" id="v-br">1.80</div></div>
+  <div class="cr"><label>Stars</label><input type="range" id="s-sr" min="0.0" max="2.0" step="0.1" value="1.0"><div class="v" id="v-sr">1.00</div></div>
+  <div class="cr"><label>Nebula</label><input type="range" id="s-nb" min="0.0" max="2.0" step="0.1" value="0.5"><div class="v" id="v-nb">0.50</div></div>
+  <div class="cr"><label>Scale</label><input type="range" id="s-sc" min="0.25" max="1.0" step="0.05" value="0.75"><div class="v" id="v-sc">0.75</div></div>
+  <div class="sep"></div>
+  <button class="cb" id="b-rst">Reset Cam</button>
+  <button class="cb" id="b-cin">Cinematic</button>
+  <button class="cb" id="b-sdr">New Stars (R)</button>
+</div>
+
+<div id="toast">SPACE cinematic · R randomize stars · H toggle panel</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+//  WebGPU Black Hole — Gravitational Lensing
+//  Single-file, zero dependencies. Schwarzschild-inspired ray marching,
+//  procedural starfield + nebula, accretion disk with Doppler effect,
+//  analytic bloom, ACES tonemapping. Runs on any WebGPU-capable browser.
+// ═══════════════════════════════════════════════════════════════════════
+
+const WGSL = /* wgsl */`
+
+// ════════════════════════════════════════════
+// Vertex shader: full-screen triangle
+// Emits 3 vertices forming an oversized tri
+// that covers the entire viewport.
+// ════════════════════════════════════════════
+struct V { @builtin(position) p: vec4f, @location(0) uv: vec2f };
+
+@vertex fn vs(@builtin(vertex_index) i: u32) -> V {
+  let u = f32((i << 1u) & 2u);
+  let v = f32(i & 2u);
+  var o: V;
+  o.p  = vec4f(u * 2.0 - 1.0, v * 2.0 - 1.0, 0.0, 1.0);
+  o.uv = vec2f(u, 1.0 - v);
+  return o;
+}
+
+// ════════════════════════════════════════════
+// Uniforms — 96 bytes, 16-byte aligned
+// ════════════════════════════════════════════
+struct P {
+  res: vec2f,           //  0: render resolution
+  time: f32,            //  8: elapsed seconds
+  rs: f32,              // 12: Schwarzschild radius
+  lens: f32,            // 16: lensing strength multiplier
+  steps: f32,           // 20: integration step count
+  dIn: f32,             // 24: disk inner radius
+  dOut: f32,            // 28: disk outer radius
+  dBri: f32,            // 32: disk brightness
+  starD: f32,           // 36: star density
+  nebI: f32,            // 40: nebula intensity
+  _p0: f32,             // 44: padding
+  eye: vec3f,           // 48: camera position
+  _p1: f32,             // 60
+  tgt: vec3f,           // 64: camera target
+  _p2: f32,             // 76
+  seed: f32,            // 80: starfield seed
+  fov: f32,             // 84: field of view (rad)
+  _p3: f32, _p4: f32,  // 88,92
+};
+@group(0) @binding(0) var<uniform> u: P;
+
+const PI  = 3.14159265359;
+const TAU = 6.28318530718;
+
+// ════════════════════════════════════════════
+// Hash functions — fast, no integer ops
+// ════════════════════════════════════════════
+fn h21(p: vec2f) -> f32 {
+  var a = fract(vec3f(p.xyx) * 0.1031);
+  a += dot(a, a.yzx + 33.33);
+  return fract((a.x + a.y) * a.z);
+}
+fn h31(p: vec3f) -> f32 {
+  var a = fract(p * 0.1031);
+  a += dot(a, a.yzx + 33.33);
+  return fract((a.x + a.y) * a.z);
+}
+
+// ════════════════════════════════════════════
+// 3D value noise + FBM for nebula clouds
+// ════════════════════════════════════════════
+fn vn(x: vec3f) -> f32 {
+  let i = floor(x); let f = fract(x);
+  let s = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(h31(i),                h31(i+vec3f(1,0,0)), s.x),
+        mix(h31(i+vec3f(0,1,0)),   h31(i+vec3f(1,1,0)), s.x), s.y),
+    mix(mix(h31(i+vec3f(0,0,1)),   h31(i+vec3f(1,0,1)), s.x),
+        mix(h31(i+vec3f(0,1,1)),   h31(i+vec3f(1,1,1)), s.x), s.y),
+    s.z);
+}
+fn fbm(p: vec3f) -> f32 {
+  var v=0.0; var a=0.5; var q=p;
+  for (var i=0; i<5; i++) { v+=a*vn(q); q=q*2.03+0.17; a*=0.5; }
+  return v;
+}
+
+// ════════════════════════════════════════════
+// Starfield: grid cells on the sky sphere.
+// Each cell may host a point star with random
+// brightness, size, and color temperature.
+// ════════════════════════════════════════════
+fn stars(d: vec3f) -> vec3f {
+  let th = acos(clamp(d.y,-1.0,1.0));
+  let ph = atan2(d.z, d.x);
+  var c = vec3f(0.0);
+
+  for (var L=0; L<3; L++) {
+    let sc = 45.0 + f32(L)*30.0;
+    let uv = vec2f(ph*sc/TAU, th*sc/PI);
+    let cl = floor(uv);
+    for (var dx=-1; dx<=1; dx++) {
+      for (var dy=-1; dy<=1; dy++) {
+        let nb = cl + vec2f(f32(dx),f32(dy));
+        let id = nb + u.seed*7.13 + f32(L)*31.7;
+        let br = h21(id);
+        if (br < 0.5) { continue; }
+        let sp = vec2f(h21(id*1.31+0.5), h21(id*2.17+0.7));
+        let dist = length(fract(uv) - vec2f(f32(dx),f32(dy)) - sp);
+        let sz = 0.008 + br*0.022;
+        let g = exp(-dist*dist/(sz*sz)) * (br-0.35) * u.starD;
+        let t = h21(id*3.71);
+        var col = vec3f(1.0,0.97,0.94);
+        if      (t<0.22) { col = vec3f(0.65,0.8,1.0); }
+        else if (t<0.42) { col = vec3f(1.0,0.9,0.65); }
+        else if (t<0.58) { col = vec3f(1.0,0.6,0.4); }
+        c += col * max(g, 0.0);
+      }
+    }
+  }
+  return c;
+}
+
+// ════════════════════════════════════════════
+// Nebula: FBM noise on sky direction
+// ════════════════════════════════════════════
+fn neb(d: vec3f) -> vec3f {
+  let n = normalize(d);
+  let a = fbm(n*2.5 + vec3f(u.seed*0.1,0,0));
+  let b = fbm(n*3.7 + vec3f(5,u.seed*0.13,0));
+  let c1 = vec3f(0.12,0.04,0.22) * smoothstep(0.35,0.65,a);
+  let c2 = vec3f(0.04,0.08,0.18) * smoothstep(0.4,0.7,b);
+  let c3 = vec3f(0.18,0.06,0.02) * smoothstep(0.5,0.78,a*b*2.0);
+  return (c1+c2+c3) * u.nebI;
+}
+
+fn bg(d: vec3f) -> vec3f { return stars(d) + neb(d); }
+
+// ════════════════════════════════════════════
+// Accretion disk
+// Thin equatorial disk (y=0). Emission color
+// ranges from hot (white-blue) at inner edge
+// to cool (red-orange) at outer. A Doppler-like
+// asymmetry brightens the side where orbital
+// velocity approaches the viewer. Turbulent
+// noise adds visual complexity.
+// ════════════════════════════════════════════
+fn disk(hit: vec3f, rd: vec3f) -> vec3f {
+  let r = length(hit.xz);
+  let inn = smoothstep(u.dIn-0.2, u.dIn+0.5, r);
+  let out = 1.0 - smoothstep(u.dOut-1.5, u.dOut+0.5, r);
+  let prof = inn * out;
+  if (prof < 0.001) { return vec3f(0.0); }
+
+  let t = saturate((r - u.dIn) / max(u.dOut - u.dIn, 0.01));
+  var col = mix(vec3f(1,.97,.92), vec3f(1,.55,.15), smoothstep(0,.35,t));
+  col = mix(col, vec3f(.5,.12,.02), smoothstep(.25,1,t));
+
+  let inten = 1.0 / (1.0 + (r - u.dIn) * 0.4);
+
+  // Doppler: tangent = cross(up, radial) for CCW orbit
+  let rad = normalize(vec3f(hit.x, 0, hit.z));
+  let tan = vec3f(-rad.z, 0, rad.x);
+  let dopp = 1.0 + 0.55 * dot(tan, normalize(-rd));
+
+  // Spiral turbulence
+  let a = atan2(hit.z, hit.x);
+  let turb = 0.75
+    + 0.25 * sin(a*14.0 + r*3.5 - u.time*1.2)
+    + 0.12 * sin(a*29.0 - r*6.0 + u.time*2.5)
+    + 0.08 * sin(a*7.0  + r*1.5 + u.time*0.7);
+
+  return col * prof * inten * dopp * turb * u.dBri;
+}
+
+// ════════════════════════════════════════════
+// Ray march with gravitational deflection
+//
+// Physics model: Newtonian central-force bending
+//   accel = -k * r_hat / r^2
+// where k = Rs * lens_strength * 0.5.
+//
+// This isn't full GR but produces convincing
+// lensing: bent starfield, photon ring, and
+// event horizon silhouette.
+//
+// We detect accretion disk hits by checking
+// when the ray crosses the y=0 plane between
+// steps (sign change in y coordinate).
+//
+// Returns vec4: rgb + glow intensity for bloom.
+// ════════════════════════════════════════════
+fn march(ro: vec3f, rd: vec3f) -> vec4f {
+  var pos = ro;
+  var vel = normalize(rd);
+  let n = i32(u.steps);
+  let dt = 0.25;
+  let k = u.rs * u.lens * 0.5;
+
+  var col  = vec3f(0);
+  var dacc = vec3f(0); // disk accumulation
+  var glo  = 0.0;      // glow for bloom
+  var py   = pos.y;    // previous y for plane crossing
+
+  for (var i = 0; i < 128; i++) {
+    if (i >= n) { break; }
+    let rv = pos;
+    let r  = length(rv);
+
+    // Event horizon: swallow ray
+    if (r < u.rs) {
+      let e = exp(-(u.rs - r) * 10.0) * 0.5;
+      return vec4f(vec3f(e*0.9, e*0.12, 0) + dacc, glo);
+    }
+
+    // Gravitational deflection: bend ray toward origin
+    let rh = rv / r;
+    vel = normalize(vel - rh * k / (r * r) * dt);
+
+    // Adaptive step size: finer resolution near the BH
+    let ss = dt * clamp(r * 0.4, 0.15, 2.5);
+    let pp = pos;
+    pos += vel * ss;
+
+    // Disk plane crossing detection (y sign change)
+    let cy = pos.y;
+    if (py * cy < 0.0) {
+      let f = abs(py) / max(abs(py - cy), 1e-5);
+      let hp = mix(pp, pos, f);
+      let de = disk(hp, vel);
+      let lum = dot(de, vec3f(0.3,0.5,0.2));
+      dacc += de * 0.7;
+      glo  += lum * 0.5;
+    }
+    py = cy;
+
+    // Photon sphere glow: r ≈ 1.5 Rs is the photon orbit
+    let pr = 1.5 * u.rs;
+    let pd = abs(r - pr);
+    let rg = exp(-pd*pd*6.0) * 0.12;
+    dacc += vec3f(1,0.82,0.55) * rg;
+    glo  += rg * 0.3;
+
+    // Escape: ray far from BH
+    if (r > 35.0) { return vec4f(bg(vel) + dacc, glo); }
+  }
+  return vec4f(bg(vel) + dacc, glo);
+}
+
+// ════════════════════════════════════════════
+// Camera: build ray direction from screen UV
+// ════════════════════════════════════════════
+fn ray(sv: vec2f) -> vec3f {
+  let fw = normalize(u.tgt - u.eye);
+  let rt = normalize(cross(fw, vec3f(0,1,0)));
+  let up = cross(rt, fw);
+  let s  = tan(u.fov * 0.5);
+  return normalize(fw + rt*sv.x*s + up*sv.y*s);
+}
+
+// ════════════════════════════════════════════
+// ACES filmic tonemapping
+// ════════════════════════════════════════════
+fn aces(x: vec3f) -> vec3f {
+  return saturate((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14));
+}
+
+// ════════════════════════════════════════════
+// Fragment shader entry
+// ════════════════════════════════════════════
+@fragment fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
+  let asp = u.res.x / u.res.y;
+  var sv = (uv - 0.5) * 2.0;
+  sv.x *= asp;
+
+  // Trace primary ray
+  let rd = ray(sv);
+  let r  = march(u.eye, rd);
+  var c  = r.xyz;
+  let gl = r.w;
+
+  // ── In-shader bloom ──
+  // Analytic glow: radial falloff from accumulated brightness.
+  // No extra ray marches needed (glow tracked during integration).
+  c += vec3f(1.0, 0.7, 0.35) * gl * 0.18;
+
+  // Soft broad halo around the BH center
+  let hR = 1.6 * u.rs / (length(u.eye) * tan(u.fov*0.5));
+  let hD = abs(length(sv) * 0.1 - hR);
+  c += vec3f(1,.75,.4) * exp(-hD*hD*300.0) * 0.06 * u.dBri;
+
+  // ── Vignette ──
+  let vu = uv - 0.5;
+  c *= saturate(1.0 - dot(vu,vu)*1.3);
+
+  // ── Tonemapping + gamma ──
+  c = aces(c * 1.3);
+  c = pow(c, vec3f(1.0/2.2));
+
+  // ── Dithering (reduces banding in dark regions) ──
+  c += vec3f((h21(uv*u.res + vec2f(u.time*60.0)) - 0.5) / 255.0);
+
+  return vec4f(c, 1.0);
+}
+`;
+
+// ═══════════════════════════════════════════════════════════════
+//  JavaScript — WebGPU init, camera, render loop
+// ═══════════════════════════════════════════════════════════════
+(async () => {
+  const err = document.getElementById('error-overlay');
+  const fail = m => { err.style.display='flex'; if(m) err.querySelector('p').textContent=m; };
+
+  if (!navigator.gpu) { fail(); return; }
+  const ad = await navigator.gpu.requestAdapter();
+  if (!ad) { fail('No WebGPU adapter found.'); return; }
+  const dev = await ad.requestDevice();
+  dev.lost.then(i => fail('Device lost: '+i.message));
+
+  const cvs = document.getElementById('c');
+  const ctx = cvs.getContext('webgpu');
+  const fmt = navigator.gpu.getPreferredCanvasFormat();
+  ctx.configure({ device: dev, format: fmt, alphaMode: 'opaque' });
+
+  // Uniform buffer — 96 bytes matching WGSL P struct
+  const UB = dev.createBuffer({ size: 96, usage: GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST });
+  const bgl = dev.createBindGroupLayout({
+    entries:[{binding:0, visibility:GPUShaderStage.FRAGMENT, buffer:{type:'uniform'}}]
+  });
+  const bg = dev.createBindGroup({ layout:bgl, entries:[{binding:0,resource:{buffer:UB}}] });
+  const sm = dev.createShaderModule({ code: WGSL });
+  const pl = dev.createRenderPipeline({
+    layout: dev.createPipelineLayout({bindGroupLayouts:[bgl]}),
+    vertex:   {module:sm, entryPoint:'vs'},
+    fragment: {module:sm, entryPoint:'fs', targets:[{format:fmt}]},
+    primitive:{topology:'triangle-list'},
+  });
+
+  // ─── State ───
+  let yaw=0.4, pitch=0.25, dist=14, cine=false, seed=42;
+  const S = { rs:1, ln:1.5, st:64, di:2.6, 'do':8, br:1.8, sr:1, nb:.5, sc:.75 };
+
+  const eye = () => [
+    dist*Math.cos(pitch)*Math.sin(yaw),
+    dist*Math.sin(pitch),
+    dist*Math.cos(pitch)*Math.cos(yaw)
+  ];
+
+  // ─── Pointer orbit ───
+  let drag=false, lx=0, ly=0;
+  cvs.addEventListener('pointerdown', e=>{drag=true;lx=e.clientX;ly=e.clientY;cvs.setPointerCapture(e.pointerId)});
+  cvs.addEventListener('pointerup',   e=>{drag=false;cvs.releasePointerCapture(e.pointerId)});
+  cvs.addEventListener('pointermove', e=>{
+    if(!drag)return;
+    yaw+=((e.clientX-lx)*0.005); pitch=Math.max(-1.4,Math.min(1.4,pitch+(e.clientY-ly)*0.005));
+    lx=e.clientX; ly=e.clientY;
+  });
+  cvs.addEventListener('wheel', e=>{e.preventDefault();dist=Math.max(3.5,Math.min(50,dist*(1+e.deltaY*0.001)))},{passive:false});
+
+  // ─── Keyboard ───
+  const cp = document.getElementById('controls');
+  let pv=true;
+  const togCine = ()=>{ cine=!cine; const b=document.getElementById('b-cin'); b.textContent=cine?'Cinematic ●':'Cinematic'; b.classList.toggle('on',cine); };
+  window.addEventListener('keydown', e=>{
+    if(e.code==='Space'){e.preventDefault();togCine();}
+    if(e.code==='KeyR') seed=Math.random()*1000;
+    if(e.code==='KeyH'){pv=!pv;cp.classList.toggle('hidden',!pv);}
+  });
+  document.getElementById('b-rst').onclick=()=>{yaw=0.4;pitch=0.25;dist=14};
+  document.getElementById('b-cin').onclick=togCine;
+  document.getElementById('b-sdr').onclick=()=>{seed=Math.random()*1000};
+
+  // ─── Sliders ───
+  [['s-rs','rs','v-rs',2],['s-ln','ln','v-ln',2],['s-st','st','v-st',0],
+   ['s-di','di','v-di',2],['s-do','do','v-do',2],['s-br','br','v-br',2],
+   ['s-sr','sr','v-sr',1],['s-nb','nb','v-nb',2],['s-sc','sc','v-sc',2]
+  ].forEach(([si,k,vi,d])=>{
+    const sl=document.getElementById(si), vl=document.getElementById(vi);
+    sl.addEventListener('input',()=>{S[k]=+sl.value;vl.textContent=(+sl.value).toFixed(d)});
+  });
+
+  // ─── FPS ───
+  let fc=0, ft=performance.now(), fps=0;
+  setTimeout(()=>document.getElementById('toast').style.opacity='0', 4500);
+
+  // ═══════════════════════════════════════════
+  //  Render loop
+  // ═══════════════════════════════════════════
+  const t0=performance.now();
+  (function frame(){
+    requestAnimationFrame(frame);
+    const now=performance.now(), t=(now-t0)*0.001;
+
+    fc++;
+    if(now-ft>500){fps=Math.round(fc/((now-ft)/1000));fc=0;ft=now;document.getElementById('d-fps').textContent=fps}
+
+    if(cine){yaw+=0.002;pitch=0.22+Math.sin(t*0.12)*0.18;dist=13+Math.sin(t*0.08)*2.5}
+
+    const dp=window.devicePixelRatio||1;
+    const w=Math.max(1,Math.floor(cvs.clientWidth*dp*S.sc));
+    const h=Math.max(1,Math.floor(cvs.clientHeight*dp*S.sc));
+    if(cvs.width!==w||cvs.height!==h){cvs.width=w;cvs.height=h}
+    document.getElementById('d-res').textContent=w+'×'+h;
+    document.getElementById('d-scl').textContent=S.sc.toFixed(2);
+
+    const e=eye();
+    const b=new ArrayBuffer(96), f=new Float32Array(b);
+    f[0]=w; f[1]=h; f[2]=t;
+    f[3]=S.rs; f[4]=S.ln; f[5]=S.st; f[6]=S.di; f[7]=S['do'];
+    f[8]=S.br; f[9]=S.sr; f[10]=S.nb; f[11]=0;
+    f[12]=e[0]; f[13]=e[1]; f[14]=e[2]; f[15]=0;
+    f[16]=0; f[17]=0; f[18]=0; f[19]=0;
+    f[20]=seed; f[21]=1.2; f[22]=0; f[23]=0;
+    dev.queue.writeBuffer(UB,0,b);
+
+    const enc=dev.createCommandEncoder();
+    const rp=enc.beginRenderPass({colorAttachments:[{
+      view:ctx.getCurrentTexture().createView(),
+      loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}
+    }]});
+    rp.setPipeline(pl); rp.setBindGroup(0,bg); rp.draw(3); rp.end();
+    dev.queue.submit([enc.finish()]);
+  })();
+})();
+</script>
+</body>
+</html>
