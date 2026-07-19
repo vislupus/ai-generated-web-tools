@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIELD/100K — WebGPU particle lab</title>
+<style>
+  :root{
+    --bg:#07060d; --ink:#cfc8bd; --dim:#6f6a62; --amber:#ffb45e;
+    --panel:rgba(13,12,22,.78); --line:rgba(207,200,189,.14);
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0}
+  html,body{height:100%;overflow:hidden;background:var(--bg)}
+  body{font-family:var(--mono);color:var(--ink);font-size:12px}
+  canvas#gpu{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+  .hud{position:fixed;top:14px;left:14px;background:var(--panel);border:1px solid var(--line);
+       backdrop-filter:blur(6px);padding:12px 14px;min-width:248px;user-select:none}
+  .hud h1{font-size:11px;font-weight:600;letter-spacing:.18em;color:var(--amber)}
+  .hud h1 span{color:var(--dim);font-weight:400}
+  .stats{margin-top:8px;display:grid;grid-template-columns:auto 1fr;gap:2px 12px;color:var(--dim)}
+  .stats b{color:var(--ink);font-weight:500;text-align:right;font-variant-numeric:tabular-nums}
+  .legend{margin-top:10px}
+  .legend .bar{height:6px;background:linear-gradient(90deg,#232a6e,#8a3df0,#ff6e4d,#ffd9a0)}
+  .legend .lab{display:flex;justify-content:space-between;color:var(--dim);margin-top:3px;font-size:10px}
+
+  .panel{position:fixed;bottom:14px;left:14px;background:var(--panel);border:1px solid var(--line);
+         backdrop-filter:blur(6px);padding:12px 14px;width:248px;user-select:none}
+  .row{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .row:first-child{margin-top:0}
+  .row label{flex:1;color:var(--dim)}
+  .row output{width:48px;text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
+  input[type=range]{flex:1.4;accent-color:var(--amber);height:14px}
+  .counts{display:flex;gap:6px;margin-top:10px}
+  .counts button,.panel .act{font:inherit;background:none;border:1px solid var(--line);color:var(--dim);
+       padding:4px 0;flex:1;cursor:pointer}
+  .counts button.on{color:var(--amber);border-color:var(--amber)}
+  .counts button:hover,.act:hover{color:var(--ink)}
+  .acts{display:flex;gap:6px;margin-top:10px}
+  .hint{margin-top:10px;color:var(--dim);font-size:10px;line-height:1.5}
+  .hint kbd{border:1px solid var(--line);padding:0 3px}
+
+  #nogpu{position:fixed;inset:0;display:none;place-items:center;background:var(--bg);text-align:center;
+         padding:24px;line-height:1.7;color:var(--dim)}
+  #nogpu b{color:var(--amber)}
+  @media (max-width:560px){.hud{min-width:0}.panel{width:calc(100% - 28px)}}
+  :focus-visible{outline:1px solid var(--amber);outline-offset:2px}
+</style>
+</head>
+<body>
+<canvas id="gpu"></canvas>
+
+<div class="hud">
+  <h1>FIELD/100K <span>· webgpu particle lab</span></h1>
+  <div class="stats">
+    <span>frame</span><b id="sFps">—</b>
+    <span>particles</span><b id="sN">—</b>
+    <span>hash grid</span><b id="sGrid">—</b>
+    <span>draw</span><b>1 × drawIndirect</b>
+  </div>
+  <div class="legend">
+    <div class="bar"></div>
+    <div class="lab"><span>slow</span><span>particle speed</span><span>fast</span></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="row"><label for="rGrav">gravity</label><input id="rGrav" type="range" min="0" max="400" value="140"><output id="oGrav">140</output></div>
+  <div class="row"><label for="rRep">repulsion</label><input id="rRep" type="range" min="0" max="2000" value="900"><output id="oRep">900</output></div>
+  <div class="row"><label for="rMouse">cursor force</label><input id="rMouse" type="range" min="0" max="4000" value="2200"><output id="oMouse">2200</output></div>
+  <div class="row"><label for="rDamp">damping</label><input id="rDamp" type="range" min="900" max="1000" value="992"><output id="oDamp">.992</output></div>
+  <div class="counts">
+    <button data-n="100000" class="on">100K</button>
+    <button data-n="150000">150K</button>
+    <button data-n="250000">250K</button>
+  </div>
+  <div class="acts">
+    <button class="act" id="bPause">pause</button>
+    <button class="act" id="bReset">reset field</button>
+  </div>
+  <div class="hint">hold pointer — attract · hold + <kbd>shift</kbd> — repel · <kbd>space</kbd> — pause</div>
+</div>
+
+<div id="nogpu"><div>
+  <b>WebGPU is not available in this context.</b><br><br>
+  This simulation needs Chrome / Edge 113+ (or recent Firefox/Safari with WebGPU enabled).<br>
+  If you're viewing this inside a sandboxed preview, download the file and open it directly in the browser.
+</div></div>
+
+<script type="module">
+const CAP = 8;                 // particle slots per hash cell
+const MAX_CELLS = 1 << 18;     // 262 144 cells allocated up-front
+const WG = 256;                // compute workgroup size
+
+const wgsl = /* wgsl */`
+struct U {
+  res    : vec2f, mouse : vec2f,
+  dt     : f32,  gravity: f32, mforce : f32, mradius : f32,
+  cell   : f32,  gridW  : u32, gridH  : u32, pointSz : f32,
+  repelR : f32,  repelS : f32, damping: f32, restit  : f32,
+};
+struct P { pos : vec2f, vel : vec2f, };
+
+@group(0) @binding(0) var<uniform> u : U;
+@group(0) @binding(1) var<storage, read>        src       : array<P>;
+@group(0) @binding(2) var<storage, read_write>  dst       : array<P>;
+@group(0) @binding(3) var<storage, read_write>  cellCount : array<atomic<u32>>;
+@group(0) @binding(4) var<storage, read_write>  cellData  : array<u32>;
+@group(0) @binding(5) var<storage, read_write>  drawList  : array<u32>;
+@group(0) @binding(6) var<storage, read_write>  indirect  : array<atomic<u32>, 4>;
+
+fn cellOf(p : vec2f) -> vec2i {
+  let c = vec2i(p / u.cell);
+  return clamp(c, vec2i(0), vec2i(i32(u.gridW) - 1, i32(u.gridH) - 1));
+}
+
+// ---- pass 1: clear hash grid + reset indirect draw args -------------------
+@compute @workgroup_size(${WG})
+fn clearGrid(@builtin(global_invocation_id) id : vec3u) {
+  if (id.x < arrayLength(&cellCount)) { atomicStore(&cellCount[id.x], 0u); }
+  if (id.x == 0u) {
+    atomicStore(&indirect[0], 6u);   // vertexCount: 2 triangles
+    atomicStore(&indirect[1], 0u);   // instanceCount, filled by simulate
+    atomicStore(&indirect[2], 0u);
+    atomicStore(&indirect[3], 0u);
+  }
+}
+
+// ---- pass 2: scatter particle indices into the spatial hash ---------------
+@compute @workgroup_size(${WG})
+fn buildGrid(@builtin(global_invocation_id) id : vec3u) {
+  let i = id.x;
+  if (i >= arrayLength(&src)) { return; }
+  let c  = cellOf(src[i].pos);
+  let ci = u32(c.y) * u.gridW + u32(c.x);
+  let slot = atomicAdd(&cellCount[ci], 1u);
+  if (slot < ${CAP}u) { cellData[ci * ${CAP}u + slot] = i; }
+}
+
+// ---- pass 3: forces, integration, walls, GPU-driven compaction -------------
+@compute @workgroup_size(${WG})
+fn simulate(@builtin(global_invocation_id) id : vec3u) {
+  let i = id.x;
+  if (i >= arrayLength(&src)) { return; }
+  var p = src[i];
+
+  var force = vec2f(0.0, u.gravity);
+
+  // cursor attraction / repulsion
+  if (u.mforce != 0.0) {
+    let d  = u.mouse - p.pos;
+    let dl = length(d);
+    if (dl > 1.0 && dl < u.mradius) {
+      force += (d / dl) * u.mforce * (1.0 - dl / u.mradius);
+    }
+  }
+
+  // short-range repulsion via 3x3 spatial-hash neighborhood
+  if (u.repelS > 0.0) {
+    let c = cellOf(p.pos);
+    for (var dy = -1; dy <= 1; dy++) {
+      for (var dx = -1; dx <= 1; dx++) {
+        let n = c + vec2i(dx, dy);
+        if (n.x < 0 || n.y < 0 || n.x >= i32(u.gridW) || n.y >= i32(u.gridH)) { continue; }
+        let ci  = u32(n.y) * u.gridW + u32(n.x);
+        let cnt = min(atomicLoad(&cellCount[ci]), ${CAP}u);
+        for (var s = 0u; s < cnt; s++) {
+          let j = cellData[ci * ${CAP}u + s];
+          if (j == i) { continue; }
+          let dvec = p.pos - src[j].pos;
+          let dist = length(dvec);
+          if (dist > 0.0001 && dist < u.repelR) {
+            force += (dvec / dist) * u.repelS * (1.0 - dist / u.repelR);
+          }
+        }
+      }
+    }
+  }
+
+  p.vel = (p.vel + force * u.dt) * u.damping;
+  p.pos = p.pos + p.vel * u.dt;
+
+  // screen-space collisions
+  if (p.pos.x < 0.0)      { p.pos.x = 0.0;      p.vel.x = -p.vel.x * u.restit; }
+  if (p.pos.x > u.res.x)  { p.pos.x = u.res.x;  p.vel.x = -p.vel.x * u.restit; }
+  if (p.pos.y < 0.0)      { p.pos.y = 0.0;      p.vel.y = -p.vel.y * u.restit; }
+  if (p.pos.y > u.res.y)  { p.pos.y = u.res.y;  p.vel.y = -p.vel.y * u.restit; }
+
+  dst[i] = p;
+
+  // compact survivors into the draw list; instanceCount lives in the
+  // indirect buffer, so the CPU never touches per-frame draw arguments
+  let slot = atomicAdd(&indirect[1], 1u);
+  drawList[slot] = i;
+}
+
+// ---- render: instanced soft quads, additive ---------------------------------
+struct VOut {
+  @builtin(position) pos : vec4f,
+  @location(0) uv   : vec2f,
+  @location(1) tint : vec3f,
+};
+
+@group(0) @binding(0) var<uniform> ru : U;
+@group(0) @binding(1) var<storage, read> rParticles : array<P>;
+@group(0) @binding(2) var<storage, read> rDrawList  : array<u32>;
+
+const corners = array<vec2f, 6>(
+  vec2f(-1.0,-1.0), vec2f( 1.0,-1.0), vec2f(-1.0, 1.0),
+  vec2f(-1.0, 1.0), vec2f( 1.0,-1.0), vec2f( 1.0, 1.0));
+
+fn palette(t : f32) -> vec3f {
+  let a = vec3f(0.075, 0.090, 0.300);  // deep indigo
+  let b = vec3f(0.420, 0.180, 0.780);  // violet
+  let c = vec3f(0.980, 0.380, 0.240);  // ember
+  let d = vec3f(1.000, 0.850, 0.620);  // hot amber
+  if (t < 0.45) { return mix(a, b, t / 0.45); }
+  if (t < 0.80) { return mix(b, c, (t - 0.45) / 0.35); }
+  return mix(c, d, (t - 0.80) / 0.20);
+}
+
+@vertex
+fn vs(@builtin(vertex_index) vi : u32, @builtin(instance_index) ii : u32) -> VOut {
+  let p      = rParticles[rDrawList[ii]];
+  let corner = corners[vi];
+  let world  = p.pos + corner * ru.pointSz;
+  var ndc    = world / ru.res * 2.0 - 1.0;
+  ndc.y      = -ndc.y;
+  var o : VOut;
+  o.pos  = vec4f(ndc, 0.0, 1.0);
+  o.uv   = corner;
+  o.tint = palette(clamp(length(p.vel) / 700.0, 0.0, 1.0));
+  return o;
+}
+
+@fragment
+fn fs(in : VOut) -> @location(0) vec4f {
+  let a = max(0.0, 1.0 - dot(in.uv, in.uv)) * 0.85;
+  return vec4f(in.tint * a, a);   // premultiplied, blended additively
+}
+`;
+
+// ---------------------------------------------------------------------------
+const $ = s => document.querySelector(s);
+const canvas = $('#gpu');
+
+let device, ctx, format;
+let computePipes = {}, renderPipe;
+let particleBufs = [], bindCompute = [], bindRender = [];
+let gridCountBuf, gridDataBuf, drawListBuf, indirectBuf, uniformBuf;
+let N = 1_000_000, flip = 0, paused = false;
+let gridW = 1, gridH = 1, cellSize = 12;
+
+const sim = { gravity:140, repelS:900, mforce:2200, damping:0.992,
+              repelR:5.0, mradius:340, restit:0.55, pointSize:1.4 };
+const mouse = { x:-1e6, y:-1e6, down:false, repel:false };
+
+async function init() {
+  if (!navigator.gpu) return fail();
+  const adapter = await navigator.gpu.requestAdapter({ powerPreference:'high-performance' });
+  if (!adapter) return fail();
+  device = await adapter.requestDevice();
+  device.lost.then(info => { if (info.reason !== 'destroyed') fail(); });
+
+  ctx = canvas.getContext('webgpu');
+  format = navigator.gpu.getPreferredCanvasFormat();
+  ctx.configure({ device, format, alphaMode:'opaque' });
+
+  const mod = device.createShaderModule({ code: wgsl });
+
+  const computeLayout = device.createBindGroupLayout({ entries: [
+    { binding:0, visibility:GPUShaderStage.COMPUTE, buffer:{ type:'uniform' } },
+    { binding:1, visibility:GPUShaderStage.COMPUTE, buffer:{ type:'read-only-storage' } },
+    { binding:2, visibility:GPUShaderStage.COMPUTE, buffer:{ type:'storage' } },
+    { binding:3, visibility:GPUShaderStage.COMPUTE, buffer:{ type:'storage' } },
+    { binding:4, visibility:GPUShaderStage.COMPUTE, buffer:{ type:'storage' } },
+    { binding:5, visibility:GPUShaderStage.COMPUTE, buffer:{ type:'storage' } },
+    { binding:6, visibility:GPUShaderStage.COMPUTE, buffer:{ type:'storage' } },
+  ]});
+  const renderLayout = device.createBindGroupLayout({ entries: [
+    { binding:0, visibility:GPUShaderStage.VERTEX,  buffer:{ type:'uniform' } },
+    { binding:1, visibility:GPUShaderStage.VERTEX,  buffer:{ type:'read-only-storage' } },
+    { binding:2, visibility:GPUShaderStage.VERTEX,  buffer:{ type:'read-only-storage' } },
+  ]});
+
+  for (const entry of ['clearGrid', 'buildGrid', 'simulate']) {
+    computePipes[entry] = device.createComputePipeline({
+      layout: device.createPipelineLayout({ bindGroupLayouts:[computeLayout] }),
+      compute: { module: mod, entryPoint: entry },
+    });
+  }
+  renderPipe = device.createRenderPipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts:[renderLayout] }),
+    vertex:   { module: mod, entryPoint:'vs' },
+    fragment: { module: mod, entryPoint:'fs', targets: [{
+      format,
+      blend: { color:{ srcFactor:'one', dstFactor:'one' },
+               alpha:{ srcFactor:'one', dstFactor:'one' } },
+    }]},
+    primitive: { topology:'triangle-list' },
+  });
+
+  uniformBuf  = device.createBuffer({ size:64, usage:GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  gridCountBuf= device.createBuffer({ size:MAX_CELLS * 4,       usage:GPUBufferUsage.STORAGE });
+  gridDataBuf = device.createBuffer({ size:MAX_CELLS * CAP * 4, usage:GPUBufferUsage.STORAGE });
+  indirectBuf = device.createBuffer({ size:16, usage:GPUBufferUsage.STORAGE | GPUBufferUsage.INDIRECT });
+
+  resize();
+  buildParticles(N);
+  addEventListener('resize', resize);
+  requestAnimationFrame(frame);
+}
+
+function buildParticles(count) {
+  N = count;
+  particleBufs.forEach(b => b.destroy());
+  drawListBuf?.destroy();
+
+  // seed: a slowly spinning disc so the field opens with structure
+  const data = new Float32Array(N * 4);
+  const cw = canvas.width  || innerWidth;
+  const ch = canvas.height || innerHeight;
+  const cx = cw/2, cy = ch/2, R = Math.min(cw, ch) * 0.42;
+  for (let i = 0; i < N; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(Math.random()) * R;
+    data[i*4+0] = cx + Math.cos(a) * r;
+    data[i*4+1] = cy + Math.sin(a) * r;
+    data[i*4+2] = -Math.sin(a) * r * 0.6;
+    data[i*4+3] =  Math.cos(a) * r * 0.6;
+  }
+  particleBufs = [0,1].map(() => device.createBuffer({
+    size: N * 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST }));
+  device.queue.writeBuffer(particleBufs[0], 0, data);
+  device.queue.writeBuffer(particleBufs[1], 0, data);
+  drawListBuf = device.createBuffer({ size: N * 4, usage: GPUBufferUsage.STORAGE });
+
+  // ping-pong bind groups: [read A → write B] and [read B → write A]
+  bindCompute = [0,1].map(k => device.createBindGroup({
+    layout: computePipes.simulate.getBindGroupLayout(0),
+    entries: [
+      { binding:0, resource:{ buffer:uniformBuf } },
+      { binding:1, resource:{ buffer:particleBufs[k] } },
+      { binding:2, resource:{ buffer:particleBufs[1-k] } },
+      { binding:3, resource:{ buffer:gridCountBuf } },
+      { binding:4, resource:{ buffer:gridDataBuf } },
+      { binding:5, resource:{ buffer:drawListBuf } },
+      { binding:6, resource:{ buffer:indirectBuf } },
+    ]}));
+  bindRender = [0,1].map(k => device.createBindGroup({
+    layout: renderPipe.getBindGroupLayout(0),
+    entries: [
+      { binding:0, resource:{ buffer:uniformBuf } },
+      { binding:1, resource:{ buffer:particleBufs[k] } },
+      { binding:2, resource:{ buffer:drawListBuf } },
+    ]}));
+  flip = 0;
+  $('#sN').textContent = N.toLocaleString();
+}
+
+function resize() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  canvas.width  = Math.floor(innerWidth  * dpr);
+  canvas.height = Math.floor(innerHeight * dpr);
+  // cell ≥ interaction radius, grown if needed to fit the fixed allocation
+  cellSize = Math.max(sim.repelR * 2,
+                      Math.sqrt((canvas.width * canvas.height) / MAX_CELLS) + 0.01);
+  gridW = Math.max(1, Math.ceil(canvas.width  / cellSize));
+  gridH = Math.max(1, Math.ceil(canvas.height / cellSize));
+  $('#sGrid').textContent = `${gridW}×${gridH} · ${CAP}/cell`;
+}
+
+const uF = new Float32Array(16), uI = new Uint32Array(uF.buffer);
+function writeUniforms(dt) {
+  uF[0]=canvas.width;  uF[1]=canvas.height;
+  uF[2]=mouse.x;       uF[3]=mouse.y;
+  uF[4]=dt;            uF[5]=sim.gravity;
+  uF[6]=mouse.down ? (mouse.repel ? -sim.mforce : sim.mforce) : 0;
+  uF[7]=sim.mradius * Math.min(devicePixelRatio||1, 2);
+  uF[8]=cellSize;      uI[9]=gridW; uI[10]=gridH;
+  uF[11]=sim.pointSize * Math.min(devicePixelRatio||1, 2) * 0.5 + 0.6;
+  uF[12]=sim.repelR;   uF[13]=sim.repelS;
+  uF[14]=sim.damping;  uF[15]=sim.restit;
+  device.queue.writeBuffer(uniformBuf, 0, uF);
+}
+
+let last = performance.now(), fpsAcc = 0, fpsN = 0, fpsT = 0;
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 1/30);
+  last = now;
+  fpsAcc += dt; fpsN++;
+  if ((fpsT += dt) > 0.5) { $('#sFps').textContent = `${(fpsN/fpsAcc).toFixed(0)} fps`; fpsAcc=fpsN=fpsT=0; }
+
+  writeUniforms(paused ? 0 : dt);
+  const enc = device.createCommandEncoder();
+
+  if (!paused) {
+    const cp = enc.beginComputePass();
+    cp.setBindGroup(0, bindCompute[flip]);
+    cp.setPipeline(computePipes.clearGrid); cp.dispatchWorkgroups(Math.ceil(MAX_CELLS / WG));
+    cp.setPipeline(computePipes.buildGrid); cp.dispatchWorkgroups(Math.ceil(N / WG));
+    cp.setPipeline(computePipes.simulate);  cp.dispatchWorkgroups(Math.ceil(N / WG));
+    cp.end();
+    flip = 1 - flip;            // swap ping-pong: this frame's dst is next frame's src
+  }
+
+  const rp = enc.beginRenderPass({ colorAttachments: [{
+    view: ctx.getCurrentTexture().createView(),
+    clearValue: { r:0.027, g:0.024, b:0.051, a:1 },
+    loadOp:'clear', storeOp:'store',
+  }]});
+  rp.setPipeline(renderPipe);
+  rp.setBindGroup(0, bindRender[flip]);   // buffer just written by simulate
+  rp.drawIndirect(indirectBuf, 0);        // instanceCount produced on the GPU
+  rp.end();
+
+  device.queue.submit([enc.finish()]);
+  requestAnimationFrame(frame);
+}
+
+function fail() { $('#nogpu').style.display = 'grid'; }
+
+// ---- input ------------------------------------------------------------------
+const dpr = () => Math.min(devicePixelRatio || 1, 2);
+canvas.addEventListener('pointermove', e => { mouse.x = e.clientX*dpr(); mouse.y = e.clientY*dpr(); });
+canvas.addEventListener('pointerdown', e => {
+  canvas.setPointerCapture(e.pointerId);
+  mouse.down = true; mouse.repel = e.shiftKey;
+  mouse.x = e.clientX*dpr(); mouse.y = e.clientY*dpr();
+});
+addEventListener('pointerup',     () => mouse.down = false);
+addEventListener('pointercancel', () => mouse.down = false);
+addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); paused = !paused; $('#bPause').textContent = paused ? 'resume' : 'pause'; }
+  if (e.key === 'Shift' && mouse.down) mouse.repel = true;
+});
+addEventListener('keyup', e => { if (e.key === 'Shift') mouse.repel = false; });
+
+// ---- controls ----------------------------------------------------------------
+const bind = (id, out, fn) => $(id).addEventListener('input', e => fn(+e.target.value, $(out)));
+bind('#rGrav','#oGrav',  (v,o)=>{ sim.gravity=v; o.textContent=v; });
+bind('#rRep','#oRep',    (v,o)=>{ sim.repelS=v;  o.textContent=v; });
+bind('#rMouse','#oMouse',(v,o)=>{ sim.mforce=v;  o.textContent=v; });
+bind('#rDamp','#oDamp',  (v,o)=>{ sim.damping=v/1000; o.textContent='.'+v.toString().slice(1); });
+$('#bPause').onclick = () => { paused = !paused; $('#bPause').textContent = paused ? 'resume' : 'pause'; };
+$('#bReset').onclick = () => buildParticles(N);
+document.querySelectorAll('.counts button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.counts button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+  buildParticles(+b.dataset.n);
+});
+
+init();
+</script>
+</body>
+</html>

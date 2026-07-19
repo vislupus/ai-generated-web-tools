@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>ABYSS RUNNER — Neural Evolution Lab</title>
+<style>
+  /* ============================================================
+     ABYSS RUNNER — NEURAL EVOLUTION LAB
+     A population of submarines, each driven by its own tiny neural
+     network, learns to play the game on its own through a genetic
+     algorithm (neuroevolution). No human controls the subs.
+     Single file, vanilla JS, HTML5 Canvas, no libraries.
+     ============================================================ */
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    background: radial-gradient(circle at 50% 40%, #03132e 0%, #01040c 70%, #000 100%);
+    color:#cdebff; font-family:"Courier New", ui-monospace, monospace;
+    overflow:hidden; display:flex; align-items:center; justify-content:center; height:100vh;
+  }
+  #stage{
+    position:relative;
+    width:min(100vw, 177.78vh); height:min(56.25vw, 100vh);
+    box-shadow: 0 0 60px rgba(0,40,80,.6), inset 0 0 0 2px rgba(40,160,200,.15);
+    border-radius:10px; overflow:hidden; background:#01040c;
+  }
+  canvas#game{ position:absolute; inset:0; width:100%; height:100%; image-rendering:pixelated; display:block; }
+  #crt{ position:absolute; inset:0; pointer-events:none; z-index:5;
+    background:repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.16) 3px 4px);
+    mix-blend-mode:multiply; }
+  #vignette{ position:absolute; inset:0; pointer-events:none; z-index:6;
+    background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%); }
+  #hint{ position:absolute; left:0; right:0; bottom:6px; z-index:8; text-align:center; font-size:11px;
+    letter-spacing:1px; color:rgba(120,190,230,.45); pointer-events:none; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game" width="800" height="450"></canvas>
+    <div id="crt"></div>
+    <div id="vignette"></div>
+    <div id="hint">CLICK / PRESS A KEY TO ENABLE SOUND</div>
+  </div>
+
+<script>
+"use strict";
+/* ================================================================
+   CODE MAP
+     Utils + seeded RNG
+     NeuralNet            – fixed 13→10→5 feed-forward brain
+     GA helpers           – random genome, crossover, mutation
+     Particle / Projectile / Mine / enemies  – world entities
+     Terrain              – deterministic procedural cave (seeded)
+     World                – the shared, deterministic environment
+     Agent                – one submarine = one neural network
+     Lab (main)           – population, generations, stats, render, UI
+   ================================================================ */
+
+const GW=800, GH=450;
+const clamp=(v,a,b)=> v<a?a:(v>b?b:v);
+const lerp =(a,b,t)=> a+(b-a)*t;
+const aabb =(a,b)=> a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y;
+
+/* Seeded PRNG (mulberry32) — lets the WORLD be reproduced identically
+   every generation, so fitness is comparable across generations. */
+function mulberry32(seed){
+  let a=seed>>>0;
+  return function(){
+    a|=0; a=(a+0x6D2B79F5)|0;
+    let t=Math.imul(a^(a>>>15),1|a);
+    t=(t+Math.imul(t^(t>>>7),61|t))^t;
+    return ((t^(t>>>14))>>>0)/4294967296;
+  };
+}
+// Gaussian sample (Box–Muller) used by the genetic algorithm (NOT seeded —
+// evolutionary variation is supposed to differ run to run).
+function gauss(){ const u=Math.random()||1e-9, v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(6.28318*v); }
+
+/* --------------------------- NeuralNet -------------------------- */
+const NI=13, NH=10, NO=5;                 // input / hidden / output sizes
+const GENOME_LEN=(NI+1)*NH + (NH+1)*NO;   // = 195 weights (incl. biases)
+class NeuralNet{
+  constructor(genome){ this.g=genome; this.h=new Float32Array(NH); this.o=new Float32Array(NO); this.i=null; }
+  // single forward pass; one hidden layer, tanh activations
+  forward(inp){
+    const g=this.g; let idx=0;
+    for(let j=0;j<NH;j++){ let s=0; for(let k=0;k<NI;k++) s+=inp[k]*g[idx++]; s+=g[idx++]; this.h[j]=Math.tanh(s); }
+    for(let m=0;m<NO;m++){ let s=0; for(let j=0;j<NH;j++) s+=this.h[j]*g[idx++]; s+=g[idx++]; this.o[m]=Math.tanh(s); }
+    this.i=inp; return this.o;
+  }
+}
+/* GA operators */
+function randomGenome(){ const a=new Float32Array(GENOME_LEN); for(let i=0;i<a.length;i++) a[i]=gauss()*0.8; return a; }
+function crossover(a,b){ const c=new Float32Array(GENOME_LEN); for(let i=0;i<c.length;i++) c[i]=Math.random()<0.5?a[i]:b[i]; return c; }
+function mutate(g,rate,scale){ for(let i=0;i<g.length;i++){ if(Math.random()<rate){ g[i]+=gauss()*scale; if(Math.random()<0.04) g[i]=gauss()*0.8; } } return g; }
+
+/* --------------------------- Particle --------------------------- */
+class Particle{
+  constructor(x,y,vx,vy,life,color,size,kind='spark'){ this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.life=life;this.max=life;this.color=color;this.size=size;this.kind=kind;this.dead=false; }
+  update(dt){ this.x+=this.vx*dt; this.y+=this.vy*dt; if(this.kind==='bubble') this.vy-=14*dt; else this.vy+=60*dt; this.life-=dt; if(this.life<=0) this.dead=true; }
+  draw(ctx){ const a=clamp(this.life/this.max,0,1); ctx.globalAlpha=a; ctx.fillStyle=this.color; const s=this.size*(0.4+0.6*a); ctx.fillRect(this.x-s/2,this.y-s/2,s,s); ctx.globalAlpha=1; }
+}
+
+/* --------------------------- Projectile ------------------------- */
+class Projectile{
+  constructor(x,y,vx,vy,owner,opts={}){ this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.owner=owner;
+    this.w=opts.w||10;this.h=opts.h||4;this.color=opts.color||(owner==='agent'?'#ffe27a':'#ff5a7a');
+    this.damage=opts.damage||1;this.dead=false;this.life=opts.life||4;this.shooter=opts.shooter||null; }
+  update(dt){ this.x+=this.vx*dt; this.y+=this.vy*dt; this.life-=dt;
+    if(this.x<-20||this.x>GW+20||this.y<-20||this.y>GH+20||this.life<=0) this.dead=true; }
+  get box(){ return {x:this.x-this.w/2,y:this.y-this.h/2,w:this.w,h:this.h}; }
+  draw(ctx){ ctx.fillStyle=this.color; ctx.fillRect(this.x-this.w/2,this.y-this.h/2,this.w,this.h); }
+}
+
+/* ------------------------------ Mine ---------------------------- */
+class Mine{
+  constructor(x,y,opts={}){ this.x=x;this.y=y;this.w=22;this.h=22;this.baseY=y;this.t=opts.phase||0;
+    this.vy=opts.vy||0;this.dead=false;this.score=120;this.type='mine'; }
+  update(dt,world){ this.x-=world.scrollSpeed*dt; this.t+=dt;
+    if(this.vy){ this.y+=this.vy*dt; this.vy=Math.min(this.vy+30*dt,120);} else this.y=this.baseY+Math.sin(this.t*1.6)*6;
+    if(this.x<-40) this.dead=true; }
+  get box(){ return {x:this.x-this.w/2,y:this.y-this.h/2,w:this.w,h:this.h}; }
+  hurt(){ this.dead=true; return true; }
+  draw(ctx){ const r=11,p=0.5+0.5*Math.sin(this.t*5); ctx.save(); ctx.translate(this.x,this.y);
+    ctx.strokeStyle='#9aa6b2'; ctx.lineWidth=2;
+    for(let i=0;i<8;i++){const a=i/8*6.283; ctx.beginPath(); ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r); ctx.lineTo(Math.cos(a)*(r+5),Math.sin(a)*(r+5)); ctx.stroke();}
+    ctx.beginPath(); ctx.arc(0,0,r,0,7); ctx.fillStyle='#1b2530'; ctx.fill(); ctx.strokeStyle='#6d7c8a'; ctx.stroke();
+    ctx.fillStyle=`rgba(255,90,40,${0.4+0.6*p})`; ctx.beginPath(); ctx.arc(0,0,3.5,0,7); ctx.fill(); ctx.restore(); }
+}
+
+/* ------------------------------ Enemies ------------------------- */
+/* All enemy behaviour is deterministic (no reading of agent positions),
+   so the world unfolds identically every generation given the seed. */
+class Turret{
+  constructor(x,y,side,phase){ this.x=x;this.y=y;this.w=24;this.h=18;this.side=side;this.type='turret';
+    this.fireT=phase;this.dead=false;this.score=250; }
+  update(dt,world){ this.x-=world.scrollSpeed*dt; if(this.x<-60)this.dead=true; this.fireT-=dt;
+    if(this.fireT<=0 && this.x<GW && this.x>0){ this.fireT=lerp(2.4,1.1,world.diff);
+      const ang=this.side==='top'?2.4:-2.4, sp=200;     // fixed down-left / up-left
+      world.enemyShots.push(new Projectile(this.x,this.y,Math.cos(ang)*sp,Math.sin(ang)*sp,'enemy',{color:'#ff5a7a',w:7,h:7,damage:30})); } }
+  get box(){ return {x:this.x-12,y:this.y-9,w:24,h:18}; }
+  hurt(){ this.dead=true; return true; }
+  draw(ctx){ ctx.save(); ctx.translate(this.x,this.y); ctx.fillStyle='#10202c'; ctx.strokeStyle='#3ad6c0'; ctx.lineWidth=2;
+    ctx.fillRect(-12,-9,24,18); ctx.strokeRect(-12,-9,24,18); ctx.fillStyle='#3ad6c0';
+    ctx.fillRect(0,(this.side==='top'?2:-8),6,6); ctx.restore(); }
+}
+class EnemySub{
+  constructor(x,y,phase){ this.x=x;this.y=y;this.w=38;this.h=18;this.baseY=y;this.t=phase;this.type='sub';
+    this.fireT=phase;this.dead=false;this.score=300; }
+  update(dt,world){ this.x-=(world.scrollSpeed+35)*dt; this.t+=dt; this.y=this.baseY+Math.sin(this.t*1.3)*40;
+    this.y=clamp(this.y,world.terrain.topAt(this.x)+18,world.terrain.botAt(this.x)-18); if(this.x<-60)this.dead=true;
+    this.fireT-=dt; if(this.fireT<=0 && this.x<GW && this.x>40){ this.fireT=lerp(2.2,1.2,world.diff);
+      world.enemyShots.push(new Projectile(this.x-19,this.y,-(230+40*world.diff),0,'enemy',{color:'#ff8a3a',w:11,h:4,damage:30})); } }
+  get box(){ return {x:this.x-19,y:this.y-9,w:38,h:18}; }
+  hurt(){ this.dead=true; return true; }
+  draw(ctx){ ctx.save(); ctx.translate(this.x,this.y); ctx.fillStyle='#231016'; ctx.strokeStyle='#ff6b6b'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(-25,0); ctx.lineTo(-15,-9); ctx.lineTo(19,-9); ctx.lineTo(19,9); ctx.lineTo(-15,9); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#ffd27a'; ctx.fillRect(-19,-2,4,4); ctx.restore(); }
+}
+class Stalactite{
+  constructor(x,y,triggerX){ this.x=x;this.y=y;this.w=16;this.h=34;this.type='rock';this.triggerX=triggerX;
+    this.falling=false;this.vy=0;this.dead=false;this.score=0; }
+  update(dt,world){ this.x-=world.scrollSpeed*dt; if(this.x<this.triggerX) this.falling=true;
+    if(this.falling){ this.vy=Math.min(this.vy+520*dt,520); this.y+=this.vy*dt; }
+    if(this.y>world.terrain.botAt(this.x)){ this.dead=true; world.boom(this.x,this.y,0.5);} if(this.x<-60)this.dead=true; }
+  get box(){ return {x:this.x-8,y:this.y,w:16,h:34}; }
+  hurt(){ return false; }
+  draw(ctx){ ctx.save(); ctx.translate(this.x,this.y); ctx.fillStyle=this.falling?'#5a6b78':'#3a4854'; ctx.strokeStyle='#9fb3c0'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(-8,0); ctx.lineTo(8,0); ctx.lineTo(0,34); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }
+}
+class LaserGate{
+  constructor(x,world,phase,cycle){ this.x=x;this.type='laser';this.cycle=cycle;this.t=phase;this.on=true;this.dead=false;this.score=0;
+    this.top=world.terrain.topAt(x);this.bot=world.terrain.botAt(x); }
+  update(dt,world){ this.x-=world.scrollSpeed*dt; this.t+=dt; if(this.t>this.cycle){ this.t=0; this.on=!this.on; }
+    this.top=world.terrain.topAt(this.x); this.bot=world.terrain.botAt(this.x); if(this.x<-60)this.dead=true; }
+  get box(){ return this.on?{x:this.x-3,y:this.top,w:6,h:this.bot-this.top}:{x:0,y:0,w:0,h:0}; }
+  hurt(){ return false; }
+  draw(ctx){ ctx.fillStyle='#ff3a6a'; ctx.fillRect(this.x-6,this.top-4,12,8); ctx.fillRect(this.x-6,this.bot-4,12,8);
+    if(this.on){ const f=0.6+0.4*Math.sin(this.t*30); ctx.strokeStyle=`rgba(255,60,100,${f})`; ctx.lineWidth=4;
+      ctx.beginPath(); ctx.moveTo(this.x,this.top); ctx.lineTo(this.x,this.bot); ctx.stroke(); } }
+}
+
+/* ----------------------------- Terrain -------------------------- */
+class Terrain{
+  constructor(rng){ this.rng=rng; this.SEG=20; this.slices=[]; this.topT=90; this.botT=GH-90;
+    this.gapMin=190; this.airPockets=[]; this.travelled=0; this.nextAir=420;
+    let x=-40; while(x<GW+80){ this.slices.push(this.gen(x)); x+=this.SEG; } }
+  rr(a,b){ return a+this.rng()*(b-a); }
+  gen(x){ this.topT=clamp(this.topT+this.rr(-26,26),30,GH*0.45); this.botT=clamp(this.botT+this.rr(-26,26),GH*0.55,GH-30);
+    if(this.botT-this.topT<this.gapMin){ const m=(this.topT+this.botT)/2; this.topT=m-this.gapMin/2; this.botT=m+this.gapMin/2; }
+    return {x,top:this.topT,bot:this.botT}; }
+  _s(x,k){ const s=this.slices; if(!s.length)return k==='top'?60:GH-60;
+    if(x<=s[0].x)return s[0][k]; if(x>=s[s.length-1].x)return s[s.length-1][k];
+    const i=Math.floor((x-s[0].x)/this.SEG); const a=s[clamp(i,0,s.length-1)], b=s[Math.min(i+1,s.length-1)];
+    return lerp(a[k],b[k],(x-a.x)/this.SEG); }
+  topAt(x){ return this._s(x,'top'); } botAt(x){ return this._s(x,'bot'); }
+  update(dt,world){ const dx=world.scrollSpeed*dt; this.travelled+=dx;
+    for(const s of this.slices) s.x-=dx; for(const a of this.airPockets) a.x-=dx;
+    while(this.slices.length && this.slices[0].x<-40) this.slices.shift();
+    while(this.slices[this.slices.length-1].x<GW+80){ const last=this.slices[this.slices.length-1];
+      this.gapMin=lerp(190,125,world.diff); this.slices.push(this.gen(last.x+this.SEG)); }
+    if(this.travelled>this.nextAir){ this.nextAir=this.travelled+this.rr(560,900);
+      const x=this.slices[this.slices.length-1].x; this.airPockets.push({x,y:this.topAt(x)+4,w:78,h:36}); }
+    this.airPockets=this.airPockets.filter(a=>a.x>-90); }
+  draw(ctx){ const s=this.slices; if(s.length<2)return;
+    ctx.beginPath(); ctx.moveTo(s[0].x,-10); for(const sl of s) ctx.lineTo(sl.x,sl.top); ctx.lineTo(s[s.length-1].x,-10); ctx.closePath();
+    let g=ctx.createLinearGradient(0,0,0,GH*0.5); g.addColorStop(0,'#06223f'); g.addColorStop(1,'#0a3052'); ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#2fd9ff'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(s[0].x,s[0].top); for(const sl of s) ctx.lineTo(sl.x,sl.top); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s[0].x,GH+10); for(const sl of s) ctx.lineTo(sl.x,sl.bot); ctx.lineTo(s[s.length-1].x,GH+10); ctx.closePath();
+    g=ctx.createLinearGradient(0,GH*0.5,0,GH); g.addColorStop(0,'#0a3052'); g.addColorStop(1,'#06223f'); ctx.fillStyle=g; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(s[0].x,s[0].bot); for(const sl of s) ctx.lineTo(sl.x,sl.bot); ctx.stroke();
+    for(const a of this.airPockets){ ctx.fillStyle='rgba(80,255,140,0.16)'; ctx.fillRect(a.x,a.y,a.w,a.h);
+      ctx.strokeStyle='#56ff8f'; ctx.lineWidth=2; ctx.strokeRect(a.x,a.y,a.w,a.h);
+      ctx.fillStyle='#bfffcf'; ctx.font='10px Courier New'; ctx.textAlign='center'; ctx.fillText('AIR',a.x+a.w/2,a.y+a.h/2+3); } }
+}
+
+/* ------------------------------ World --------------------------- */
+/* The shared, deterministic environment that the whole population
+   experiences simultaneously each generation. */
+class World{
+  constructor(seed,fastRef){
+    this.seed=seed; this.rng=mulberry32(seed); this.terrain=new Terrain(this.rng);
+    this.mines=[]; this.enemies=[]; this.enemyShots=[]; this.particles=[];
+    this.scrollSpeed=110; this.distance=0; this.spawnT=1.2; this.fastRef=fastRef;
+    this.LEVEL_END=8000;
+  }
+  get diff(){ return clamp(this.distance/this.LEVEL_END,0,1); }
+  rr(a,b){ return a+this.rng()*(b-a); }
+  boom(x,y,size=1){ if(this.fastRef&&this.fastRef.fast) return;     // skip cosmetics when fast-forwarding
+    const n=Math.floor(12*size); for(let i=0;i<n;i++){ const a=this.rr(0,6.28),sp=this.rr(40,240)*size;
+      this.particles.push(new Particle(x,y,Math.cos(a)*sp,Math.sin(a)*sp,this.rr(0.3,0.7),Math.random()<0.5?'#ffcc33':'#ff6a3a',this.rr(2,5)*size)); } }
+
+  spawn(){
+    this.spawnT-=1/60; if(this.spawnT>0) return;
+    this.spawnT=lerp(1.5,0.55,this.diff)*this.rr(0.7,1.3);
+    const x=GW+40, top=this.terrain.topAt(x), bot=this.terrain.botAt(x), d=this.diff, roll=this.rng();
+    if(roll<0.30) this.mines.push(new Mine(x,this.rr(top+30,bot-30),{phase:this.rr(0,6)}));
+    else if(roll<0.50){ const side=this.rng()<0.5?'top':'bottom'; this.enemies.push(new Turret(x,side==='top'?top+10:bot-10,side,this.rr(0.4,1.6))); }
+    else if(roll<0.68) this.enemies.push(new EnemySub(x,this.rr(top+40,bot-40),this.rr(0,6)));
+    else if(roll<0.82 && d>0.15) this.enemies.push(new Stalactite(x,top,this.rr(120,420)));
+    else if(d>0.25) this.enemies.push(new LaserGate(x,this,this.rr(0,2),this.rr(1.3,2.0)));
+    else this.mines.push(new Mine(x,this.rr(top+30,bot-30),{phase:this.rr(0,6)}));
+  }
+
+  step(dt){
+    this.scrollSpeed=lerp(110,235,this.diff); this.distance+=this.scrollSpeed*dt;
+    this.terrain.update(dt,this); this.spawn();
+    for(const m of this.mines) m.update(dt,this);
+    for(const e of this.enemies) e.update(dt,this);
+    for(const s of this.enemyShots) s.update(dt);
+    for(const p of this.particles) p.update(dt);
+    // mines that drift into the rock detonate
+    for(const m of this.mines){ if(m.dead)continue; if(m.y<this.terrain.topAt(m.x)||m.y>this.terrain.botAt(m.x)){ m.dead=true; this.boom(m.x,m.y,0.5);} }
+    this.mines=this.mines.filter(m=>!m.dead);
+    this.enemies=this.enemies.filter(e=>!e.dead);
+    this.enemyShots=this.enemyShots.filter(s=>!s.dead);
+    this.particles=this.particles.filter(p=>!p.dead);
+  }
+  draw(ctx){ this.terrain.draw(ctx); for(const m of this.mines)m.draw(ctx); for(const e of this.enemies)e.draw(ctx);
+    for(const s of this.enemyShots)s.draw(ctx); for(const p of this.particles)p.draw(ctx); }
+}
+
+/* ------------------------------ Agent --------------------------- */
+/* One submarine controlled entirely by its neural network.
+   It senses the world, the net decides, physics applies, fitness accrues. */
+class Agent{
+  constructor(genome,startY){
+    this.genome=genome; this.net=new NeuralNet(genome);
+    this.x=120; this.y=startY; this.w=40; this.h=18; this.vx=0; this.vy=0; this.speed=300;
+    this.health=100; this.air=100; this.alive=true; this.kills=0; this.fitness=0; this.fireCd=0;
+    this.shots=[];                       // its own torpedoes
+    this.hue=Math.floor(Math.random()*60)+160;   // teal..cyan tint per agent
+  }
+  get box(){ return {x:this.x-this.w/2,y:this.y-this.h/2,w:this.w,h:this.h}; }
+
+  // build the 13-value sensory vector
+  sense(world){
+    const t=world.terrain, x=this.x, y=this.y;
+    const top=t.topAt(x), bot=t.botAt(x), topA=t.topAt(x+140), botA=t.botAt(x+140);
+    // nearest two hazards (mines+enemies) and nearest enemy bullet, ahead/around
+    let h1=null,h2=null,d1=1e9,d2=1e9;
+    const cand=[...world.mines,...world.enemies];
+    for(const o of cand){ if(o.type==='laser') continue; const dx=o.x-x; if(dx<-40||dx>420) continue;
+      const dd=dx*dx+(o.y-y)*(o.y-y); if(dd<d1){ d2=d1;h2=h1; d1=dd;h1=o; } else if(dd<d2){ d2=dd;h2=o; } }
+    let b1=null,db=1e9; for(const s of world.enemyShots){ const dx=s.x-x; if(dx<-30||dx>420)continue;
+      const dd=dx*dx+(s.y-y)*(s.y-y); if(dd<db){ db=dd; b1=s; } }
+    const R=380, V=240;
+    return [
+      clamp((y-top)/V,0,1.5),  clamp((bot-y)/V,0,1.5),
+      clamp((y-topA)/V,0,1.5), clamp((botA-y)/V,0,1.5),
+      clamp(this.vy/this.speed,-1,1), clamp(this.air/100,0,1),
+      h1?clamp((h1.x-x)/R,-1,1):1, h1?clamp((h1.y-y)/V,-1,1):0, h1?1:0,
+      h2?clamp((h2.x-x)/R,-1,1):1, h2?clamp((h2.y-y)/V,-1,1):0,
+      b1?clamp((b1.x-x)/R,-1,1):1, b1?clamp((b1.y-y)/V,-1,1):0
+    ];
+  }
+
+  update(dt,world){
+    if(!this.alive){ for(const s of this.shots) s.update(dt); this.shots=this.shots.filter(s=>!s.dead); return; }
+    // ---- decide ----
+    const o=this.net.forward(this.sense(world));
+    const up=o[0]>0.1, dn=o[1]>0.1, fw=o[2]>0.1, bk=o[3]>0.1, shoot=o[4]>0;
+    let ax=(fw?1:0)-(bk?1:0), ay=(dn?1:0)-(up?1:0);
+    // ---- physics (same feel as the human game) ----
+    const accel=2200; this.vx+=ax*accel*dt; this.vy+=ay*accel*dt; this.vx*=0.86; this.vy*=0.86;
+    this.vx=clamp(this.vx,-this.speed,this.speed); this.vy=clamp(this.vy,-this.speed,this.speed);
+    this.x=clamp(this.x+this.vx*dt,60,520); this.y+=this.vy*dt;
+    // ---- shoot ----
+    this.fireCd-=dt;
+    if(shoot && this.fireCd<=0){ this.fireCd=0.2; this.shots.push(new Projectile(this.x+this.w/2,this.y,560,0,'agent',{w:12,h:3,damage:1})); }
+    for(const s of this.shots) s.update(dt);
+    // agent torpedoes destroy shared hazards (first hit wins) -> kill bonus
+    for(const s of this.shots){ if(s.dead)continue;
+      for(const e of world.enemies){ if(e.dead)continue; if(aabb(s.box,e.box)){ s.dead=true; if(e.hurt()){ this.kills++; world.boom(e.x,e.y,0.8);} break; } }
+      if(s.dead)continue;
+      for(const m of world.mines){ if(m.dead)continue; if(aabb(s.box,m.box)){ s.dead=true; m.dead=true; this.kills++; world.boom(m.x,m.y,0.8); break; } } }
+    this.shots=this.shots.filter(s=>!s.dead);
+
+    // ---- air ----
+    let inAir=false; for(const a of world.terrain.airPockets){ if(aabb(this.box,a)){ inAir=true; break; } }
+    if(inAir) this.air=Math.min(100,this.air+45*dt); else this.air-=lerp(2.0,3.0,world.diff)*dt;
+    if(this.air<=0){ this.air=0; this.health-=16*dt; }
+
+    // ---- collisions ----
+    const top=world.terrain.topAt(this.x), bot=world.terrain.botAt(this.x);
+    if(this.y-this.h/2<top){ this.y=top+this.h/2; this.vy=Math.abs(this.vy)*0.2; this.hurt(40,world); }
+    if(this.y+this.h/2>bot){ this.y=bot-this.h/2; this.vy=-Math.abs(this.vy)*0.2; this.hurt(40,world); }
+    for(const m of world.mines){ if(m.dead)continue; if(aabb(m.box,this.box)){ m.dead=true; world.boom(m.x,m.y,0.9); this.hurt(55,world); } }
+    for(const e of world.enemies){ if(e.dead)continue; if(aabb(e.box,this.box)){
+      if(e.type==='laser'){ if(e.on) this.hurt(45,world); } else { this.hurt(e.type==='rock'?60:45,world); if(e.type!=='rock'){ e.dead=true; world.boom(e.x,e.y,0.6);} } } }
+    for(const s of world.enemyShots){ if(s.dead)continue; if(aabb(s.box,this.box)){ s.dead=true; this.hurt(s.damage,world); } }
+
+    // ---- fitness: how far it got + reward for clearing threats ----
+    this.fitness=world.distance + this.kills*200;
+    if(this.health<=0) this.alive=false;
+  }
+  hurt(d,world){ this.health-=d; if(world&&!(world.fastRef&&world.fastRef.fast)) world.boom(this.x,this.y,0.4); if(this.health<=0) this.alive=false; }
+
+  draw(ctx,isBest){
+    for(const s of this.shots) s.draw(ctx);
+    if(!this.alive) return;
+    const col = isBest ? '#ffd23a' : `hsl(${this.hue},90%,60%)`;
+    ctx.save(); ctx.translate(this.x,this.y); ctx.globalAlpha=isBest?1:0.6;
+    ctx.fillStyle=isBest?'#2a2410':'#0e2a1c'; ctx.strokeStyle=col; ctx.lineWidth=isBest?2.5:1.5;
+    ctx.beginPath(); ctx.moveTo(this.w/2+5,0); ctx.lineTo(this.w/2-4,-this.h/2); ctx.lineTo(-this.w/2+4,-this.h/2);
+    ctx.lineTo(-this.w/2-4,0); ctx.lineTo(-this.w/2+4,this.h/2); ctx.lineTo(this.w/2-4,this.h/2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle=col; ctx.fillRect(-5,-this.h/2-7,12,8);
+    if(isBest){ ctx.shadowColor=col; ctx.shadowBlur=14; ctx.strokeStyle=col; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(0,0,this.w/2+8,0,7); ctx.stroke(); }
+    ctx.restore(); ctx.globalAlpha=1;
+  }
+}
+
+/* ----------------------------- Audio ---------------------------- */
+const Audio={ ctx:null,master:null,muted:false,
+  ensure(){ if(this.ctx){ if(this.ctx.state==='suspended')this.ctx.resume(); return;} try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); this.master=this.ctx.createGain(); this.master.gain.value=0.28; this.master.connect(this.ctx.destination);}catch(e){} },
+  toggle(){ this.muted=!this.muted; if(this.master)this.master.gain.value=this.muted?0:0.28; },
+  tone(f,dur,type='triangle',vol=0.4,to=null){ if(!this.ctx||this.muted)return; const t=this.ctx.currentTime,o=this.ctx.createOscillator(),g=this.ctx.createGain();
+    o.type=type; o.frequency.setValueAtTime(f,t); if(to)o.frequency.exponentialRampToValueAtTime(Math.max(1,to),t+dur);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t+dur+0.02); },
+  newGen(){ this.tone(330,0.12,'square',0.25,440); },
+  record(){ [523,784,1047].forEach((f,i)=>setTimeout(()=>this.tone(f,0.14,'triangle',0.3),i*90)); }
+};
+
+/* ------------------------------ Input --------------------------- */
+const Input={ pressed:{}, init(){ addEventListener('keydown',e=>{ if([' '].includes(e.key))e.preventDefault(); this.pressed[e.key.toLowerCase()]=true; }); },
+  once(...n){ let h=false; for(const k of n){ if(this.pressed[k]){h=true;this.pressed[k]=false;} } return h; }, clear(){ this.pressed={}; } };
+
+/* ------------------------------- Lab ---------------------------- */
+/* The training driver: holds the population, runs generations,
+   tracks statistics, draws everything, and handles the UI/keys. */
+class Lab{
+  constructor(canvas){
+    this.canvas=canvas; this.ctx=canvas.getContext('2d'); this.ctx.imageSmoothingEnabled=false;
+    this.state='title';                 // title | running | paused
+    this.POP=48; this.ELITE=5; this.MUT_RATE=0.12; this.MUT_SCALE=0.45;
+    this.speeds=[1,4,16,50]; this.speedIdx=1; this.fast=false;     // 'fast' suppresses cosmetics
+    this.showNet=true; this.dt=1/60; this.maxSteps=60*120;         // 2-min safety cap per generation
+    this.seed=(Math.random()*1e9)|0;
+    this.gen=0; this.history=[]; this.champion=null; this.champFit=0; this.solved=false;
+    this.last=performance.now(); this.time=0;
+    this.genomes=Array.from({length:this.POP},()=>randomGenome());
+    requestAnimationFrame(this.loop.bind(this));
+  }
+
+  startRun(){ this.gen=0; this.history=[]; this.champion=null; this.champFit=0; this.solved=false;
+    this.genomes=Array.from({length:this.POP},()=>randomGenome()); this.newGeneration(); this.state='running'; }
+
+  // build a fresh world + agents from the current genome pool
+  newGeneration(){
+    this.gen++; this.world=new World(this.seed,this); this.steps=0;
+    const t=this.world.terrain, top=t.topAt(120), bot=t.botAt(120);
+    this.agents=this.genomes.map((g,i)=> new Agent(g, lerp(top+25,bot-25,(i+0.5)/this.POP)));
+    Audio.newGen();
+  }
+
+  // selection + breeding -> next generation's genomes
+  evolve(){
+    // rank by fitness
+    const ranked=this.agents.map((a,i)=>({g:this.genomes[i],f:a.fitness})).sort((p,q)=>q.f-p.f);
+    const best=ranked[0].f, avg=ranked.reduce((s,r)=>s+r.f,0)/ranked.length;
+    this.history.push({gen:this.gen,best,avg}); if(this.history.length>120) this.history.shift();
+    // hall of fame
+    if(best>this.champFit){ this.champFit=best; this.champion=ranked[0].g.slice(); Audio.record(); }
+    // tournament selection from the top half
+    const pool=ranked.slice(0,Math.max(2,Math.floor(this.POP/2)));
+    const pick=()=>{ let b=pool[(Math.random()*pool.length)|0]; for(let k=0;k<3;k++){ const c=pool[(Math.random()*pool.length)|0]; if(c.f>b.f)b=c; } return b.g; };
+    const next=[];
+    // elitism: keep best genomes verbatim, plus the all-time champion
+    for(let i=0;i<this.ELITE && i<ranked.length;i++) next.push(ranked[i].g.slice());
+    if(this.champion) next.push(this.champion.slice());
+    while(next.length<this.POP) next.push(mutate(crossover(pick(),pick()),this.MUT_RATE,this.MUT_SCALE));
+    this.genomes=next.slice(0,this.POP);
+    this.newGeneration();
+  }
+
+  // one fixed-timestep simulation tick
+  tick(){
+    const w=this.world; w.step(this.dt);
+    let alive=0; for(const a of this.agents){ a.update(this.dt,w); if(a.alive)alive++; }
+    this.steps++;
+    if(w.distance>=w.LEVEL_END){ this.solved=true; for(const a of this.agents) if(a.alive) a.fitness+=5000; this.evolve(); return; }
+    if(alive===0 || this.steps>=this.maxSteps) this.evolve();
+  }
+
+  bestAlive(){ let b=null; for(const a of this.agents){ if(a.alive && (!b||a.fitness>b.fitness)) b=a; } return b || this.agents[0]; }
+
+  /* ----------------------- rendering ----------------------- */
+  render(){
+    const ctx=this.ctx;
+    const bg=ctx.createLinearGradient(0,0,0,GH); bg.addColorStop(0,'#02132b'); bg.addColorStop(0.5,'#020c1d'); bg.addColorStop(1,'#01040c');
+    ctx.fillStyle=bg; ctx.fillRect(0,0,GW,GH);
+    if(this.state==='title'){ this.drawTitle(ctx); return; }
+
+    this.world.draw(ctx);
+    const best=this.bestAlive();
+    for(const a of this.agents) if(a!==best) a.draw(ctx,false);
+    best && best.draw(ctx,true);
+
+    this.drawHUD(ctx, best);
+    if(this.showNet && best) this.drawNet(ctx, best);
+    this.drawGraph(ctx);
+    if(this.state==='paused'){ ctx.fillStyle='rgba(1,6,16,0.55)'; ctx.fillRect(0,0,GW,GH);
+      ctx.fillStyle='#9fe9ff'; ctx.font='34px Courier New'; ctx.textAlign='center'; ctx.fillText('PAUSED',GW/2,GH/2);
+      ctx.font='14px Courier New'; ctx.fillText('press P to resume',GW/2,GH/2+30); }
+  }
+
+  drawTitle(ctx){
+    ctx.textAlign='center'; ctx.fillStyle='#41ffb0'; ctx.font='46px Courier New';
+    ctx.shadowColor='#41ffb0'; ctx.shadowBlur=16; ctx.fillText('ABYSS RUNNER',GW/2,110); ctx.shadowBlur=0;
+    ctx.fillStyle='#9fe9ff'; ctx.font='18px Courier New'; ctx.fillText('NEURAL EVOLUTION LAB',GW/2,142);
+    ctx.fillStyle='#cdebff'; ctx.font='13px Courier New';
+    const lines=[
+      'The computer teaches ITSELF to play. No human at the controls.',
+      'A population of submarines, each driven by its own neural network,',
+      'plays at once. A genetic algorithm breeds the survivors — selection,',
+      'crossover and mutation — so each generation navigates a little better.',
+      '',
+      'ENTER / SPACE  start training        P  pause',
+      '1 2 3 4  speed: 1x / 4x / 16x / Max  N  skip generation',
+      'V  toggle network view               R  restart (new world)',
+      'M  mute',
+      '',
+      'Brain: 13 senses -> 10 hidden -> 5 actions   Population: 48'
+    ];
+    lines.forEach((l,i)=> ctx.fillText(l,GW/2,190+i*20));
+    if(Math.floor(this.time*2)%2===0){ ctx.fillStyle='#ffcc33'; ctx.font='20px Courier New'; ctx.fillText('PRESS  ENTER  TO  BEGIN',GW/2,430); }
+  }
+
+  drawHUD(ctx, best){
+    const w=this.world; const alive=this.agents.filter(a=>a.alive).length;
+    ctx.fillStyle='rgba(2,10,22,0.55)'; ctx.fillRect(0,0,GW,30);
+    ctx.font='14px Courier New'; ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillStyle='#41ffb0'; ctx.fillText('GEN '+this.gen,12,15);
+    ctx.fillStyle='#9fe9ff'; ctx.fillText('ALIVE '+alive+'/'+this.POP,90,15);
+    ctx.fillStyle='#ffe27a'; ctx.fillText('BEST '+Math.round(best?best.fitness:0),210,15);
+    ctx.fillStyle='#ffcc33'; ctx.fillText('CHAMPION '+Math.round(this.champFit),330,15);
+    ctx.fillStyle='#7affd0'; ctx.fillText('SPEED '+this.speeds[this.speedIdx]+'x',500,15);
+    ctx.fillStyle='#cdebff'; ctx.fillText('DIST '+Math.round(w.distance),610,15);
+    if(this.solved){ ctx.fillStyle='#41ffb0'; ctx.fillText('SOLVED!',720,15); }
+    // alive bar
+    ctx.fillStyle='#04141f'; ctx.fillRect(12,GH-14,GW-24,6);
+    ctx.fillStyle='#39d0ff'; ctx.fillRect(12,GH-14,(GW-24)*clamp(w.distance/w.LEVEL_END,0,1),6);
+    ctx.fillStyle='#ff5a7a'; ctx.fillRect(GW-15,GH-17,4,12);
+  }
+
+  // compact live view of the leading agent's neural network
+  drawNet(ctx, agent){
+    const px=GW-176, py=44, pw=164, ph=210;
+    ctx.fillStyle='rgba(2,12,24,0.7)'; ctx.fillRect(px,py,pw,ph);
+    ctx.strokeStyle='rgba(80,200,230,0.4)'; ctx.lineWidth=1; ctx.strokeRect(px+0.5,py+0.5,pw,ph);
+    ctx.fillStyle='#9fe9ff'; ctx.font='11px Courier New'; ctx.textAlign='center'; ctx.fillText('LEADER BRAIN',px+pw/2,py+14);
+    const net=agent.net; if(!net.i) return;
+    const colX=[px+24,px+pw/2,px+pw-24];
+    const layers=[net.i,Array.from(net.h),Array.from(net.o)];
+    const ys=layers.map(L=> L.map((_,k)=> py+34+k*((ph-46)/(L.length-1||1))));
+    // edges (faint, colored by weight sign)
+    let idx=0; ctx.lineWidth=1;
+    for(let j=0;j<NH;j++){ for(let k=0;k<NI;k++){ const wgt=net.g[idx++];
+      ctx.strokeStyle=`rgba(${wgt>0?90:255},${wgt>0?220:90},${wgt>0?255:120},${Math.min(0.35,Math.abs(wgt)*0.18)})`;
+      ctx.beginPath(); ctx.moveTo(colX[0],ys[0][k]); ctx.lineTo(colX[1],ys[1][j]); ctx.stroke(); } idx++; }
+    for(let m=0;m<NO;m++){ for(let j=0;j<NH;j++){ const wgt=net.g[idx++];
+      ctx.strokeStyle=`rgba(${wgt>0?90:255},${wgt>0?220:90},${wgt>0?255:120},${Math.min(0.4,Math.abs(wgt)*0.2)})`;
+      ctx.beginPath(); ctx.moveTo(colX[1],ys[1][j]); ctx.lineTo(colX[2],ys[2][m]); ctx.stroke(); } idx++; }
+    // nodes (brightness = activation)
+    const outNames=['UP','DN','FWD','BK','FIRE'];
+    for(let L=0;L<3;L++){ for(let k=0;k<layers[L].length;k++){ const v=layers[L][k];
+      const a=clamp(Math.abs(v),0,1); ctx.fillStyle=`rgba(${v<0?255:90},${v<0?120:255},${v<0?160:200},${0.25+0.75*a})`;
+      ctx.beginPath(); ctx.arc(colX[L],ys[L][k], L===0?3:4,0,7); ctx.fill();
+      if(L===2){ ctx.fillStyle=v>0?'#9fffd0':'#3a4a55'; ctx.font='8px Courier New'; ctx.textAlign='left'; ctx.fillText(outNames[k],colX[2]+7,ys[2][k]+3); } } }
+  }
+
+  // fitness history (best = amber, average = cyan)
+  drawGraph(ctx){
+    const px=12, py=44, pw=170, ph=86;
+    ctx.fillStyle='rgba(2,12,24,0.7)'; ctx.fillRect(px,py,pw,ph);
+    ctx.strokeStyle='rgba(80,200,230,0.4)'; ctx.strokeRect(px+0.5,py+0.5,pw,ph);
+    ctx.fillStyle='#9fe9ff'; ctx.font='11px Courier New'; ctx.textAlign='left'; ctx.fillText('FITNESS / GEN',px+8,py+14);
+    const h=this.history; if(h.length<2) return;
+    const maxF=Math.max(...h.map(d=>d.best),1);
+    const X=i=> px+8+(pw-16)*(i/(h.length-1)), Y=v=> py+ph-8-(ph-26)*(v/maxF);
+    ctx.lineWidth=2; ctx.strokeStyle='#ffcc33'; ctx.beginPath(); h.forEach((d,i)=> i?ctx.lineTo(X(i),Y(d.best)):ctx.moveTo(X(i),Y(d.best))); ctx.stroke();
+    ctx.strokeStyle='#39d0ff'; ctx.beginPath(); h.forEach((d,i)=> i?ctx.lineTo(X(i),Y(d.avg)):ctx.moveTo(X(i),Y(d.avg))); ctx.stroke();
+    ctx.fillStyle='#ffcc33'; ctx.font='9px Courier New'; ctx.fillText('best',px+8,py+ph-2);
+    ctx.fillStyle='#39d0ff'; ctx.fillText('avg',px+40,py+ph-2);
+  }
+
+  /* ----------------------- input / loop ----------------------- */
+  keys(){
+    if(Input.once('m')) Audio.toggle();
+    if(this.state==='title'){ if(Input.once('enter',' ')) this.startRun(); }
+    else{
+      if(Input.once('p')) this.state=this.state==='paused'?'running':'paused';
+      if(Input.once('v')) this.showNet=!this.showNet;
+      if(Input.once('n') && this.state==='running') this.evolve();
+      if(Input.once('r')){ this.seed=(Math.random()*1e9)|0; this.startRun(); }
+      if(Input.once('1')) this.speedIdx=0; if(Input.once('2')) this.speedIdx=1;
+      if(Input.once('3')) this.speedIdx=2; if(Input.once('4')) this.speedIdx=3;
+    }
+    Input.clear();
+  }
+
+  loop(now){
+    const realDt=(now-this.last)/1000; this.last=now; this.time+=realDt;
+    this.keys();
+    if(this.state==='running'){
+      const stepsThisFrame=this.speeds[this.speedIdx];
+      this.fast = stepsThisFrame>4;                 // suppress particles when fast-forwarding
+      for(let s=0;s<stepsThisFrame;s++){ this.tick(); if(this.state!=='running') break; }
+    }
+    this.render();
+    requestAnimationFrame(this.loop.bind(this));
+  }
+}
+
+/* ------------------------------ Boot ---------------------------- */
+Input.init();
+const unlock=()=>{ Audio.ensure(); const h=document.getElementById('hint'); if(h)h.style.display='none'; };
+addEventListener('keydown',unlock,{once:true}); addEventListener('pointerdown',unlock,{once:true});
+const lab=new Lab(document.getElementById('game'));
+</script>
+</body>
+</html>

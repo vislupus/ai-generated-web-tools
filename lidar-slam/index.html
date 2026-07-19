@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>LiDAR · SLAM Simulation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Major+Mono+Display&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-0: #05070b;
+    --bg-1: #0a0e15;
+    --line: rgba(86, 220, 255, 0.18);
+    --hot: #ff8a3d;     /* estimated pose / drift */
+    --cool: #56dcff;    /* point cloud */
+    --truth: #6cffb3;   /* ground truth */
+    --warn: #ffd246;    /* ICP active */
+    --mesh: #c084ff;    /* reconstructed voxels */
+    --dim: rgba(180, 220, 255, 0.45);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg-0); }
+  body {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--cool);
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #renderCanvas {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    outline: none; touch-action: none;
+    background:
+      radial-gradient(ellipse at 50% 60%, #0e1825 0%, #05070b 75%);
+  }
+
+  /* ---- Scanlines & vignette overlay ---- */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 2px,
+      rgba(255,255,255,0.012) 2px,
+      rgba(255,255,255,0.012) 3px
+    );
+    mix-blend-mode: overlay;
+    z-index: 5;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.6) 100%);
+    z-index: 4;
+  }
+
+  /* ---- Header ---- */
+  .top-bar {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 20px;
+    z-index: 10;
+    pointer-events: none;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(to bottom, rgba(5,7,11,0.92), rgba(5,7,11,0));
+  }
+  .brand {
+    font-family: 'Major Mono Display', monospace;
+    font-size: 18px;
+    letter-spacing: 0.3em;
+    color: var(--cool);
+    text-shadow: 0 0 18px rgba(86,220,255,0.45);
+  }
+  .brand .accent { color: var(--hot); }
+  .top-meta {
+    font-size: 10px; letter-spacing: 0.25em;
+    color: var(--dim);
+    text-align: right;
+    line-height: 1.55;
+  }
+  .top-meta b { color: var(--cool); font-weight: 500; }
+
+  /* ---- Telemetry panel ---- */
+  .panel {
+    position: absolute;
+    background: linear-gradient(135deg, rgba(10,16,25,0.85), rgba(8,12,20,0.7));
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    pointer-events: auto;
+    z-index: 9;
+  }
+  .panel-title {
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: var(--dim);
+    padding: 8px 12px 6px;
+    border-bottom: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel-title .pulse {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--truth);
+    box-shadow: 0 0 8px var(--truth);
+    animation: pulse 1.4s infinite ease-in-out;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+  .panel-body { padding: 10px 12px; font-size: 11px; }
+  .row {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .row .lbl { color: var(--dim); font-size: 9px; letter-spacing: 0.18em; }
+  .row .val {
+    color: var(--cool);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    font-size: 12px;
+  }
+  .row .val.hot { color: var(--hot); }
+  .row .val.truth { color: var(--truth); }
+  .row .val.warn { color: var(--warn); }
+  .row .val.mesh { color: var(--mesh); }
+
+  #telemetry { top: 70px; left: 20px; width: 290px; }
+  #legend { top: 70px; right: 20px; width: 230px; }
+
+  .legend-row {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    margin-bottom: 7px;
+    color: var(--dim);
+  }
+  .legend-row span {
+    display: inline-block; width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .swatch-truth { background: var(--truth); box-shadow: 0 0 6px var(--truth); }
+  .swatch-est { background: var(--hot); box-shadow: 0 0 6px var(--hot); }
+  .swatch-cloud { background: var(--cool); box-shadow: 0 0 6px var(--cool); }
+  .swatch-mesh { background: var(--mesh); box-shadow: 0 0 6px var(--mesh); }
+  .swatch-ray {
+    width: 18px !important; height: 2px !important;
+    border-radius: 0 !important;
+    background: linear-gradient(to right, var(--cool), transparent) !important;
+  }
+
+  /* ---- Status strip ---- */
+  #status-strip {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 8;
+    pointer-events: none;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  #status-strip.show { opacity: 1; }
+  #status-strip .head {
+    font-family: 'Major Mono Display', monospace;
+    font-size: 14px;
+    letter-spacing: 0.4em;
+    color: var(--warn);
+    text-shadow: 0 0 18px var(--warn);
+  }
+  #status-strip .sub {
+    font-size: 10px; letter-spacing: 0.25em;
+    color: var(--dim);
+    margin-top: 6px;
+  }
+
+  /* ---- Bottom controls ---- */
+  #controls {
+    position: absolute; bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 6px;
+    z-index: 10;
+    background: rgba(8, 12, 20, 0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--line);
+    padding: 4px;
+    border-radius: 2px;
+  }
+  #controls button {
+    background: transparent;
+    color: var(--dim);
+    border: 1px solid transparent;
+    padding: 8px 14px;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+  #controls button:hover {
+    color: var(--cool);
+    background: rgba(86,220,255,0.06);
+  }
+  #controls button.active {
+    color: var(--cool);
+    background: rgba(86,220,255,0.12);
+    border-color: var(--line);
+    text-shadow: 0 0 10px rgba(86,220,255,0.6);
+  }
+  #controls button.primary {
+    color: var(--hot);
+  }
+  #controls button.primary:hover { background: rgba(255,138,61,0.08); }
+  #controls .sep {
+    width: 1px;
+    background: var(--line);
+    margin: 4px 2px;
+  }
+
+  /* ---- Mini progress bar ---- */
+  .progress {
+    height: 3px;
+    background: rgba(86,220,255,0.08);
+    margin-top: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .progress > div {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    background: linear-gradient(to right, var(--cool), var(--hot));
+    width: 0%;
+    transition: width 0.1s linear;
+    box-shadow: 0 0 10px var(--cool);
+  }
+
+  /* ---- Crosshair / ticks ---- */
+  .corner-tick {
+    position: absolute;
+    width: 14px; height: 14px;
+    border: 1px solid var(--cool);
+    z-index: 6;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .ct-tl { top: 60px; left: 12px; border-right: none; border-bottom: none; }
+  .ct-tr { top: 60px; right: 12px; border-left: none; border-bottom: none; }
+  .ct-bl { bottom: 60px; left: 12px; border-right: none; border-top: none; }
+  .ct-br { bottom: 60px; right: 12px; border-left: none; border-top: none; }
+
+  /* ---- Mobile ---- */
+  @media (max-width: 700px) {
+    #telemetry, #legend { width: calc(100% - 40px); position: relative; margin: 8px 0; }
+    #telemetry { top: 60px; left: 20px; }
+    #legend { display: none; }
+    .top-meta { display: none; }
+    #controls button { padding: 6px 8px; font-size: 9px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="renderCanvas"></canvas>
+
+<div class="corner-tick ct-tl"></div>
+<div class="corner-tick ct-tr"></div>
+<div class="corner-tick ct-bl"></div>
+<div class="corner-tick ct-br"></div>
+
+<div class="top-bar">
+  <div class="brand">LiD<span class="accent">A</span>R · SL<span class="accent">A</span>M</div>
+  <div class="top-meta">
+    SENSOR: VLP-16 EMU · 16ch · 360°<br>
+    REGISTRATION: <b>POINT-TO-POINT ICP</b>
+  </div>
+</div>
+
+<div id="telemetry" class="panel">
+  <div class="panel-title">
+    <span>// TELEMETRY</span>
+    <span class="pulse"></span>
+  </div>
+  <div class="panel-body">
+    <div class="row"><span class="lbl">STATE</span><span class="val warn" id="t-state">BOOT</span></div>
+    <div class="row"><span class="lbl">SCAN №</span><span class="val" id="t-scan">000</span></div>
+    <div class="row"><span class="lbl">RAYS/S</span><span class="val" id="t-rps">0</span></div>
+    <div class="row"><span class="lbl">POINTS</span><span class="val" id="t-pts">0</span></div>
+    <div class="row"><span class="lbl">VOXELS</span><span class="val mesh" id="t-vox">0</span></div>
+    <div class="row"><span class="lbl">TRUE</span><span class="val truth" id="t-true">0.00, 0.00</span></div>
+    <div class="row"><span class="lbl">EST</span><span class="val hot" id="t-est">0.00, 0.00</span></div>
+    <div class="row"><span class="lbl">DRIFT</span><span class="val" id="t-drift">0.000 m</span></div>
+    <div class="row"><span class="lbl">ICP</span><span class="val warn" id="t-icp">—</span></div>
+    <div class="progress"><div id="t-prog"></div></div>
+  </div>
+</div>
+
+<div id="legend" class="panel">
+  <div class="panel-title"><span>// LEGEND</span></div>
+  <div class="panel-body">
+    <div class="legend-row"><span class="swatch-truth"></span> GROUND TRUTH POSE</div>
+    <div class="legend-row"><span class="swatch-est"></span> ESTIMATED POSE</div>
+    <div class="legend-row"><span class="swatch-cloud"></span> POINT CLOUD (RAW)</div>
+    <div class="legend-row"><span class="swatch-mesh"></span> RECONSTRUCTED MESH</div>
+    <div class="legend-row"><span class="swatch-ray"></span> ACTIVE LASER BEAM</div>
+    <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--line); font-size:9px; line-height:1.55; color: var(--dim); letter-spacing: 0.05em;">
+      DRAG · ORBIT &nbsp; SCROLL · ZOOM<br>
+      THE EST. POSE DRIFTS FROM THE TRUE POSE DURING MOTION; ICP REGISTRATION CORRECTS IT AGAINST THE ACCUMULATED MAP.
+    </div>
+  </div>
+</div>
+
+<div id="status-strip">
+  <div class="head" id="ss-head">REGISTERING</div>
+  <div class="sub" id="ss-sub">Aligning new scan to global map…</div>
+</div>
+
+<div id="controls">
+  <button id="btn-pause">⏸ PAUSE</button>
+  <button id="btn-reset" class="primary">↻ RESET</button>
+  <div class="sep"></div>
+  <button id="btn-room" class="active">ROOM</button>
+  <button id="btn-points" class="active">POINTS</button>
+  <button id="btn-mesh" class="active">MESH</button>
+  <button id="btn-rays" class="active">RAYS</button>
+  <button id="btn-trail" class="active">TRAIL</button>
+</div>
+
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script>
+'use strict';
+
+// ============================================================
+// SETUP
+// ============================================================
+const canvas = document.getElementById('renderCanvas');
+const engine = new BABYLON.Engine(canvas, true, { antialias: true, stencil: true });
+const scene = new BABYLON.Scene(engine);
+scene.clearColor = new BABYLON.Color4(0.02, 0.025, 0.04, 1);
+scene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
+scene.fogColor = new BABYLON.Color3(0.02, 0.03, 0.05);
+scene.fogDensity = 0.018;
+
+const camera = new BABYLON.ArcRotateCamera(
+  'cam',
+  -Math.PI * 0.7,
+  Math.PI * 0.32,
+  26,
+  new BABYLON.Vector3(0, 1, 0),
+  scene
+);
+camera.attachControl(canvas, true);
+camera.minZ = 0.1;
+camera.lowerRadiusLimit = 6;
+camera.upperRadiusLimit = 60;
+camera.lowerBetaLimit = 0.1;
+camera.upperBetaLimit = Math.PI * 0.49;
+camera.wheelPrecision = 25;
+camera.panningSensibility = 60;
+camera.inertia = 0.86;
+
+const hemi = new BABYLON.HemisphericLight('hemi', new BABYLON.Vector3(0, 1, 0), scene);
+hemi.intensity = 0.25;
+hemi.groundColor = new BABYLON.Color3(0.02, 0.04, 0.08);
+hemi.diffuse = new BABYLON.Color3(0.5, 0.7, 1);
+
+const glow = new BABYLON.GlowLayer('glow', scene, { mainTextureFixedSize: 512, blurKernelSize: 32 });
+glow.intensity = 0.85;
+
+// ============================================================
+// COLORS (in sync with CSS)
+// ============================================================
+const C = {
+  cool: new BABYLON.Color3(0.34, 0.86, 1.0),
+  hot: new BABYLON.Color3(1.0, 0.54, 0.24),
+  truth: new BABYLON.Color3(0.42, 1.0, 0.7),
+  warn: new BABYLON.Color3(1.0, 0.82, 0.28),
+  mesh: new BABYLON.Color3(0.75, 0.52, 1.0),
+  wall: new BABYLON.Color3(0.10, 0.14, 0.22),
+  edge: new BABYLON.Color4(0.32, 0.55, 0.85, 0.55),
+};
+
+// ============================================================
+// PROCEDURAL ROOM (deterministic for reproducibility)
+// ============================================================
+const ROOM = { w: 18, d: 14, h: 4 };
+const roomMeshes = [];
+const roomGroup = new BABYLON.TransformNode('roomRoot', scene);
+
+function createRoomMaterial() {
+  const m = new BABYLON.StandardMaterial('rm', scene);
+  m.diffuseColor = C.wall;
+  m.specularColor = new BABYLON.Color3(0.05, 0.08, 0.12);
+  m.emissiveColor = new BABYLON.Color3(0.015, 0.025, 0.04);
+  m.alpha = 0.18;
+  m.backFaceCulling = false;
+  return m;
+}
+const wallMat = createRoomMaterial();
+
+function makeBox(name, x, y, z, w, h, d, ry = 0) {
+  const m = BABYLON.MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene);
+  m.position.set(x, y, z);
+  m.rotation.y = ry;
+  m.parent = roomGroup;
+  m.material = wallMat;
+  m.enableEdgesRendering();
+  m.edgesWidth = 1.4;
+  m.edgesColor = C.edge;
+  roomMeshes.push(m);
+  return m;
+}
+function makeCyl(name, x, z, r, h = ROOM.h) {
+  const m = BABYLON.MeshBuilder.CreateCylinder(name, { height: h, diameter: r * 2, tessellation: 24 }, scene);
+  m.position.set(x, h / 2, z);
+  m.parent = roomGroup;
+  m.material = wallMat;
+  m.enableEdgesRendering();
+  m.edgesWidth = 1.4;
+  m.edgesColor = C.edge;
+  roomMeshes.push(m);
+  return m;
+}
+
+function buildRoom() {
+  const W = ROOM.w, D = ROOM.d, H = ROOM.h, t = 0.3;
+
+  // North & south walls
+  makeBox('w_n', 0, H / 2, D / 2, W, H, t);
+  makeBox('w_s', 0, H / 2, -D / 2, W, H, t);
+
+  // West wall (solid)
+  makeBox('w_w', -W / 2, H / 2, 0, t, H, D);
+
+  // East wall split for an alcove
+  makeBox('w_e1', W / 2, H / 2, -3.5, t, H, 7);
+  makeBox('w_e2', W / 2, H / 2, 4.0, t, H, 6);
+
+  // East alcove cavity (extends outward)
+  makeBox('alc_back', W / 2 + 2.0, H / 2, 0.25, t, H, 2);
+  makeBox('alc_n', W / 2 + 1.0, H / 2, 1.25, 2, H, t);
+  makeBox('alc_s', W / 2 + 1.0, H / 2, -0.75, 2, H, t);
+
+  // Pillars
+  makeCyl('p1', -5.5, 1.5, 0.45);
+  makeCyl('p2', 5.0, -3.5, 0.40);
+  makeCyl('p3', -3.0, -4.5, 0.40);
+  makeCyl('p4', 3.5, 3.0, 0.50);
+
+  // Furniture-like obstacles
+  makeBox('f1', -6.5, 0.45, 5.0, 2.0, 0.9, 1.2, 0.3);
+  makeBox('f2', 6.8, 0.65, 2.0, 1.4, 1.3, 1.4, -0.2);
+  makeBox('f3', 0.5, 0.4, 5.5, 2.4, 0.8, 1.0, 0.0);
+  makeBox('f4', -7.0, 0.85, -2.5, 0.9, 1.7, 0.9, 0.4);
+  makeBox('f5', 1.5, 0.45, -1.5, 1.2, 0.9, 0.9, -0.5);
+  makeBox('f6', 6.5, 0.45, 5.5, 1.6, 0.9, 1.0, 0.6);
+  makeBox('f7', -1.5, 0.30, 1.0, 1.4, 0.6, 0.7, 0.2);
+
+  // Floor
+  const floor = BABYLON.MeshBuilder.CreateGround('floor', { width: W + 2, height: D + 2, subdivisions: 1 }, scene);
+  floor.material = wallMat;
+  floor.parent = roomGroup;
+  roomMeshes.push(floor);
+
+  // Subtle floor grid (visual decoration only — not scannable)
+  const gridSize = 1;
+  const gridLines = [];
+  const gridColors = [];
+  const gColor = new BABYLON.Color4(0.18, 0.36, 0.55, 0.35);
+  for (let x = -W / 2; x <= W / 2; x += gridSize) {
+    gridLines.push([
+      new BABYLON.Vector3(x, 0.005, -D / 2),
+      new BABYLON.Vector3(x, 0.005, D / 2),
+    ]);
+    gridColors.push([gColor, gColor]);
+  }
+  for (let z = -D / 2; z <= D / 2; z += gridSize) {
+    gridLines.push([
+      new BABYLON.Vector3(-W / 2, 0.005, z),
+      new BABYLON.Vector3(W / 2, 0.005, z),
+    ]);
+    gridColors.push([gColor, gColor]);
+  }
+  const grid = BABYLON.MeshBuilder.CreateLineSystem('grid', { lines: gridLines, colors: gridColors }, scene);
+  grid.parent = roomGroup;
+  grid.isPickable = false;
+  grid.alphaIndex = 0;
+}
+buildRoom();
+
+// ============================================================
+// POINT CLOUD - dynamic, pre-allocated buffer
+// ============================================================
+class PointCloud {
+  constructor(scene, max = 80000) {
+    this.scene = scene;
+    this.max = max;
+    this.count = 0;
+    this.positions = new Float32Array(max * 3);
+    this.colors = new Float32Array(max * 4);
+
+    const indices = new Uint32Array(max);
+    for (let i = 0; i < max; i++) indices[i] = i;
+
+    const mesh = new BABYLON.Mesh('cloud', scene);
+    const vd = new BABYLON.VertexData();
+    vd.positions = this.positions;
+    vd.colors = this.colors;
+    vd.indices = indices;
+    vd.applyToMesh(mesh, true);
+
+    const m = new BABYLON.StandardMaterial('cloudMat', scene);
+    m.disableLighting = true;
+    m.emissiveColor = new BABYLON.Color3(1, 1, 1);
+    m.pointsCloud = true;
+    m.pointSize = 2.4;
+    mesh.material = m;
+    mesh.alphaIndex = 5;
+    mesh.isPickable = false;
+    mesh.renderingGroupId = 1;
+
+    mesh.subMeshes = [];
+    new BABYLON.SubMesh(0, 0, 0, 0, 0, mesh);
+    this.mesh = mesh;
+  }
+  addPoint(x, y, z, color) {
+    if (this.count >= this.max) return;
+    const i = this.count;
+    this.positions[i * 3] = x;
+    this.positions[i * 3 + 1] = y;
+    this.positions[i * 3 + 2] = z;
+    this.colors[i * 4] = color.r;
+    this.colors[i * 4 + 1] = color.g;
+    this.colors[i * 4 + 2] = color.b;
+    this.colors[i * 4 + 3] = color.a !== undefined ? color.a : 1;
+    this.count++;
+  }
+  flush() {
+    this.mesh.updateVerticesData(BABYLON.VertexBuffer.PositionKind, this.positions, false, false);
+    this.mesh.updateVerticesData(BABYLON.VertexBuffer.ColorKind, this.colors, false, false);
+    this.mesh.subMeshes = [];
+    new BABYLON.SubMesh(0, 0, this.count, 0, this.count, this.mesh);
+  }
+  clear() {
+    this.count = 0;
+    this.flush();
+  }
+}
+
+// ============================================================
+// VOXEL MAP (reconstructed surface, also serves as ICP target)
+// ============================================================
+class VoxelMap {
+  constructor(scene, voxelSize = 0.28) {
+    this.size = voxelSize;
+    this.voxels = new Map();      // key -> {ix, iy, iz, count}
+    this.matrices = new Float32Array(16 * 5000);
+    this.matrixCount = 0;
+    this.maxMatrices = 5000;
+
+    const box = BABYLON.MeshBuilder.CreateBox('vbox', { size: voxelSize * 0.85 }, scene);
+    const m = new BABYLON.StandardMaterial('vmat', scene);
+    m.emissiveColor = C.mesh.scale(0.55);
+    m.diffuseColor = C.mesh.scale(0.4);
+    m.specularColor = new BABYLON.Color3(0.2, 0.2, 0.3);
+    m.alpha = 0.55;
+    m.backFaceCulling = true;
+    box.material = m;
+    box.alphaIndex = 2;
+    box.renderingGroupId = 0;
+    box.isPickable = false;
+    box.thinInstanceEnablePicking = false;
+
+    this.mesh = box;
+  }
+  _key(ix, iy, iz) { return ix + ',' + iy + ',' + iz; }
+  addPoint(x, y, z) {
+    const s = this.size;
+    const ix = Math.floor(x / s);
+    const iy = Math.floor(y / s);
+    const iz = Math.floor(z / s);
+    const key = this._key(ix, iy, iz);
+    const v = this.voxels.get(key);
+    if (v) {
+      v.count++;
+      return false;
+    }
+    if (this.matrixCount >= this.maxMatrices) {
+      // grow buffer
+      const ng = new Float32Array(this.maxMatrices * 16 * 2);
+      ng.set(this.matrices);
+      this.matrices = ng;
+      this.maxMatrices *= 2;
+    }
+    this.voxels.set(key, { ix, iy, iz, count: 1, idx: this.matrixCount });
+    const off = this.matrixCount * 16;
+    // identity matrix with translation:
+    const mat = BABYLON.Matrix.Translation((ix + 0.5) * s, (iy + 0.5) * s, (iz + 0.5) * s);
+    mat.copyToArray(this.matrices, off);
+    this.matrixCount++;
+    return true;
+  }
+  /** Find nearest occupied voxel center within maxDist. */
+  nearest(p, maxDist) {
+    const s = this.size;
+    const ix = Math.floor(p.x / s), iy = Math.floor(p.y / s), iz = Math.floor(p.z / s);
+    let best = null;
+    let bestD = maxDist * maxDist;
+    const range = Math.max(1, Math.ceil(maxDist / s));
+    for (let dx = -range; dx <= range; dx++)
+      for (let dy = -range; dy <= range; dy++)
+        for (let dz = -range; dz <= range; dz++) {
+          const k = this._key(ix + dx, iy + dy, iz + dz);
+          if (this.voxels.has(k)) {
+            const cx = (ix + dx + 0.5) * s, cy = (iy + dy + 0.5) * s, cz = (iz + dz + 0.5) * s;
+            const ddx = cx - p.x, ddy = cy - p.y, ddz = cz - p.z;
+            const d = ddx * ddx + ddy * ddy + ddz * ddz;
+            if (d < bestD) { bestD = d; best = { x: cx, y: cy, z: cz }; }
+          }
+        }
+    return best;
+  }
+  flush() {
+    if (this.matrixCount === 0) return;
+    this.mesh.thinInstanceSetBuffer('matrix', this.matrices.subarray(0, this.matrixCount * 16), 16, false);
+  }
+  clear() {
+    this.voxels.clear();
+    this.matrixCount = 0;
+    this.mesh.thinInstanceCount = 0;
+    if (this.mesh.thinInstanceSetBuffer) {
+      this.mesh.thinInstanceSetBuffer('matrix', new Float32Array(0), 16, false);
+    }
+  }
+  setVisible(v) { this.mesh.isVisible = v; }
+}
+
+// ============================================================
+// LASER BEAM VISUALIZATION (live rays, fade)
+// ============================================================
+class BeamViz {
+  constructor(scene, maxBeams = 32) {
+    this.maxBeams = maxBeams;
+    this.lines = [];
+    this.colors = [];
+    for (let i = 0; i < maxBeams; i++) {
+      this.lines.push([new BABYLON.Vector3(0, 0, 0), new BABYLON.Vector3(0, 0, 0)]);
+      this.colors.push([new BABYLON.Color4(0, 0, 0, 0), new BABYLON.Color4(0, 0, 0, 0)]);
+    }
+    this.mesh = BABYLON.MeshBuilder.CreateLineSystem('beams', {
+      lines: this.lines, colors: this.colors, updatable: true,
+    }, scene);
+    this.mesh.alphaIndex = 4;
+    this.mesh.isPickable = false;
+    this.mesh.renderingGroupId = 1;
+    this.beamLifetime = []; // per slot, frames remaining
+    for (let i = 0; i < maxBeams; i++) this.beamLifetime.push(0);
+    this.next = 0;
+  }
+  pushBeam(start, end, hit) {
+    const i = this.next % this.maxBeams;
+    this.lines[i][0].copyFrom(start);
+    this.lines[i][1].copyFrom(end);
+    this.beamLifetime[i] = 14; // frames
+    this._hit = hit;
+    this.next++;
+  }
+  update() {
+    let any = false;
+    for (let i = 0; i < this.maxBeams; i++) {
+      if (this.beamLifetime[i] > 0) {
+        const a = this.beamLifetime[i] / 14;
+        this.colors[i][0].set(0.4, 0.95, 1.0, a * 0.8);
+        this.colors[i][1].set(1.0, 0.6, 0.3, a * 0.4);
+        this.beamLifetime[i]--;
+        any = true;
+      } else {
+        this.colors[i][0].set(0, 0, 0, 0);
+        this.colors[i][1].set(0, 0, 0, 0);
+      }
+    }
+    BABYLON.MeshBuilder.CreateLineSystem('beams', {
+      lines: this.lines, colors: this.colors, instance: this.mesh,
+    });
+    return any;
+  }
+  setVisible(v) { this.mesh.isVisible = v; }
+}
+
+// ============================================================
+// TRAIL (estimated and ground truth paths)
+// ============================================================
+class Trail {
+  constructor(scene, color, name = 'trail') {
+    this.scene = scene;
+    this.color = color;
+    this.points = [];
+    this.mesh = null;
+    this.name = name;
+  }
+  add(p) {
+    this.points.push(p.clone());
+    this.refresh();
+  }
+  refresh() {
+    if (this.mesh) { this.mesh.dispose(); this.mesh = null; }
+    if (this.points.length < 2) return;
+    this.mesh = BABYLON.MeshBuilder.CreateLines(this.name, {
+      points: this.points,
+      updatable: false,
+    }, this.scene);
+    this.mesh.color = this.color;
+    this.mesh.alphaIndex = 6;
+    this.mesh.isPickable = false;
+    this.mesh.renderingGroupId = 1;
+  }
+  setLast(p) {
+    if (this.points.length === 0) { this.add(p); return; }
+    this.points[this.points.length - 1].copyFrom(p);
+    this.refresh();
+  }
+  setVisible(v) { if (this.mesh) this.mesh.isVisible = v; }
+  clear() {
+    if (this.mesh) { this.mesh.dispose(); this.mesh = null; }
+    this.points.length = 0;
+  }
+}
+
+// ============================================================
+// SCANNER MARKERS
+// ============================================================
+function makeScanner(scene) {
+  // True pose marker — solid green core
+  const trueCore = BABYLON.MeshBuilder.CreateSphere('trueCore', { diameter: 0.32, segments: 16 }, scene);
+  const trueMat = new BABYLON.StandardMaterial('trueMat', scene);
+  trueMat.emissiveColor = C.truth;
+  trueMat.disableLighting = true;
+  trueCore.material = trueMat;
+  trueCore.renderingGroupId = 1;
+
+  const trueDir = BABYLON.MeshBuilder.CreateCylinder('trueDir', { height: 0.5, diameterTop: 0, diameterBottom: 0.18 }, scene);
+  trueDir.material = trueMat;
+  trueDir.renderingGroupId = 1;
+  trueDir.parent = trueCore;
+  trueDir.rotation.z = -Math.PI / 2;
+  trueDir.position.x = 0.3;
+
+  // Estimated pose marker — orange wireframe shell
+  const estCore = BABYLON.MeshBuilder.CreateSphere('estCore', { diameter: 0.55, segments: 12 }, scene);
+  const estMat = new BABYLON.StandardMaterial('estMat', scene);
+  estMat.emissiveColor = C.hot;
+  estMat.disableLighting = true;
+  estMat.wireframe = true;
+  estMat.alpha = 0.7;
+  estCore.material = estMat;
+  estCore.renderingGroupId = 1;
+
+  const estDir = BABYLON.MeshBuilder.CreateCylinder('estDir', { height: 0.7, diameterTop: 0, diameterBottom: 0.22 }, scene);
+  const estDirMat = new BABYLON.StandardMaterial('estDirMat', scene);
+  estDirMat.emissiveColor = C.hot;
+  estDirMat.disableLighting = true;
+  estDirMat.alpha = 0.55;
+  estDir.material = estDirMat;
+  estDir.renderingGroupId = 1;
+  estDir.parent = estCore;
+  estDir.rotation.z = -Math.PI / 2;
+  estDir.position.x = 0.45;
+
+  return { trueCore, estCore };
+}
+const scanner = makeScanner(scene);
+
+// ============================================================
+// SLAM SIMULATION
+// ============================================================
+const pointCloud = new PointCloud(scene, 80000);
+const voxelMap = new VoxelMap(scene, 0.28);
+const beamViz = new BeamViz(scene, 32);
+const trueTrail = new Trail(scene, C.truth, 'trueTrail');
+const estTrail = new Trail(scene, C.hot, 'estTrail');
+
+const SCANNER_HEIGHT = 1.15;
+
+const sim = {
+  truePose: { x: 0, y: SCANNER_HEIGHT, z: 0, yaw: 0 },
+  estPose:  { x: 0, y: SCANNER_HEIGHT, z: 0, yaw: 0 },
+  scanIdx: 0,
+  hSteps: 240,                                        // horizontal angular steps
+  vChannels: 12,                                      // vertical beam channels
+  vSpread: Math.PI * 0.42,                            // ±21°
+  maxRange: 14,
+  currentScan: [],                                    // local-frame points captured this scan
+  scanCount: 0,
+  state: 'scanning',                                  // 'scanning' | 'icp' | 'moving' | 'done'
+  rayCounter: 0,
+  rayCounterDisplay: 0,
+  rayCounterTimer: performance.now(),
+  paused: false,
+  movement: null,
+  icpInfo: '—',
+  driftAtStart: 0,
+  showStatus: false,
+};
+
+// Path of waypoints (true target poses) — picked to stay in clear space
+sim.waypoints = [
+  { x:  0,   z:  0,   yaw: 0 },
+  { x:  2.5, z: -1.0, yaw: 0.6 },
+  { x:  3.5, z:  1.2, yaw: 1.4 },
+  { x:  1.0, z:  2.8, yaw: 2.2 },
+  { x: -2.0, z:  3.0, yaw: 3.0 },
+  { x: -3.5, z:  0.5, yaw: 3.7 },
+  { x: -2.0, z: -2.5, yaw: 4.5 },
+  { x:  0.5, z: -3.5, yaw: 5.4 },
+  { x:  3.0, z: -2.0, yaw: 0.3 },
+];
+sim.waypointIdx = 0;
+sim.lastBeamPushFrame = 0;
+
+trueTrail.add(new BABYLON.Vector3(sim.truePose.x, 0.06, sim.truePose.z));
+estTrail.add(new BABYLON.Vector3(sim.estPose.x, 0.07, sim.estPose.z));
+
+// ----- Pose math helpers -----
+function applyPose2D(p, pose) {
+  const c = Math.cos(pose.yaw), s = Math.sin(pose.yaw);
+  return {
+    x: c * p.x - s * p.z + pose.x,
+    y: p.y + (pose.y - SCANNER_HEIGHT),
+    z: s * p.x + c * p.z + pose.z,
+  };
+}
+function inversePose2D(world, pose) {
+  const c = Math.cos(-pose.yaw), s = Math.sin(-pose.yaw);
+  const dx = world.x - pose.x, dz = world.z - pose.z;
+  return {
+    x: c * dx - s * dz,
+    y: world.y - (pose.y),
+    z: s * dx + c * dz,
+  };
+}
+
+// ----- Fire one slice (one horizontal angle, all vertical channels) -----
+function fireSlice(angleIdx) {
+  const hAngle = (angleIdx / sim.hSteps) * Math.PI * 2;
+  const origin = new BABYLON.Vector3(sim.truePose.x, sim.truePose.y, sim.truePose.z);
+  const localPoints = [];
+  let sampleBeam = null;
+
+  for (let v = 0; v < sim.vChannels; v++) {
+    const vAngle = -sim.vSpread / 2 + (v / (sim.vChannels - 1)) * sim.vSpread;
+    const totalYaw = sim.truePose.yaw + hAngle;
+    const cv = Math.cos(vAngle), sv = Math.sin(vAngle);
+    const dir = new BABYLON.Vector3(
+      cv * Math.cos(totalYaw),
+      sv,
+      cv * Math.sin(totalYaw)
+    );
+    const ray = new BABYLON.Ray(origin, dir, sim.maxRange);
+    const hit = scene.pickWithRay(ray, m => roomMeshes.indexOf(m) !== -1);
+
+    sim.rayCounter++;
+
+    if (hit && hit.hit && hit.pickedPoint) {
+      // Range noise + slight angular noise simulated via offset along normal
+      const noise = (Math.random() - 0.5) * 0.025 + (Math.random() - 0.5) * 0.005;
+      const dist = hit.distance + noise;
+      const wp = origin.add(dir.scale(dist));
+      // Skip points too close to floor sometimes (cleaner viz)
+      if (wp.y < 0.04 && Math.random() < 0.6) continue;
+
+      // Express in sensor local frame
+      const lp = inversePose2D(wp, sim.truePose);
+      lp.y = wp.y - sim.truePose.y;
+      localPoints.push(lp);
+
+      if (sampleBeam === null && Math.random() < 0.35) {
+        sampleBeam = { start: origin.clone(), end: wp.clone() };
+      }
+    }
+  }
+
+  // Push at most one representative beam per slice for the viz (so it stays readable)
+  if (sampleBeam) {
+    beamViz.pushBeam(sampleBeam.start, sampleBeam.end, true);
+  }
+
+  return localPoints;
+}
+
+// ----- ICP (2D rigid: yaw + tx, tz) -----
+function runICP(worldPoints) {
+  // Returns correction transform applied to the input pose (in world frame).
+  if (voxelMap.voxels.size < 5) {
+    return { dx: 0, dz: 0, dyaw: 0, iters: 0, finalErr: 0 };
+  }
+  const stride = Math.max(1, Math.floor(worldPoints.length / 350));
+  const src = [];
+  for (let i = 0; i < worldPoints.length; i += stride) {
+    src.push({ x: worldPoints[i].x, y: worldPoints[i].y, z: worldPoints[i].z });
+  }
+
+  const maxIter = 14;
+  const maxDist = 1.0;
+  let cumDx = 0, cumDz = 0, cumYaw = 0;
+  let lastErr = 0;
+  let iter = 0;
+
+  for (iter = 0; iter < maxIter; iter++) {
+    const pairs = [];
+    let totalErr = 0;
+    for (const p of src) {
+      const t = voxelMap.nearest(p, maxDist);
+      if (t) {
+        pairs.push({ s: p, t });
+        const ddx = t.x - p.x, ddz = t.z - p.z;
+        totalErr += ddx * ddx + ddz * ddz;
+      }
+    }
+    if (pairs.length < 6) break;
+
+    let mx = 0, mz = 0, tx = 0, tz = 0;
+    for (const c of pairs) { mx += c.s.x; mz += c.s.z; tx += c.t.x; tz += c.t.z; }
+    mx /= pairs.length; mz /= pairs.length;
+    tx /= pairs.length; tz /= pairs.length;
+
+    let sxy = 0, sxx = 0;
+    for (const c of pairs) {
+      const dsx = c.s.x - mx, dsz = c.s.z - mz;
+      const dtx = c.t.x - tx, dtz = c.t.z - tz;
+      sxy += dsx * dtz - dsz * dtx;
+      sxx += dsx * dtx + dsz * dtz;
+    }
+    const theta = Math.atan2(sxy, sxx);
+    const ct = Math.cos(theta), st = Math.sin(theta);
+    const Tx = tx - (ct * mx - st * mz);
+    const Tz = tz - (st * mx + ct * mz);
+
+    // apply step to source points
+    for (const p of src) {
+      const nx = ct * p.x - st * p.z + Tx;
+      const nz = st * p.x + ct * p.z + Tz;
+      p.x = nx; p.z = nz;
+    }
+
+    // compose: cumulative = step ∘ cumulative
+    const ncx = ct * cumDx - st * cumDz + Tx;
+    const ncz = st * cumDx + ct * cumDz + Tz;
+    cumDx = ncx; cumDz = ncz; cumYaw += theta;
+
+    lastErr = Math.sqrt(totalErr / pairs.length);
+    if (Math.abs(theta) < 5e-4 && (Math.abs(Tx) + Math.abs(Tz)) < 3e-3) {
+      iter++;
+      break;
+    }
+  }
+  return { dx: cumDx, dz: cumDz, dyaw: cumYaw, iters: iter, finalErr: lastErr };
+}
+
+// ----- Scan completion: fold the new scan into the global map (with ICP correction) -----
+function completeScan() {
+  // 1) Project local points to world using current ESTIMATED pose
+  const worldPts = sim.currentScan.map(p => applyPose2D(p, sim.estPose));
+  worldPts.forEach((wp, i) => { wp.y = sim.currentScan[i].y + sim.estPose.y; });
+
+  // 2) Run ICP against existing voxel map
+  const icp = runICP(worldPts);
+
+  // 3) Apply the correction to the estimated pose:
+  //    new_world_point = R(dyaw) * old_world_point + (dx, dz)
+  //    so:  new_estPose = correction ∘ estPose
+  if (icp.iters > 0) {
+    const c = Math.cos(icp.dyaw), s = Math.sin(icp.dyaw);
+    const npx = c * sim.estPose.x - s * sim.estPose.z + icp.dx;
+    const npz = s * sim.estPose.x + c * sim.estPose.z + icp.dz;
+    sim.estPose.x = npx;
+    sim.estPose.z = npz;
+    sim.estPose.yaw += icp.dyaw;
+    // also correct world points before insertion
+    for (const p of worldPts) {
+      const nx = c * p.x - s * p.z + icp.dx;
+      const nz = s * p.x + c * p.z + icp.dz;
+      p.x = nx; p.z = nz;
+    }
+  }
+  sim.icpInfo = (icp.iters > 0)
+    ? `${icp.iters}× · err ${icp.finalErr.toFixed(3)}`
+    : 'first scan';
+
+  // 4) Insert into point cloud and voxel map. Color-code by scan index (wrapping HSV).
+  const hue = (sim.scanCount * 47) % 360;
+  const cc = hsvToRgb(hue / 360, 0.55, 1.0);
+  const baseColor = { r: cc.r, g: cc.g, b: cc.b, a: 1 };
+
+  for (const p of worldPts) {
+    // tint a bit with height
+    const h = Math.max(0, Math.min(1, p.y / ROOM.h));
+    const r = baseColor.r * (0.55 + h * 0.45);
+    const g = baseColor.g * (0.6 + h * 0.4);
+    const b = Math.min(1, baseColor.b * (0.7 + h * 0.3) + 0.05);
+    pointCloud.addPoint(p.x, p.y, p.z, { r, g, b, a: 1 });
+    voxelMap.addPoint(p.x, p.y, p.z);
+  }
+  pointCloud.flush();
+  voxelMap.flush();
+
+  estTrail.add(new BABYLON.Vector3(sim.estPose.x, 0.07, sim.estPose.z));
+  sim.scanCount++;
+
+  // Advance to next waypoint
+  sim.waypointIdx++;
+  if (sim.waypointIdx >= sim.waypoints.length) {
+    sim.state = 'done';
+    setStatus('MAP CONVERGED', 'Scan complete · ' + sim.scanCount + ' registrations', false);
+    setTimeout(() => hideStatus(), 1800);
+    return;
+  }
+  startMovement();
+}
+
+function startMovement() {
+  const target = sim.waypoints[sim.waypointIdx];
+
+  // True motion: smooth move from current to target
+  const trueFrom = { ...sim.truePose };
+  const trueTo = {
+    x: target.x, y: SCANNER_HEIGHT, z: target.z, yaw: target.yaw,
+  };
+
+  // Estimated motion: applies same intended delta but with noise added
+  const dx = trueTo.x - trueFrom.x;
+  const dz = trueTo.z - trueFrom.z;
+  let dyaw = trueTo.yaw - trueFrom.yaw;
+  while (dyaw > Math.PI) dyaw -= Math.PI * 2;
+  while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+
+  const dist = Math.hypot(dx, dz);
+  const noiseT = 0.10 * dist + 0.06;
+  const noiseR = 0.08;
+  const ndx = dx + (Math.random() - 0.5) * noiseT;
+  const ndz = dz + (Math.random() - 0.5) * noiseT;
+  const ndyaw = dyaw + (Math.random() - 0.5) * noiseR;
+
+  sim.movement = {
+    trueFrom, trueTo,
+    estFrom: { ...sim.estPose },
+    estTo: {
+      x: sim.estPose.x + ndx,
+      y: SCANNER_HEIGHT,
+      z: sim.estPose.z + ndz,
+      yaw: sim.estPose.yaw + ndyaw,
+    },
+    t: 0,
+    speed: 0.45 / Math.max(1, dist),  // ~ 1/dist  → uniform speed
+  };
+  sim.state = 'moving';
+  setStatus('TRAVERSING', 'Odometry drifting · awaiting next scan', false);
+}
+
+function startScan() {
+  sim.scanIdx = 0;
+  sim.currentScan = [];
+  sim.state = 'scanning';
+  // record drift at start of scan
+  sim.driftAtStart = Math.hypot(sim.truePose.x - sim.estPose.x, sim.truePose.z - sim.estPose.z);
+  setStatus('SCANNING', 'Sweeping ' + sim.hSteps + '° × ' + sim.vChannels + 'ch beam array', true);
+}
+
+// ----- Status overlay -----
+const ssEl = document.getElementById('status-strip');
+const ssHead = document.getElementById('ss-head');
+const ssSub = document.getElementById('ss-sub');
+let statusTimer = 0;
+function setStatus(head, sub, persistent) {
+  ssHead.textContent = head;
+  ssSub.textContent = sub;
+  ssEl.classList.add('show');
+  if (!persistent) {
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => ssEl.classList.remove('show'), 1500);
+  }
+}
+function hideStatus() { ssEl.classList.remove('show'); }
+
+// ----- Color helpers -----
+function hsvToRgb(h, s, v) {
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+  switch (i % 6) {
+    case 0: return { r: v, g: t, b: p };
+    case 1: return { r: q, g: v, b: p };
+    case 2: return { r: p, g: v, b: t };
+    case 3: return { r: p, g: q, b: v };
+    case 4: return { r: t, g: p, b: v };
+    case 5: return { r: v, g: p, b: q };
+  }
+}
+
+// ----- UI references -----
+const ui = {
+  state: document.getElementById('t-state'),
+  scan: document.getElementById('t-scan'),
+  rps: document.getElementById('t-rps'),
+  pts: document.getElementById('t-pts'),
+  vox: document.getElementById('t-vox'),
+  truePos: document.getElementById('t-true'),
+  estPos: document.getElementById('t-est'),
+  drift: document.getElementById('t-drift'),
+  icp: document.getElementById('t-icp'),
+  prog: document.getElementById('t-prog'),
+};
+
+function updateUI() {
+  let lbl;
+  switch (sim.state) {
+    case 'scanning': lbl = 'SCANNING'; break;
+    case 'moving':   lbl = 'TRAVERSE'; break;
+    case 'done':     lbl = 'COMPLETE'; break;
+    default:         lbl = sim.state.toUpperCase();
+  }
+  ui.state.textContent = lbl;
+  ui.state.className = 'val ' + (sim.state === 'scanning' ? 'truth' : sim.state === 'moving' ? 'hot' : 'warn');
+
+  ui.scan.textContent = String(sim.scanCount).padStart(3, '0');
+
+  const now = performance.now();
+  const elapsed = (now - sim.rayCounterTimer) / 1000;
+  if (elapsed > 0.4) {
+    sim.rayCounterDisplay = Math.round(sim.rayCounter / elapsed);
+    sim.rayCounter = 0;
+    sim.rayCounterTimer = now;
+  }
+  ui.rps.textContent = sim.rayCounterDisplay.toLocaleString();
+
+  ui.pts.textContent = pointCloud.count.toLocaleString();
+  ui.vox.textContent = voxelMap.voxels.size.toLocaleString();
+
+  ui.truePos.textContent = `${sim.truePose.x.toFixed(2)}, ${sim.truePose.z.toFixed(2)}`;
+  ui.estPos.textContent = `${sim.estPose.x.toFixed(2)}, ${sim.estPose.z.toFixed(2)}`;
+  const drift = Math.hypot(sim.truePose.x - sim.estPose.x, sim.truePose.z - sim.estPose.z);
+  ui.drift.textContent = drift.toFixed(3) + ' m';
+  ui.drift.className = 'val ' + (drift < 0.1 ? 'truth' : drift < 0.4 ? 'warn' : 'hot');
+
+  ui.icp.textContent = sim.icpInfo;
+
+  const prog = sim.state === 'scanning'
+    ? sim.scanIdx / sim.hSteps
+    : (sim.movement ? sim.movement.t : 1);
+  ui.prog.style.width = (prog * 100).toFixed(1) + '%';
+}
+
+// ----- Main loop -----
+scene.onBeforeRenderObservable.add(() => {
+  if (sim.paused) {
+    updateUI();
+    return;
+  }
+
+  if (sim.state === 'scanning') {
+    const slicesPerFrame = 5;
+    for (let i = 0; i < slicesPerFrame; i++) {
+      if (sim.scanIdx >= sim.hSteps) break;
+      const pts = fireSlice(sim.scanIdx);
+      for (const p of pts) sim.currentScan.push(p);
+      sim.scanIdx++;
+    }
+    if (sim.scanIdx >= sim.hSteps) {
+      completeScan();
+    }
+  } else if (sim.state === 'moving' && sim.movement) {
+    const m = sim.movement;
+    m.t += engine.getDeltaTime() / 1000 * m.speed * 4.0;
+    if (m.t > 1) m.t = 1;
+
+    // ease-in-out
+    const eased = m.t < 0.5
+      ? 2 * m.t * m.t
+      : 1 - Math.pow(-2 * m.t + 2, 2) / 2;
+
+    sim.truePose.x = m.trueFrom.x + (m.trueTo.x - m.trueFrom.x) * eased;
+    sim.truePose.z = m.trueFrom.z + (m.trueTo.z - m.trueFrom.z) * eased;
+    let dy = m.trueTo.yaw - m.trueFrom.yaw;
+    while (dy > Math.PI) dy -= Math.PI * 2;
+    while (dy < -Math.PI) dy += Math.PI * 2;
+    sim.truePose.yaw = m.trueFrom.yaw + dy * eased;
+
+    sim.estPose.x = m.estFrom.x + (m.estTo.x - m.estFrom.x) * eased;
+    sim.estPose.z = m.estFrom.z + (m.estTo.z - m.estFrom.z) * eased;
+    let edy = m.estTo.yaw - m.estFrom.yaw;
+    while (edy > Math.PI) edy -= Math.PI * 2;
+    while (edy < -Math.PI) edy += Math.PI * 2;
+    sim.estPose.yaw = m.estFrom.yaw + edy * eased;
+
+    // Update last trail point smoothly
+    trueTrail.points[trueTrail.points.length - 1].set(sim.truePose.x, 0.06, sim.truePose.z);
+
+    if (m.t >= 1) {
+      sim.movement = null;
+      // Lock in trail point and start new segment
+      trueTrail.add(new BABYLON.Vector3(sim.truePose.x, 0.06, sim.truePose.z));
+      startScan();
+    } else {
+      trueTrail.refresh();
+    }
+  }
+
+  // Update scanner markers
+  scanner.trueCore.position.set(sim.truePose.x, sim.truePose.y, sim.truePose.z);
+  scanner.trueCore.rotation.y = -sim.truePose.yaw;
+  scanner.estCore.position.set(sim.estPose.x, sim.estPose.y, sim.estPose.z);
+  scanner.estCore.rotation.y = -sim.estPose.yaw;
+
+  // Beam fade
+  beamViz.update();
+
+  updateUI();
+});
+
+// ----- Init: kick off first scan -----
+startScan();
+
+// ============================================================
+// CONTROLS
+// ============================================================
+const btnPause = document.getElementById('btn-pause');
+const btnReset = document.getElementById('btn-reset');
+const btnRoom = document.getElementById('btn-room');
+const btnPoints = document.getElementById('btn-points');
+const btnMesh = document.getElementById('btn-mesh');
+const btnRays = document.getElementById('btn-rays');
+const btnTrail = document.getElementById('btn-trail');
+
+btnPause.addEventListener('click', () => {
+  sim.paused = !sim.paused;
+  btnPause.textContent = sim.paused ? '▶ RESUME' : '⏸ PAUSE';
+  btnPause.classList.toggle('active', sim.paused);
+});
+
+btnReset.addEventListener('click', () => resetSimulation());
+
+function toggleBtn(btn, fn) {
+  btn.addEventListener('click', () => {
+    btn.classList.toggle('active');
+    fn(btn.classList.contains('active'));
+  });
+}
+toggleBtn(btnRoom, on => { roomGroup.setEnabled(on); });
+toggleBtn(btnPoints, on => { pointCloud.mesh.isVisible = on; });
+toggleBtn(btnMesh, on => { voxelMap.setVisible(on); });
+toggleBtn(btnRays, on => { beamViz.setVisible(on); });
+toggleBtn(btnTrail, on => {
+  trueTrail.setVisible(on);
+  estTrail.setVisible(on);
+});
+
+function resetSimulation() {
+  sim.truePose = { x: 0, y: SCANNER_HEIGHT, z: 0, yaw: 0 };
+  sim.estPose = { x: 0, y: SCANNER_HEIGHT, z: 0, yaw: 0 };
+  sim.scanCount = 0;
+  sim.waypointIdx = 0;
+  sim.movement = null;
+  sim.icpInfo = '—';
+  sim.rayCounter = 0;
+  pointCloud.clear();
+  voxelMap.clear();
+  trueTrail.clear();
+  estTrail.clear();
+  trueTrail.add(new BABYLON.Vector3(0, 0.06, 0));
+  estTrail.add(new BABYLON.Vector3(0, 0.07, 0));
+  startScan();
+}
+
+// ============================================================
+// RESIZE
+// ============================================================
+window.addEventListener('resize', () => engine.resize());
+
+// ============================================================
+// RENDER LOOP
+// ============================================================
+engine.runRenderLoop(() => scene.render());
+
+// (Initial show-status pulse)
+setStatus('LiDAR ONLINE', 'Initializing 360° volumetric scan…', false);
+
+</script>
+</body>
+</html>

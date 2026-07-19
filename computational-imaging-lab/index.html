@@ -1,0 +1,2034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Computational Imaging Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #07080b;
+  --bg-1: #0c0e13;
+  --bg-2: #11141b;
+  --bg-3: #161a22;
+  --border: #1c2029;
+  --border-strong: #2a2f3a;
+  --grid: rgba(140, 160, 200, 0.04);
+  --text: #d6dae2;
+  --text-dim: #8a909c;
+  --text-faint: #555a66;
+  --text-mute: #3c414b;
+  --cyan:    oklch(0.80 0.14 200);
+  --amber:   oklch(0.80 0.14 70);
+  --magenta: oklch(0.78 0.18 340);
+  --green:   oklch(0.80 0.14 145);
+  --red:     oklch(0.72 0.20 25);
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --sans: 'Space Grotesk', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow: hidden;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: 48px 1fr 22px;
+  height: 100vh;
+}
+
+/* ---------- HEADER ---------- */
+header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 16px;
+  background: linear-gradient(180deg, var(--bg-1), var(--bg));
+  border-bottom: 1px solid var(--border);
+  gap: 24px;
+}
+.brand {
+  display: flex; align-items: center; gap: 12px;
+  font-family: var(--sans);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.brand .glyph {
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  position: relative;
+}
+.brand .glyph::before {
+  content: ''; position: absolute; inset: -3px;
+  border: 1px solid var(--cyan); opacity: 0.18;
+}
+.brand .title { font-size: 13px; }
+.brand .sub { color: var(--text-faint); font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; }
+
+.source-tabs {
+  display: flex; gap: 0;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-1);
+}
+.source-tabs button {
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  border-right: 1px solid var(--border-strong);
+  padding: 7px 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: 0.12s;
+  display: flex; align-items: center; gap: 8px;
+}
+.source-tabs button:last-child { border-right: none; }
+.source-tabs button:hover { color: var(--text); background: var(--bg-2); }
+.source-tabs button.active {
+  color: var(--bg);
+  background: var(--cyan);
+}
+.source-tabs button .dot {
+  width: 6px; height: 6px; background: currentColor; opacity: 0.7;
+}
+
+.status-readout {
+  justify-self: end;
+  display: flex; align-items: center; gap: 16px;
+  color: var(--text-faint);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.status-readout .pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+}
+.status-readout .pill .label { color: var(--text-mute); }
+.status-readout .pill .val { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.status-readout .live {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: blink 1.6s infinite;
+}
+@keyframes blink { 50% { opacity: 0.3; } }
+
+/* ---------- WORKSPACE ---------- */
+.workspace {
+  display: grid;
+  grid-template-columns: 340px 1fr 360px;
+  gap: 0;
+  overflow: hidden;
+}
+
+aside.controls, aside.analysis {
+  background: var(--bg-1);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+aside.analysis { border-right: none; border-left: 1px solid var(--border); }
+
+aside::-webkit-scrollbar { width: 8px; }
+aside::-webkit-scrollbar-track { background: transparent; }
+aside::-webkit-scrollbar-thumb { background: var(--border-strong); }
+
+/* ---------- PANEL SECTIONS ---------- */
+.panel {
+  border-bottom: 1px solid var(--border);
+  padding: 14px 16px;
+}
+.panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.panel-head .h {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+.panel-head .h .idx {
+  font-size: 9px;
+  color: var(--text-mute);
+  padding: 2px 5px;
+  border: 1px solid var(--border-strong);
+  letter-spacing: 0.05em;
+}
+.panel-head .h .name { color: var(--text); }
+
+/* toggle switch */
+.toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.toggle .box {
+  width: 26px; height: 14px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-strong);
+  position: relative;
+  transition: 0.15s;
+}
+.toggle .box::after {
+  content: '';
+  position: absolute;
+  top: 1px; left: 1px;
+  width: 10px; height: 10px;
+  background: var(--text-faint);
+  transition: 0.15s;
+}
+.toggle.on .box { border-color: var(--cyan); background: color-mix(in oklch, var(--cyan) 18%, var(--bg-3)); }
+.toggle.on .box::after { left: 13px; background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+.toggle .lbl { font-size: 10px; color: var(--text-faint); letter-spacing: 0.06em; }
+
+/* sliders */
+.ctl-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 10px;
+}
+.ctl-row .name {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+.ctl-row .val {
+  font-size: 11px;
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+  min-width: 50px;
+  text-align: right;
+}
+.ctl-row.disabled .name, .ctl-row.disabled .val { color: var(--text-mute); }
+
+.slider {
+  grid-column: 1 / -1;
+  -webkit-appearance: none; appearance: none;
+  width: 100%;
+  height: 18px;
+  background: transparent;
+  cursor: pointer;
+  margin-top: -2px;
+}
+.slider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--bg-3);
+  border: none;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px; height: 14px;
+  background: var(--cyan);
+  border: none; margin-top: -6px;
+  box-shadow: 0 0 6px color-mix(in oklch, var(--cyan) 60%, transparent);
+}
+.slider::-moz-range-track { height: 2px; background: var(--bg-3); border: none; }
+.slider::-moz-range-thumb { width: 10px; height: 14px; background: var(--cyan); border: none; border-radius: 0; }
+.slider.disabled::-webkit-slider-thumb { background: var(--text-mute); box-shadow: none; }
+
+/* segmented control */
+.seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  border: 1px solid var(--border-strong);
+  margin: 6px 0 4px;
+}
+.seg button {
+  background: transparent;
+  color: var(--text-faint);
+  border: none;
+  border-right: 1px solid var(--border-strong);
+  padding: 6px 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.seg button:last-child { border-right: none; }
+.seg button:hover { color: var(--text); }
+.seg button.active {
+  background: var(--cyan);
+  color: var(--bg);
+}
+
+/* aperture preview */
+.aperture-preview {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.aperture-preview canvas { background: #000; image-rendering: pixelated; }
+.aperture-preview .meta {
+  font-size: 10px;
+  color: var(--text-faint);
+  letter-spacing: 0.05em;
+}
+.aperture-preview .meta .row { display: flex; justify-content: space-between; gap: 12px; }
+.aperture-preview .meta .v { color: var(--amber); }
+
+/* ---------- VIEWPORT ---------- */
+main.viewport {
+  display: grid;
+  grid-template-rows: 32px 1fr 28px;
+  background: var(--bg);
+  position: relative;
+}
+.viewport-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-1);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+.viewport-head .crosshair {
+  display: flex; gap: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.viewport-head .crosshair span { color: var(--text-dim); }
+
+.canvas-area {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  padding: 16px;
+  align-items: center;
+  justify-items: center;
+  overflow: hidden;
+}
+.frame {
+  position: relative;
+  background: #000;
+  border: 1px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  max-width: 100%;
+  max-height: 100%;
+}
+.frame canvas { display: block; image-rendering: auto; max-width: 100%; max-height: 100%; }
+.frame .tag {
+  position: absolute;
+  top: 8px; left: 8px;
+  padding: 3px 8px;
+  background: rgba(0,0,0,0.7);
+  border: 1px solid var(--border-strong);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  z-index: 2;
+}
+.frame .tag.after { color: var(--cyan); border-color: color-mix(in oklch, var(--cyan) 40%, var(--border-strong)); }
+.frame .corner {
+  position: absolute; width: 14px; height: 14px;
+  border: 1px solid var(--cyan);
+  opacity: 0.45;
+  pointer-events: none;
+}
+.frame .corner.tl { top: 4px; left: 4px; border-right: none; border-bottom: none; }
+.frame .corner.tr { top: 4px; right: 4px; border-left: none; border-bottom: none; }
+.frame .corner.bl { bottom: 4px; left: 4px; border-right: none; border-top: none; }
+.frame .corner.br { bottom: 4px; right: 4px; border-left: none; border-top: none; }
+
+.frame .focus-marker {
+  position: absolute;
+  width: 28px; height: 28px;
+  border: 1px solid var(--amber);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.frame .focus-marker.show { opacity: 0.8; }
+.frame .focus-marker::before, .frame .focus-marker::after {
+  content: ''; position: absolute; background: var(--amber);
+}
+.frame .focus-marker::before { top: 50%; left: -4px; right: -4px; height: 1px; transform: translateY(-50%); }
+.frame .focus-marker::after { left: 50%; top: -4px; bottom: -4px; width: 1px; transform: translateX(-50%); }
+
+.viewport-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-1);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+.viewport-foot .stages {
+  display: flex; gap: 0;
+}
+.viewport-foot .stage {
+  padding: 4px 10px;
+  border-right: 1px solid var(--border);
+  display: flex; align-items: center; gap: 6px;
+  color: var(--text-mute);
+}
+.viewport-foot .stage:last-child { border-right: none; }
+.viewport-foot .stage.on { color: var(--text); }
+.viewport-foot .stage.on .dot { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+.viewport-foot .stage .dot { width: 5px; height: 5px; background: var(--text-mute); }
+
+/* ---------- ANALYSIS PANEL ---------- */
+.analysis-panel {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.analysis-panel .head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.analysis-panel .head .title {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.analysis-panel .head .sub {
+  font-size: 10px;
+  color: var(--text-mute);
+  letter-spacing: 0.06em;
+}
+
+.fft-wrap {
+  position: relative;
+  background: #000;
+  border: 1px solid var(--border-strong);
+  aspect-ratio: 1;
+}
+.fft-wrap canvas {
+  width: 100%; height: 100%;
+  display: block;
+  image-rendering: pixelated;
+}
+.fft-wrap .axes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.fft-wrap .axes::before, .fft-wrap .axes::after {
+  content: '';
+  position: absolute;
+  background: rgba(255,255,255,0.08);
+}
+.fft-wrap .axes::before { left: 50%; top: 0; bottom: 0; width: 1px; }
+.fft-wrap .axes::after { top: 50%; left: 0; right: 0; height: 1px; }
+.fft-wrap .corner-label {
+  position: absolute;
+  font-size: 9px;
+  color: var(--text-mute);
+  letter-spacing: 0.05em;
+  padding: 2px 4px;
+  background: rgba(0,0,0,0.5);
+}
+.fft-wrap .corner-label.tl { top: 4px; left: 4px; }
+.fft-wrap .corner-label.br { bottom: 4px; right: 4px; }
+
+.fft-legend {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--text-faint);
+  letter-spacing: 0.05em;
+}
+.fft-legend .gradient {
+  flex: 1;
+  height: 8px;
+  background: linear-gradient(90deg,
+    #000 0%,
+    #1a0030 12%,
+    #2a0560 22%,
+    #4b1392 35%,
+    #8d2480 50%,
+    #d83565 65%,
+    #f47a3a 78%,
+    #f5c63e 90%,
+    #fef7c2 100%
+  );
+}
+
+.hist-wrap {
+  background: #000;
+  border: 1px solid var(--border-strong);
+  height: 90px;
+  position: relative;
+}
+.hist-wrap canvas { width: 100%; height: 100%; display: block; }
+.hist-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  margin-top: 8px;
+  font-size: 10px;
+  border: 1px solid var(--border);
+}
+.hist-stats div {
+  padding: 6px 8px;
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.hist-stats div:last-child { border-right: none; }
+.hist-stats .k { color: var(--text-mute); letter-spacing: 0.05em; font-size: 9px; }
+.hist-stats .v { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* pipeline graph */
+.pipeline-graph {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+.node {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  gap: 10px;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+.node.on {
+  border-color: color-mix(in oklch, var(--cyan) 40%, var(--border));
+  background: color-mix(in oklch, var(--cyan) 6%, var(--bg-2));
+}
+.node .num { color: var(--text-mute); font-size: 10px; }
+.node.on .num { color: var(--cyan); }
+.node .nm { color: var(--text-dim); text-transform: uppercase; }
+.node.on .nm { color: var(--text); }
+.node .ms { color: var(--text-mute); font-variant-numeric: tabular-nums; font-size: 10px; }
+.node.on .ms { color: var(--amber); }
+.connector {
+  width: 1px; height: 6px;
+  background: var(--border-strong);
+  margin-left: 18px;
+}
+.connector.on { background: var(--cyan); }
+
+/* footer */
+.app-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px;
+  background: var(--bg-1);
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--text-mute);
+  letter-spacing: 0.06em;
+}
+.app-footer .left, .app-footer .right { display: flex; gap: 16px; }
+.app-footer .sep { color: var(--text-mute); }
+.app-footer .k { color: var(--text-mute); }
+.app-footer .v { color: var(--text-dim); }
+
+input[type=file] { display: none; }
+
+/* drop indicator */
+.drop-overlay {
+  position: fixed; inset: 0;
+  background: rgba(10,12,18,0.85);
+  border: 2px dashed var(--cyan);
+  display: none;
+  align-items: center; justify-content: center;
+  z-index: 50;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  color: var(--cyan);
+}
+.drop-overlay.on { display: flex; }
+
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="glyph">ξ</div>
+      <div>
+        <div class="title">COMPUTATIONAL IMAGING LAB</div>
+      </div>
+      <div class="sub">/ shader pipeline + frequency analysis</div>
+    </div>
+
+    <div class="source-tabs" id="sourceTabs">
+      <button data-src="sample-night"><span class="dot"></span>NIGHT SCENE</button>
+      <button data-src="sample-chart"><span class="dot"></span>RESOLUTION CHART</button>
+      <button data-src="upload"><span class="dot"></span>UPLOAD…</button>
+      <button data-src="webcam"><span class="dot"></span>WEBCAM</button>
+    </div>
+
+    <div class="status-readout">
+      <div class="pill"><span class="live"></span><span class="label">PIPE</span> <span class="val" id="stPipe">idle</span></div>
+      <div class="pill"><span class="label">FPS</span> <span class="val" id="stFps">--</span></div>
+      <div class="pill"><span class="label">FRAME</span> <span class="val" id="stMs">--</span></div>
+    </div>
+  </header>
+
+  <div class="workspace">
+
+    <!-- LEFT CONTROLS -->
+    <aside class="controls" id="controls">
+      <!-- 1. HDR -->
+      <div class="panel" data-effect="hdr">
+        <div class="panel-head">
+          <div class="h"><span class="idx">01</span><span class="name">EXPOSURE FUSION / HDR</span></div>
+          <div class="toggle on" data-toggle="hdr"><span class="box"></span><span class="lbl">ON</span></div>
+        </div>
+        <div class="ctl-row"><span class="name">UNDER-EV</span><span class="val" data-readout="hdrLow">−1.50</span>
+          <input class="slider" type="range" min="-3" max="0" step="0.05" value="-1.5" data-param="hdrLow">
+        </div>
+        <div class="ctl-row"><span class="name">MID-EV</span><span class="val" data-readout="hdrMid">+0.20</span>
+          <input class="slider" type="range" min="-1" max="1" step="0.05" value="0.2" data-param="hdrMid">
+        </div>
+        <div class="ctl-row"><span class="name">OVER-EV</span><span class="val" data-readout="hdrHigh">+1.40</span>
+          <input class="slider" type="range" min="0" max="3" step="0.05" value="1.4" data-param="hdrHigh">
+        </div>
+        <div class="ctl-row"><span class="name">TONE-MAP</span><span class="val" data-readout="tone">aces</span></div>
+        <div class="seg" data-param="tone">
+          <button data-val="reinhard">REINHARD</button>
+          <button class="active" data-val="aces">ACES</button>
+          <button data-val="hable">HABLE</button>
+        </div>
+        <div class="ctl-row" style="margin-top:8px"><span class="name">FUSION σ</span><span class="val" data-readout="hdrSigma">0.20</span>
+          <input class="slider" type="range" min="0.05" max="0.5" step="0.01" value="0.2" data-param="hdrSigma">
+        </div>
+      </div>
+
+      <!-- 2. WIENER -->
+      <div class="panel" data-effect="deblur">
+        <div class="panel-head">
+          <div class="h"><span class="idx">02</span><span class="name">WIENER DECONVOLUTION</span></div>
+          <div class="toggle on" data-toggle="deblur"><span class="box"></span><span class="lbl">ON</span></div>
+        </div>
+        <div class="ctl-row"><span class="name">PSF RADIUS</span><span class="val" data-readout="psf">1.80 px</span>
+          <input class="slider" type="range" min="0.5" max="4" step="0.05" value="1.8" data-param="psf">
+        </div>
+        <div class="ctl-row"><span class="name">NOISE K</span><span class="val" data-readout="wienerK">0.020</span>
+          <input class="slider" type="range" min="0.001" max="0.2" step="0.001" value="0.02" data-param="wienerK">
+        </div>
+        <div class="ctl-row"><span class="name">SHARPEN</span><span class="val" data-readout="sharpAmt">1.10×</span>
+          <input class="slider" type="range" min="0" max="2.5" step="0.05" value="1.1" data-param="sharpAmt">
+        </div>
+        <div class="ctl-row"><span class="name">PSF MODEL</span><span class="val" data-readout="psfModel">gauss</span></div>
+        <div class="seg" data-param="psfModel">
+          <button class="active" data-val="gauss">GAUSS</button>
+          <button data-val="disk">DISK</button>
+          <button data-val="motion">MOTION</button>
+        </div>
+      </div>
+
+      <!-- 3. DENOISE -->
+      <div class="panel" data-effect="denoise">
+        <div class="panel-head">
+          <div class="h"><span class="idx">03</span><span class="name">MULTI-FRAME NIGHT MODE</span></div>
+          <div class="toggle on" data-toggle="denoise"><span class="box"></span><span class="lbl">ON</span></div>
+        </div>
+        <div class="ctl-row"><span class="name">FRAMES STACKED</span><span class="val" data-readout="frames">8</span>
+          <input class="slider" type="range" min="1" max="16" step="1" value="8" data-param="frames">
+        </div>
+        <div class="ctl-row"><span class="name">EDGE PRESERVE</span><span class="val" data-readout="bilat">0.18</span>
+          <input class="slider" type="range" min="0.02" max="1" step="0.01" value="0.18" data-param="bilat">
+        </div>
+        <div class="ctl-row"><span class="name">NIGHT BOOST</span><span class="val" data-readout="boost">+0.35</span>
+          <input class="slider" type="range" min="0" max="1.5" step="0.05" value="0.35" data-param="boost">
+        </div>
+        <div class="ctl-row"><span class="name">CHROMA NR</span><span class="val" data-readout="chroma">0.50</span>
+          <input class="slider" type="range" min="0" max="1" step="0.05" value="0.5" data-param="chroma">
+        </div>
+      </div>
+
+      <!-- 4. BOKEH -->
+      <div class="panel" data-effect="bokeh">
+        <div class="panel-head">
+          <div class="h"><span class="idx">04</span><span class="name">COMPUTATIONAL BOKEH</span></div>
+          <div class="toggle on" data-toggle="bokeh"><span class="box"></span><span class="lbl">ON</span></div>
+        </div>
+        <div class="ctl-row"><span class="name">APERTURE</span><span class="val" data-readout="aperture">disk</span></div>
+        <div class="seg" data-param="aperture">
+          <button class="active" data-val="disk">DISK</button>
+          <button data-val="hex">HEX</button>
+          <button data-val="star">STAR</button>
+          <button data-val="anam">ANAM</button>
+        </div>
+        <div class="ctl-row" style="margin-top:10px"><span class="name">f / STOP</span><span class="val" data-readout="fstop">f/2.0</span>
+          <input class="slider" type="range" min="0.5" max="11" step="0.1" value="2.0" data-param="fstop">
+        </div>
+        <div class="ctl-row"><span class="name">BLADES</span><span class="val" data-readout="blades">6</span>
+          <input class="slider" type="range" min="3" max="12" step="1" value="6" data-param="blades">
+        </div>
+        <div class="ctl-row"><span class="name">HIGHLIGHT</span><span class="val" data-readout="hilight">1.6×</span>
+          <input class="slider" type="range" min="1" max="4" step="0.1" value="1.6" data-param="hilight">
+        </div>
+        <div class="aperture-preview">
+          <canvas id="apCanvas" width="80" height="80"></canvas>
+          <div class="meta">
+            <div class="row"><span>SAMPLES</span><span class="v" id="apSamples">48</span></div>
+            <div class="row"><span>COC MAX</span><span class="v" id="apCoc">14 px</span></div>
+            <div class="row"><span>SHAPE</span><span class="v" id="apShape">disk</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. REFOCUS -->
+      <div class="panel" data-effect="refocus">
+        <div class="panel-head">
+          <div class="h"><span class="idx">05</span><span class="name">LIGHT-FIELD REFOCUS</span></div>
+          <div class="toggle on" data-toggle="refocus"><span class="box"></span><span class="lbl">ON</span></div>
+        </div>
+        <div class="ctl-row"><span class="name">FOCAL PLANE</span><span class="val" data-readout="focus">0.52</span>
+          <input class="slider" type="range" min="0" max="1" step="0.01" value="0.52" data-param="focus">
+        </div>
+        <div class="ctl-row"><span class="name">DOF</span><span class="val" data-readout="dof">0.18</span>
+          <input class="slider" type="range" min="0.02" max="0.6" step="0.01" value="0.18" data-param="dof">
+        </div>
+        <div class="ctl-row"><span class="name">DEPTH MODEL</span><span class="val" data-readout="depthModel">radial</span></div>
+        <div class="seg" data-param="depthModel">
+          <button class="active" data-val="radial">RADIAL</button>
+          <button data-val="luma">LUMA</button>
+          <button data-val="grad">GRAD</button>
+        </div>
+        <div class="ctl-row" style="margin-top:8px"><span class="name">PARALLAX</span><span class="val" data-readout="parallax">0.04</span>
+          <input class="slider" type="range" min="0" max="0.15" step="0.005" value="0.04" data-param="parallax">
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER VIEWPORT -->
+    <main class="viewport">
+      <div class="viewport-head">
+        <div>VIEWPORT · 1:1</div>
+        <div class="crosshair">
+          <span>X <b id="vpX">--</b></span>
+          <span>Y <b id="vpY">--</b></span>
+          <span>RGB <b id="vpRGB">--</b></span>
+          <span>LUMA <b id="vpL">--</b></span>
+        </div>
+      </div>
+      <div class="canvas-area">
+        <div class="frame" id="frameBefore">
+          <span class="tag">BEFORE · RAW</span>
+          <span class="corner tl"></span><span class="corner tr"></span>
+          <span class="corner bl"></span><span class="corner br"></span>
+          <canvas id="cvBefore" width="512" height="512"></canvas>
+        </div>
+        <div class="frame" id="frameAfter">
+          <span class="tag after">AFTER · PROCESSED</span>
+          <span class="corner tl"></span><span class="corner tr"></span>
+          <span class="corner bl"></span><span class="corner br"></span>
+          <canvas id="cvAfter" width="512" height="512"></canvas>
+          <div class="focus-marker" id="focusMarker"></div>
+        </div>
+      </div>
+      <div class="viewport-foot">
+        <div class="stages" id="stageStrip">
+          <div class="stage on" data-st="hdr"><span class="dot"></span><span>HDR</span></div>
+          <div class="stage on" data-st="deblur"><span class="dot"></span><span>WIENER</span></div>
+          <div class="stage on" data-st="denoise"><span class="dot"></span><span>NR-8</span></div>
+          <div class="stage on" data-st="bokeh"><span class="dot"></span><span>BOKEH</span></div>
+          <div class="stage on" data-st="refocus"><span class="dot"></span><span>REFOC</span></div>
+        </div>
+        <div>BUFFERS A↔B · 512×512 · RGBA16F</div>
+      </div>
+    </main>
+
+    <!-- RIGHT ANALYSIS -->
+    <aside class="analysis">
+      <div class="analysis-panel">
+        <div class="head">
+          <div>
+            <div class="title">FOURIER MAGNITUDE</div>
+            <div class="sub">log|F(u,v)| · centered · 128²</div>
+          </div>
+          <div class="sub" id="fftMode">AFTER</div>
+        </div>
+        <div class="fft-wrap">
+          <canvas id="cvFFT" width="128" height="128"></canvas>
+          <div class="axes"></div>
+          <div class="corner-label tl">DC</div>
+          <div class="corner-label br">f<sub>N</sub></div>
+        </div>
+        <div class="fft-legend">
+          <span>0</span>
+          <div class="gradient"></div>
+          <span>max</span>
+        </div>
+        <div class="seg" id="fftSourceSeg" style="margin-top:10px">
+          <button data-fft="after" class="active">AFTER</button>
+          <button data-fft="before">BEFORE</button>
+          <button data-fft="diff">DIFF</button>
+        </div>
+      </div>
+
+      <div class="analysis-panel">
+        <div class="head">
+          <div>
+            <div class="title">LUMINANCE HISTOGRAM</div>
+            <div class="sub">256 bins · post-pipeline</div>
+          </div>
+        </div>
+        <div class="hist-wrap">
+          <canvas id="cvHist" width="256" height="90"></canvas>
+        </div>
+        <div class="hist-stats">
+          <div><span class="k">μ</span><span class="v" id="hMean">--</span></div>
+          <div><span class="k">σ</span><span class="v" id="hStd">--</span></div>
+          <div><span class="k">CLIP↑</span><span class="v" id="hHi">--</span></div>
+          <div><span class="k">CLIP↓</span><span class="v" id="hLo">--</span></div>
+        </div>
+      </div>
+
+      <div class="analysis-panel">
+        <div class="head">
+          <div>
+            <div class="title">PIPELINE</div>
+            <div class="sub">render graph · per-pass timing</div>
+          </div>
+        </div>
+        <div class="pipeline-graph" id="pipelineGraph"></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="app-footer">
+    <div class="left">
+      <span><span class="k">DEVICE</span> · <span class="v" id="fGPU">WebGL2</span></span>
+      <span class="sep">·</span>
+      <span><span class="k">PRECISION</span> · <span class="v">highp float</span></span>
+      <span class="sep">·</span>
+      <span><span class="k">SAMPLER</span> · <span class="v">LINEAR / CLAMP</span></span>
+    </div>
+    <div class="right">
+      <span><span class="k">FFT</span> · <span class="v">CT-radix-2 · 128²</span></span>
+      <span class="sep">·</span>
+      <span><span class="k">COLORSPACE</span> · <span class="v">sRGB ↔ linear</span></span>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept="image/*">
+<div class="drop-overlay" id="dropOverlay">DROP IMAGE TO LOAD</div>
+
+<script>
+/* =====================================================================
+   COMPUTATIONAL IMAGING LAB
+   Single-file WebGL2 pipeline + JS FFT
+   ===================================================================== */
+
+const PROC = 512;     // processing resolution
+const FFT_N = 128;    // FFT dimension (must be power of 2)
+const LOG2_FFT = Math.log2(FFT_N);
+
+/* ---------- Parameters (live state) ---------- */
+const params = {
+  on: { hdr: true, deblur: true, denoise: true, bokeh: true, refocus: true },
+  hdrLow: -1.5, hdrMid: 0.2, hdrHigh: 1.4, hdrSigma: 0.20, tone: 'aces',
+  psf: 1.8, wienerK: 0.02, sharpAmt: 1.1, psfModel: 'gauss',
+  frames: 8, bilat: 0.18, boost: 0.35, chroma: 0.5,
+  aperture: 'disk', fstop: 2.0, blades: 6, hilight: 1.6,
+  focus: 0.52, dof: 0.18, depthModel: 'radial', parallax: 0.04,
+  fftSource: 'after',
+  source: 'sample-night',
+};
+
+/* ---------- WebGL2 setup ---------- */
+const cvBefore = document.getElementById('cvBefore');
+const cvAfter  = document.getElementById('cvAfter');
+const cvFFT    = document.getElementById('cvFFT');
+const cvHist   = document.getElementById('cvHist');
+const apCanvas = document.getElementById('apCanvas');
+
+cvBefore.width = cvBefore.height = PROC;
+cvAfter.width  = cvAfter.height  = PROC;
+cvFFT.width    = cvFFT.height    = FFT_N;
+
+const gl = cvAfter.getContext('webgl2', { preserveDrawingBuffer: false, premultipliedAlpha: false });
+const ctxBefore = cvBefore.getContext('2d');
+const ctxFFT    = cvFFT.getContext('2d');
+const ctxHist   = cvHist.getContext('2d');
+const ctxAp     = apCanvas.getContext('2d');
+
+if (!gl) {
+  document.body.innerHTML = '<div style="color:#fff;padding:40px;font-family:monospace">WebGL2 required.</div>';
+  throw new Error('No WebGL2');
+}
+
+const extCBF = gl.getExtension('EXT_color_buffer_float');
+gl.getExtension('OES_texture_float_linear');
+
+/* ---------- shader helpers ---------- */
+function compile(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(sh), src);
+    throw new Error('Shader compile error');
+  }
+  return sh;
+}
+function program(vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(p));
+    throw new Error('Program link error');
+  }
+  return p;
+}
+
+const VERT = `#version 300 es
+in vec2 aPos;
+out vec2 vUv;
+void main(){
+  vUv = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+
+const FRAG_HEAD = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 oCol;
+uniform sampler2D uTex;
+uniform vec2 uRes;
+`;
+
+/* ---------- Shaders ---------- */
+
+const FS_COPY = FRAG_HEAD + `
+void main(){ oCol = texture(uTex, vUv); }`;
+
+// HDR exposure fusion + tone-map
+const FS_HDR = FRAG_HEAD + `
+uniform float uLow, uMid, uHigh, uSigma;
+uniform int uTone;
+vec3 srgbToLin(vec3 c){ return pow(c, vec3(2.2)); }
+vec3 linToSrgb(vec3 c){ return pow(max(c, 0.0), vec3(1.0/2.2)); }
+float wellExposed(vec3 c){
+  vec3 d = c - vec3(0.5);
+  float s = uSigma;
+  return exp(-(d.r*d.r + d.g*d.g + d.b*d.b)/(2.0*s*s));
+}
+vec3 reinhard(vec3 x){ return x/(1.0+x); }
+vec3 aces(vec3 x){
+  // Narkowicz ACES
+  float a=2.51, b=0.03, c=2.43, d=0.59, e=0.14;
+  return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+}
+vec3 hable(vec3 x){
+  float A=0.15,B=0.50,C=0.10,D=0.20,E=0.02,F=0.30;
+  return ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;
+}
+void main(){
+  vec3 base = srgbToLin(texture(uTex, vUv).rgb);
+  // simulate 3 exposures by EV multipliers
+  vec3 eL = base * pow(2.0, uLow);
+  vec3 eM = base * pow(2.0, uMid);
+  vec3 eH = base * pow(2.0, uHigh);
+  // tone-map each to display range to compute weights
+  vec3 tL = clamp(eL, 0.0, 4.0)/(1.0+clamp(eL, 0.0, 4.0));
+  vec3 tM = clamp(eM, 0.0, 4.0)/(1.0+clamp(eM, 0.0, 4.0));
+  vec3 tH = clamp(eH, 0.0, 4.0)/(1.0+clamp(eH, 0.0, 4.0));
+  float wL = wellExposed(tL);
+  float wM = wellExposed(tM) * 1.2;
+  float wH = wellExposed(tH);
+  // contrast weight
+  float cL = length(tL - vec3(dot(tL, vec3(0.2126,0.7152,0.0722))));
+  float cH = length(tH - vec3(dot(tH, vec3(0.2126,0.7152,0.0722))));
+  wL *= 0.5 + cL;
+  wH *= 0.5 + cH;
+  float wsum = wL + wM + wH + 1e-5;
+  vec3 fused = (eL*wL + eM*wM + eH*wH) / wsum;
+  vec3 tm;
+  if (uTone == 0) tm = reinhard(fused);
+  else if (uTone == 1) tm = aces(fused);
+  else tm = hable(fused) / hable(vec3(11.2));
+  oCol = vec4(linToSrgb(tm), 1.0);
+}`;
+
+// Wiener-style spatial deblur (separable Gaussian + frequency-style attenuation)
+const FS_DEBLUR = FRAG_HEAD + `
+uniform float uPsf, uK, uAmt;
+uniform int uModel;
+void main(){
+  vec2 px = 1.0/uRes;
+  vec3 c0 = texture(uTex, vUv).rgb;
+  // 3x3 directional blur for the PSF estimate
+  vec3 blur = vec3(0.0);
+  float wsum = 0.0;
+  for (int j=-2;j<=2;j++){
+    for (int i=-2;i<=2;i++){
+      vec2 d = vec2(float(i), float(j));
+      float r2;
+      if (uModel == 0) {            // gaussian
+        r2 = dot(d,d) / (uPsf*uPsf);
+      } else if (uModel == 1) {     // disk
+        float r = length(d);
+        r2 = (r <= uPsf) ? 0.0 : (r-uPsf)*(r-uPsf)*4.0;
+      } else {                      // motion blur (horizontal)
+        r2 = (d.y*d.y)*8.0 + max(0.0, abs(d.x)-uPsf)*max(0.0, abs(d.x)-uPsf)*4.0;
+      }
+      float w = exp(-r2);
+      blur += texture(uTex, vUv + d*px).rgb * w;
+      wsum += w;
+    }
+  }
+  blur /= wsum;
+  vec3 hi = c0 - blur;
+  // Wiener-style attenuation: scale high-frequency by H*/(|H|^2 + K)
+  // |H| ~ 1/(1+psf), gives gain = (1+psf)/(1 + K*(1+psf))
+  float Hmag = 1.0/(1.0 + 0.3*uPsf);
+  float gain = (1.0/Hmag) / (1.0 + uK/(Hmag*Hmag));
+  vec3 result = c0 + hi * uAmt * gain;
+  oCol = vec4(clamp(result, 0.0, 1.5), 1.0);
+}`;
+
+// Multi-frame denoise (bilateral + simulated frame stack via patch averaging)
+const FS_DENOISE = FRAG_HEAD + `
+uniform float uFrames, uBilat, uBoost, uChroma;
+vec3 rgb2ycc(vec3 c){
+  float y = dot(c, vec3(0.299,0.587,0.114));
+  float cb = (c.b - y)*0.564;
+  float cr = (c.r - y)*0.713;
+  return vec3(y, cb, cr);
+}
+vec3 ycc2rgb(vec3 v){
+  float r = v.x + 1.403*v.z;
+  float g = v.x - 0.344*v.y - 0.714*v.z;
+  float b = v.x + 1.773*v.y;
+  return vec3(r,g,b);
+}
+void main(){
+  vec2 px = 1.0/uRes;
+  vec3 c0 = texture(uTex, vUv).rgb;
+  vec3 yc0 = rgb2ycc(c0);
+  // Bilateral with σ scaled by 1/√N (multi-frame noise reduction)
+  float invSqrtN = 1.0 / sqrt(max(uFrames, 1.0));
+  float sigmaR = max(uBilat * invSqrtN, 0.012);
+  vec3 sumY = vec3(0.0);
+  vec3 sumC = vec3(0.0);
+  float wY = 0.0, wC = 0.0;
+  for (int j=-3;j<=3;j++){
+    for (int i=-3;i<=3;i++){
+      vec2 off = vec2(float(i), float(j))*px;
+      vec3 s = texture(uTex, vUv + off).rgb;
+      vec3 ys = rgb2ycc(s);
+      float dY = ys.x - yc0.x;
+      float dS = float(i*i + j*j) / 12.0;
+      // luminance bilateral
+      float wy = exp(-(dY*dY)/(2.0*sigmaR*sigmaR) - dS);
+      // chroma stronger smoothing
+      float wc = exp(-dS * (1.0 - uChroma*0.7));
+      sumY += vec3(ys.x) * wy;
+      sumC += vec3(0.0, ys.y, ys.z) * wc;
+      wY += wy;
+      wC += wc;
+    }
+  }
+  vec3 outY = sumY / wY;
+  vec3 outC = sumC / wC;
+  float yFinal = mix(yc0.x, outY.x, 1.0);
+  vec3 ycc = vec3(yFinal, outC.y, outC.z);
+  // night boost (lift shadows in luminance)
+  float lift = uBoost * (1.0 - smoothstep(0.0, 0.55, ycc.x));
+  ycc.x += lift;
+  vec3 rgb = ycc2rgb(ycc);
+  oCol = vec4(clamp(rgb, 0.0, 1.5), 1.0);
+}`;
+
+// Computational bokeh — sampled aperture with shape + highlight bloom
+const FS_BOKEH = FRAG_HEAD + `
+uniform float uRadius, uHilight, uFstop, uBlades;
+uniform int uShape;
+uniform sampler2D uOrig;   // pre-bokeh image for highlight extraction
+#define SAMPLES 48
+#define PI 3.14159265
+float apertureMask(vec2 p){
+  // p in [-1,1]
+  if (uShape == 0) {                   // disk
+    return length(p) <= 1.0 ? 1.0 : 0.0;
+  } else if (uShape == 1) {            // hex (6-blade polygon)
+    float n = uBlades;
+    float a = atan(p.y, p.x);
+    float r = length(p);
+    float ap = cos(PI/n) / cos(mod(a, 2.0*PI/n) - PI/n);
+    return r <= ap ? 1.0 : 0.0;
+  } else if (uShape == 2) {            // star
+    float n = uBlades;
+    float a = atan(p.y, p.x);
+    float r = length(p);
+    float k = mod(a*n*0.5, 2.0) - 1.0;
+    float ap = 0.55 + 0.45 * (1.0 - abs(k));
+    return r <= ap ? 1.0 : 0.0;
+  } else {                             // anamorphic ellipse
+    return (p.x*p.x*0.25 + p.y*p.y) <= 1.0 ? 1.0 : 0.0;
+  }
+}
+void main(){
+  vec2 px = 1.0/uRes;
+  // radius in pixels — wider aperture (smaller f) -> bigger CoC
+  float radius = uRadius;
+  vec3 sum = vec3(0.0);
+  float wsum = 0.0;
+  // golden-angle spiral
+  float phi = 2.39996;
+  for (int i=0; i<SAMPLES; i++){
+    float fi = float(i);
+    float t = fi / float(SAMPLES);
+    float r = sqrt(t);
+    float a = fi * phi;
+    vec2 d = vec2(cos(a), sin(a)) * r;
+    float m = apertureMask(d);
+    if (m < 0.5) continue;
+    vec2 off = d * radius * px;
+    vec3 s = texture(uTex, vUv + off).rgb;
+    // boost bright highlights for bokeh balls
+    vec3 orig = texture(uOrig, vUv + off).rgb;
+    float lum = dot(orig, vec3(0.2126,0.7152,0.0722));
+    float boost = 1.0 + (uHilight - 1.0) * smoothstep(0.65, 1.0, lum);
+    sum += s * boost;
+    wsum += 1.0;
+  }
+  vec3 col = sum / max(wsum, 1.0);
+  oCol = vec4(col, 1.0);
+}`;
+
+// Light-field refocus: variable blur driven by synthesized depth
+const FS_REFOCUS = FRAG_HEAD + `
+uniform float uFocus, uDof, uParallax;
+uniform int uDepthModel;
+uniform sampler2D uOrig;
+float depthAt(vec2 uv){
+  if (uDepthModel == 0) {
+    // radial: deepest at edges, focused in center if focus=0.5
+    return length(uv - vec2(0.5)) * 1.414;
+  } else if (uDepthModel == 1) {
+    // luma depth: bright = near
+    vec3 c = texture(uOrig, uv).rgb;
+    return 1.0 - dot(c, vec3(0.2126,0.7152,0.0722));
+  } else {
+    // gradient: depth from edge density
+    vec2 px = 1.0/uRes;
+    float gx = length(texture(uOrig, uv + vec2(px.x,0)).rgb - texture(uOrig, uv - vec2(px.x,0)).rgb);
+    float gy = length(texture(uOrig, uv + vec2(0,px.y)).rgb - texture(uOrig, uv - vec2(0,px.y)).rgb);
+    return clamp(1.0 - (gx+gy)*2.0, 0.0, 1.0);
+  }
+}
+void main(){
+  vec2 px = 1.0/uRes;
+  float d = depthAt(vUv);
+  float dist = abs(d - uFocus);
+  float coc = smoothstep(uDof*0.5, uDof*2.0, dist);
+  // sub-aperture parallax shift (light-field-ish)
+  vec2 shift = (vUv - 0.5) * uParallax * (d - uFocus);
+  vec3 base = texture(uTex, vUv + shift).rgb;
+  // adaptive blur radius
+  float r = coc * 6.0;
+  vec3 sum = base;
+  float wsum = 1.0;
+  for (int i=1; i<=6; i++){
+    float a = float(i) * 1.0472; // 60deg
+    vec2 dir = vec2(cos(a), sin(a)) * r * px;
+    sum += texture(uTex, vUv + dir + shift).rgb;
+    sum += texture(uTex, vUv - dir + shift).rgb;
+    wsum += 2.0;
+  }
+  vec3 blurred = sum / wsum;
+  // mix between sharp & blurred by coc
+  vec3 result = mix(base, blurred, coc);
+  oCol = vec4(result, 1.0);
+}`;
+
+/* ---------- Build programs ---------- */
+const progCopy    = program(VERT, FS_COPY);
+const progHDR     = program(VERT, FS_HDR);
+const progDeblur  = program(VERT, FS_DEBLUR);
+const progDenoise = program(VERT, FS_DENOISE);
+const progBokeh   = program(VERT, FS_BOKEH);
+const progRefocus = program(VERT, FS_REFOCUS);
+
+/* ---------- Geometry: fullscreen triangle ---------- */
+const vao = gl.createVertexArray();
+gl.bindVertexArray(vao);
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+// bind attribute 0 in each program (we used location-less; do it for each)
+for (const p of [progCopy, progHDR, progDeblur, progDenoise, progBokeh, progRefocus]) {
+  gl.bindAttribLocation(p, 0, 'aPos');
+}
+
+/* ---------- Framebuffers / textures ---------- */
+function makeTex(w, h) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+function makeFBO(w, h) {
+  const tex = makeTex(w, h);
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  return { tex, fbo };
+}
+const srcTex = makeTex(PROC, PROC);  // source upload
+const fboA = makeFBO(PROC, PROC);
+const fboB = makeFBO(PROC, PROC);
+const fboOrig = makeFBO(PROC, PROC); // post-HDR snapshot for bokeh highlight ref
+
+/* ---------- Draw helpers ---------- */
+function bindUniformTex(prog, name, tex, unit) {
+  gl.activeTexture(gl.TEXTURE0 + unit);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  const loc = gl.getUniformLocation(prog, name);
+  if (loc) gl.uniform1i(loc, unit);
+}
+function setRes(prog) {
+  gl.uniform2f(gl.getUniformLocation(prog, 'uRes'), PROC, PROC);
+}
+function pass(prog, inputTex, targetFBO, setup) {
+  gl.bindFramebuffer(gl.FRAMEBUFFER, targetFBO);
+  gl.viewport(0, 0, PROC, PROC);
+  gl.useProgram(prog);
+  bindUniformTex(prog, 'uTex', inputTex, 0);
+  setRes(prog);
+  if (setup) setup(prog);
+  gl.bindVertexArray(vao);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+/* ---------- Source loading ---------- */
+function uploadSource(canvasOrImg) {
+  gl.bindTexture(gl.TEXTURE_2D, srcTex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvasOrImg);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  // also draw to "before" canvas (2D, no flip)
+  ctxBefore.fillStyle = '#000';
+  ctxBefore.fillRect(0, 0, PROC, PROC);
+  // fit canvas/image, centered
+  const w = canvasOrImg.width || canvasOrImg.videoWidth;
+  const h = canvasOrImg.height || canvasOrImg.videoHeight;
+  const scale = Math.min(PROC/w, PROC/h);
+  const dw = w*scale, dh = h*scale;
+  ctxBefore.drawImage(canvasOrImg, (PROC-dw)/2, (PROC-dh)/2, dw, dh);
+  // and re-upload from the letterboxed 2D canvas so GL matches
+  gl.bindTexture(gl.TEXTURE_2D, srcTex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cvBefore);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+}
+
+/* ---------- Procedural sample images ---------- */
+function makeNightScene() {
+  const c = document.createElement('canvas');
+  c.width = c.height = PROC;
+  const x = c.getContext('2d');
+  // Sky gradient
+  const g = x.createLinearGradient(0, 0, 0, PROC);
+  g.addColorStop(0, '#06081a');
+  g.addColorStop(0.55, '#1a1230');
+  g.addColorStop(0.85, '#3d1a44');
+  g.addColorStop(1, '#5a2138');
+  x.fillStyle = g;
+  x.fillRect(0, 0, PROC, PROC);
+  // Moon
+  const mx = PROC*0.72, my = PROC*0.22;
+  const mg = x.createRadialGradient(mx, my, 0, mx, my, 60);
+  mg.addColorStop(0, 'rgba(255,250,225,1)');
+  mg.addColorStop(0.5, 'rgba(255,245,205,0.8)');
+  mg.addColorStop(1, 'rgba(255,240,180,0)');
+  x.fillStyle = mg;
+  x.fillRect(0, 0, PROC, PROC);
+  // Stars
+  for (let i=0; i<160; i++){
+    const sx = Math.random()*PROC, sy = Math.random()*PROC*0.6;
+    const sr = Math.random()*1.2 + 0.2;
+    const a = Math.random()*0.7 + 0.2;
+    x.fillStyle = `rgba(255,255,235,${a})`;
+    x.fillRect(sx, sy, sr, sr);
+  }
+  // City silhouette + windows
+  const buildings = [
+    [0, 0.55, 0.13, 0.45],
+    [0.13, 0.62, 0.10, 0.38],
+    [0.23, 0.50, 0.16, 0.50],
+    [0.39, 0.68, 0.08, 0.32],
+    [0.47, 0.58, 0.14, 0.42],
+    [0.61, 0.65, 0.10, 0.35],
+    [0.71, 0.55, 0.12, 0.45],
+    [0.83, 0.62, 0.09, 0.38],
+    [0.92, 0.70, 0.08, 0.30],
+  ];
+  for (const [bx, by, bw, bh] of buildings) {
+    x.fillStyle = '#070710';
+    x.fillRect(bx*PROC, by*PROC, bw*PROC, bh*PROC);
+    // windows
+    const cols = Math.floor(bw*PROC/14);
+    const rows = Math.floor(bh*PROC/18);
+    for (let r=0; r<rows; r++) {
+      for (let cc=0; cc<cols; cc++) {
+        if (Math.random() > 0.55) continue;
+        const wx = bx*PROC + 4 + cc*14;
+        const wy = by*PROC + 6 + r*18;
+        const hue = Math.random();
+        x.fillStyle = hue < 0.7 ? 'rgba(255,210,120,0.95)' : 'rgba(180,200,255,0.85)';
+        x.fillRect(wx, wy, 5, 7);
+      }
+    }
+  }
+  // ground / water reflection
+  const wg = x.createLinearGradient(0, PROC*0.9, 0, PROC);
+  wg.addColorStop(0, 'rgba(0,0,0,0)');
+  wg.addColorStop(1, 'rgba(50,30,60,0.7)');
+  x.fillStyle = wg;
+  x.fillRect(0, PROC*0.9, PROC, PROC*0.1);
+  // light blobs (highlights for bokeh)
+  for (let i=0; i<14; i++){
+    const lx = Math.random()*PROC;
+    const ly = PROC*0.6 + Math.random()*PROC*0.35;
+    const lr = 3 + Math.random()*5;
+    const lg = x.createRadialGradient(lx, ly, 0, lx, ly, lr*4);
+    lg.addColorStop(0, 'rgba(255,200,120,1)');
+    lg.addColorStop(0.3, 'rgba(255,200,120,0.6)');
+    lg.addColorStop(1, 'rgba(255,200,120,0)');
+    x.fillStyle = lg;
+    x.fillRect(lx-lr*4, ly-lr*4, lr*8, lr*8);
+  }
+  // noise
+  const id = x.getImageData(0, 0, PROC, PROC);
+  for (let i=0; i<id.data.length; i+=4){
+    const n = (Math.random()-0.5)*32;
+    id.data[i] = clamp8(id.data[i] + n);
+    id.data[i+1] = clamp8(id.data[i+1] + n);
+    id.data[i+2] = clamp8(id.data[i+2] + n);
+  }
+  x.putImageData(id, 0, 0);
+  // very slight motion blur to simulate handheld
+  return c;
+}
+function clamp8(v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
+
+function makeResChart() {
+  const c = document.createElement('canvas');
+  c.width = c.height = PROC;
+  const x = c.getContext('2d');
+  x.fillStyle = '#1a1f28';
+  x.fillRect(0, 0, PROC, PROC);
+  // grid
+  x.strokeStyle = '#262d38';
+  for (let i=0; i<PROC; i+=32) {
+    x.beginPath(); x.moveTo(i, 0); x.lineTo(i, PROC); x.stroke();
+    x.beginPath(); x.moveTo(0, i); x.lineTo(PROC, i); x.stroke();
+  }
+  // Frequency stripes (descending period)
+  for (let i=0; i<6; i++) {
+    const period = 80 - i*12;
+    const y = 40 + i*60;
+    for (let xx=20; xx<PROC-20; xx+=period) {
+      x.fillStyle = '#e6e9ee';
+      x.fillRect(xx, y, period/2, 36);
+    }
+    x.fillStyle = '#8a909c';
+    x.font = '14px JetBrains Mono';
+    x.fillText(period/2 + 'px', PROC-70, y+22);
+  }
+  // Circles
+  x.fillStyle = '#f4a83e';
+  x.beginPath(); x.arc(120, PROC-120, 50, 0, Math.PI*2); x.fill();
+  x.fillStyle = '#5fc8e0';
+  x.beginPath(); x.arc(260, PROC-120, 40, 0, Math.PI*2); x.fill();
+  x.fillStyle = '#e54e8b';
+  x.beginPath(); x.arc(380, PROC-120, 30, 0, Math.PI*2); x.fill();
+  // Diagonal lines for orientation
+  x.strokeStyle = '#f4a83e';
+  x.lineWidth = 2;
+  for (let i=0; i<8; i++) {
+    x.beginPath();
+    x.moveTo(PROC-180, PROC-200+i*8);
+    x.lineTo(PROC-40, PROC-100+i*8);
+    x.stroke();
+  }
+  // text label
+  x.fillStyle = '#c4cad4';
+  x.font = '20px JetBrains Mono';
+  x.fillText('USAF-1951 STYLE TARGET', 20, 30);
+  return c;
+}
+
+/* ---------- FFT (Cooley-Tukey, iterative) ---------- */
+function fft1d(re, im) {
+  const N = re.length;
+  // bit-reverse
+  for (let i=1, j=0; i<N; i++) {
+    let bit = N >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      let t = re[i]; re[i] = re[j]; re[j] = t;
+      t = im[i]; im[i] = im[j]; im[j] = t;
+    }
+  }
+  for (let len=2; len<=N; len <<= 1) {
+    const half = len >> 1;
+    const ang = -2*Math.PI/len;
+    const wpr = Math.cos(ang), wpi = Math.sin(ang);
+    for (let i=0; i<N; i+=len) {
+      let wr = 1, wi = 0;
+      for (let j=0; j<half; j++) {
+        const xr = re[i+j+half]*wr - im[i+j+half]*wi;
+        const xi = re[i+j+half]*wi + im[i+j+half]*wr;
+        re[i+j+half] = re[i+j] - xr;
+        im[i+j+half] = im[i+j] - xi;
+        re[i+j] = re[i+j] + xr;
+        im[i+j] = im[i+j] + xi;
+        const nwr = wr*wpr - wi*wpi;
+        wi = wr*wpi + wi*wpr;
+        wr = nwr;
+      }
+    }
+  }
+}
+function fft2d(re, im, N) {
+  const row = new Float64Array(N);
+  const irow = new Float64Array(N);
+  // rows
+  for (let y=0; y<N; y++) {
+    for (let x=0; x<N; x++) { row[x] = re[y*N+x]; irow[x] = im[y*N+x]; }
+    fft1d(row, irow);
+    for (let x=0; x<N; x++) { re[y*N+x] = row[x]; im[y*N+x] = irow[x]; }
+  }
+  // cols
+  for (let x=0; x<N; x++) {
+    for (let y=0; y<N; y++) { row[y] = re[y*N+x]; irow[y] = im[y*N+x]; }
+    fft1d(row, irow);
+    for (let y=0; y<N; y++) { re[y*N+x] = row[y]; im[y*N+x] = irow[y]; }
+  }
+}
+
+const fftRe = new Float64Array(FFT_N*FFT_N);
+const fftIm = new Float64Array(FFT_N*FFT_N);
+const fftImg = ctxFFT.createImageData(FFT_N, FFT_N);
+
+// downsampling canvas for FFT input
+const fftSrcCanvas = document.createElement('canvas');
+fftSrcCanvas.width = fftSrcCanvas.height = FFT_N;
+const fftSrcCtx = fftSrcCanvas.getContext('2d', { willReadFrequently: true });
+const fftSrcBefore = document.createElement('canvas');
+fftSrcBefore.width = fftSrcBefore.height = FFT_N;
+const fftSrcBeforeCtx = fftSrcBefore.getContext('2d', { willReadFrequently: true });
+
+// HSL gradient color map for FFT (cyan→magenta→amber→white)
+function fftColor(t) {
+  // t in [0,1]
+  // black → indigo → magenta → orange → pale
+  const stops = [
+    [0,    [0,0,0]],
+    [0.12, [16,4,40]],
+    [0.22, [40,8,90]],
+    [0.35, [80,20,145]],
+    [0.5,  [145,40,135]],
+    [0.65, [220,55,110]],
+    [0.78, [245,125,60]],
+    [0.9,  [250,200,80]],
+    [1.0,  [255,250,210]],
+  ];
+  for (let i=1; i<stops.length; i++) {
+    if (t <= stops[i][0]) {
+      const a = stops[i-1], b = stops[i];
+      const u = (t - a[0]) / (b[0] - a[0]);
+      return [
+        a[1][0] + (b[1][0]-a[1][0])*u | 0,
+        a[1][1] + (b[1][1]-a[1][1])*u | 0,
+        a[1][2] + (b[1][2]-a[1][2])*u | 0,
+      ];
+    }
+  }
+  return [255,255,255];
+}
+
+function computeFFT(srcCanvas) {
+  // downsample
+  fftSrcCtx.drawImage(srcCanvas, 0, 0, FFT_N, FFT_N);
+  const id = fftSrcCtx.getImageData(0, 0, FFT_N, FFT_N).data;
+  for (let i=0; i<FFT_N*FFT_N; i++) {
+    const r = id[i*4], g = id[i*4+1], b = id[i*4+2];
+    // luminance, windowed by Hann
+    const x = i % FFT_N, y = (i/FFT_N)|0;
+    const wx = 0.5 - 0.5*Math.cos(2*Math.PI*x/(FFT_N-1));
+    const wy = 0.5 - 0.5*Math.cos(2*Math.PI*y/(FFT_N-1));
+    const L = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
+    fftRe[i] = L * wx * wy;
+    fftIm[i] = 0;
+  }
+  fft2d(fftRe, fftIm, FFT_N);
+  // compute log magnitude, find max
+  const mag = new Float32Array(FFT_N*FFT_N);
+  let maxM = 0;
+  for (let i=0; i<FFT_N*FFT_N; i++) {
+    const m = Math.log(1 + Math.hypot(fftRe[i], fftIm[i]));
+    mag[i] = m;
+    if (m > maxM) maxM = m;
+  }
+  // shift zero-frequency to center + colorize
+  const half = FFT_N >> 1;
+  const dst = fftImg.data;
+  for (let y=0; y<FFT_N; y++) {
+    for (let x=0; x<FFT_N; x++) {
+      const sx = (x + half) % FFT_N;
+      const sy = (y + half) % FFT_N;
+      const v = mag[sy*FFT_N + sx] / (maxM + 1e-6);
+      const c = fftColor(Math.pow(v, 0.85));
+      const idx = (y*FFT_N + x) * 4;
+      dst[idx] = c[0];
+      dst[idx+1] = c[1];
+      dst[idx+2] = c[2];
+      dst[idx+3] = 255;
+    }
+  }
+  ctxFFT.putImageData(fftImg, 0, 0);
+}
+
+/* ---------- Histogram ---------- */
+function computeHistogram(canvas) {
+  // downsample to 256x256 for speed
+  const small = document.createElement('canvas');
+  small.width = small.height = 128;
+  small.getContext('2d').drawImage(canvas, 0, 0, 128, 128);
+  const id = small.getContext('2d').getImageData(0, 0, 128, 128).data;
+  const bins = new Uint32Array(256);
+  let sum = 0, sumSq = 0, hi = 0, lo = 0, count = 0;
+  for (let i=0; i<id.length; i+=4) {
+    const L = (0.2126*id[i] + 0.7152*id[i+1] + 0.0722*id[i+2]) | 0;
+    bins[L]++;
+    sum += L; sumSq += L*L; count++;
+    if (L >= 250) hi++;
+    if (L <= 5) lo++;
+  }
+  const mean = sum / count;
+  const std = Math.sqrt(sumSq/count - mean*mean);
+  // draw
+  let maxBin = 0;
+  for (let i=0; i<256; i++) if (bins[i] > maxBin) maxBin = bins[i];
+  ctxHist.fillStyle = '#000';
+  ctxHist.fillRect(0, 0, 256, 90);
+  // bg grid
+  ctxHist.strokeStyle = 'rgba(255,255,255,0.06)';
+  for (let i=64; i<256; i+=64) {
+    ctxHist.beginPath(); ctxHist.moveTo(i+0.5, 0); ctxHist.lineTo(i+0.5, 90); ctxHist.stroke();
+  }
+  // bars
+  for (let i=0; i<256; i++) {
+    const h = (bins[i] / maxBin) * 86;
+    const t = i/255;
+    ctxHist.fillStyle = `oklch(0.8 0.12 ${200 - t*160})`;
+    ctxHist.fillRect(i, 90 - h, 1, h);
+  }
+  // update stats
+  document.getElementById('hMean').textContent = mean.toFixed(1);
+  document.getElementById('hStd').textContent = std.toFixed(1);
+  document.getElementById('hHi').textContent = ((hi/count)*100).toFixed(2)+'%';
+  document.getElementById('hLo').textContent = ((lo/count)*100).toFixed(2)+'%';
+}
+
+/* ---------- Pipeline ---------- */
+const pipelineNodes = [
+  { id: 'hdr',     name: 'Exposure Fusion / HDR' },
+  { id: 'deblur',  name: 'Wiener Deconvolution' },
+  { id: 'denoise', name: 'Multi-Frame Denoise' },
+  { id: 'bokeh',   name: 'Computational Bokeh' },
+  { id: 'refocus', name: 'Light-Field Refocus' },
+];
+
+function renderPipelineGraph(timings) {
+  const root = document.getElementById('pipelineGraph');
+  root.innerHTML = '';
+  pipelineNodes.forEach((n, i) => {
+    if (i > 0) {
+      const conn = document.createElement('div');
+      conn.className = 'connector' + (params.on[pipelineNodes[i-1].id] ? ' on' : '');
+      root.appendChild(conn);
+    }
+    const div = document.createElement('div');
+    div.className = 'node' + (params.on[n.id] ? ' on' : '');
+    div.innerHTML = `
+      <span class="num">${String(i+1).padStart(2,'0')}</span>
+      <span class="nm">${n.name}</span>
+      <span class="ms">${params.on[n.id] ? (timings[n.id]?.toFixed(2) || '—') + ' ms' : 'BYPASS'}</span>
+    `;
+    root.appendChild(div);
+  });
+}
+
+const passTimings = {};
+
+function runPipeline() {
+  const t0 = performance.now();
+
+  // start: copy source -> A
+  pass(progCopy, srcTex, fboA.fbo);
+  let cur = fboA, nxt = fboB;
+  let firstActive = true;
+
+  // 1. HDR
+  if (params.on.hdr) {
+    const t = performance.now();
+    pass(progHDR, cur.tex, nxt.fbo, p => {
+      gl.uniform1f(gl.getUniformLocation(p, 'uLow'), params.hdrLow);
+      gl.uniform1f(gl.getUniformLocation(p, 'uMid'), params.hdrMid);
+      gl.uniform1f(gl.getUniformLocation(p, 'uHigh'), params.hdrHigh);
+      gl.uniform1f(gl.getUniformLocation(p, 'uSigma'), params.hdrSigma);
+      const toneMap = { reinhard: 0, aces: 1, hable: 2 }[params.tone];
+      gl.uniform1i(gl.getUniformLocation(p, 'uTone'), toneMap);
+    });
+    [cur, nxt] = [nxt, cur];
+    passTimings.hdr = performance.now() - t;
+  }
+
+  // 2. Wiener deblur
+  if (params.on.deblur) {
+    const t = performance.now();
+    pass(progDeblur, cur.tex, nxt.fbo, p => {
+      gl.uniform1f(gl.getUniformLocation(p, 'uPsf'), params.psf);
+      gl.uniform1f(gl.getUniformLocation(p, 'uK'), params.wienerK);
+      gl.uniform1f(gl.getUniformLocation(p, 'uAmt'), params.sharpAmt);
+      const m = { gauss: 0, disk: 1, motion: 2 }[params.psfModel];
+      gl.uniform1i(gl.getUniformLocation(p, 'uModel'), m);
+    });
+    [cur, nxt] = [nxt, cur];
+    passTimings.deblur = performance.now() - t;
+  }
+
+  // 3. Denoise
+  if (params.on.denoise) {
+    const t = performance.now();
+    pass(progDenoise, cur.tex, nxt.fbo, p => {
+      gl.uniform1f(gl.getUniformLocation(p, 'uFrames'), params.frames);
+      gl.uniform1f(gl.getUniformLocation(p, 'uBilat'), params.bilat);
+      gl.uniform1f(gl.getUniformLocation(p, 'uBoost'), params.boost);
+      gl.uniform1f(gl.getUniformLocation(p, 'uChroma'), params.chroma);
+    });
+    [cur, nxt] = [nxt, cur];
+    passTimings.denoise = performance.now() - t;
+  }
+
+  // snapshot orig (pre-bokeh) for highlight reference
+  pass(progCopy, cur.tex, fboOrig.fbo);
+
+  // 4. Bokeh
+  if (params.on.bokeh) {
+    const t = performance.now();
+    // radius from f/stop: small f = large radius
+    const radius = clamp(20 / params.fstop, 0.5, 20);
+    const shape = { disk: 0, hex: 1, star: 2, anam: 3 }[params.aperture];
+    pass(progBokeh, cur.tex, nxt.fbo, p => {
+      gl.uniform1f(gl.getUniformLocation(p, 'uRadius'), radius);
+      gl.uniform1f(gl.getUniformLocation(p, 'uHilight'), params.hilight);
+      gl.uniform1f(gl.getUniformLocation(p, 'uFstop'), params.fstop);
+      gl.uniform1f(gl.getUniformLocation(p, 'uBlades'), params.blades);
+      gl.uniform1i(gl.getUniformLocation(p, 'uShape'), shape);
+      bindUniformTex(p, 'uOrig', fboOrig.tex, 1);
+    });
+    [cur, nxt] = [nxt, cur];
+    passTimings.bokeh = performance.now() - t;
+  }
+
+  // 5. Refocus
+  if (params.on.refocus) {
+    const t = performance.now();
+    pass(progRefocus, cur.tex, nxt.fbo, p => {
+      gl.uniform1f(gl.getUniformLocation(p, 'uFocus'), params.focus);
+      gl.uniform1f(gl.getUniformLocation(p, 'uDof'), params.dof);
+      gl.uniform1f(gl.getUniformLocation(p, 'uParallax'), params.parallax);
+      const m = { radial: 0, luma: 1, grad: 2 }[params.depthModel];
+      gl.uniform1i(gl.getUniformLocation(p, 'uDepthModel'), m);
+      bindUniformTex(p, 'uOrig', fboOrig.tex, 1);
+    });
+    [cur, nxt] = [nxt, cur];
+    passTimings.refocus = performance.now() - t;
+  }
+
+  // final blit to canvas
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, PROC, PROC);
+  gl.useProgram(progCopy);
+  bindUniformTex(progCopy, 'uTex', cur.tex, 0);
+  gl.bindVertexArray(vao);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  return performance.now() - t0;
+}
+
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+/* ---------- UI binding ---------- */
+function fmt(p, v) {
+  v = +v;
+  switch(p) {
+    case 'hdrLow': case 'hdrMid': case 'hdrHigh': return (v >= 0 ? '+' : '') + v.toFixed(2);
+    case 'psf': return v.toFixed(2) + ' px';
+    case 'wienerK': return v.toFixed(3);
+    case 'sharpAmt': return v.toFixed(2) + '×';
+    case 'frames': return v.toFixed(0);
+    case 'bilat': return v.toFixed(2);
+    case 'boost': return '+' + v.toFixed(2);
+    case 'chroma': return v.toFixed(2);
+    case 'fstop': return 'f/' + v.toFixed(1);
+    case 'blades': return v.toFixed(0);
+    case 'hilight': return v.toFixed(1) + '×';
+    case 'focus': return v.toFixed(2);
+    case 'dof': return v.toFixed(2);
+    case 'parallax': return v.toFixed(3);
+    case 'hdrSigma': return v.toFixed(2);
+    default: return v.toFixed(2);
+  }
+}
+
+document.querySelectorAll('input.slider').forEach(s => {
+  const key = s.dataset.param;
+  const ro = document.querySelector(`[data-readout="${key}"]`);
+  if (ro) ro.textContent = fmt(key, s.value);
+  s.addEventListener('input', () => {
+    params[key] = +s.value;
+    if (ro) ro.textContent = fmt(key, s.value);
+    requestRender();
+    if (key === 'aperture' || key === 'fstop' || key === 'blades' || key === 'hilight') drawApPreview();
+  });
+});
+
+document.querySelectorAll('.seg').forEach(seg => {
+  const key = seg.dataset.param;
+  seg.querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => {
+      seg.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      params[key] = b.dataset.val;
+      const ro = document.querySelector(`[data-readout="${key}"]`);
+      if (ro) ro.textContent = b.dataset.val;
+      if (key === 'aperture') drawApPreview();
+      requestRender();
+    });
+  });
+});
+
+document.querySelectorAll('[data-toggle]').forEach(t => {
+  const key = t.dataset.toggle;
+  t.addEventListener('click', () => {
+    params.on[key] = !params.on[key];
+    t.classList.toggle('on', params.on[key]);
+    t.querySelector('.lbl').textContent = params.on[key] ? 'ON' : 'OFF';
+    updateStageStrip();
+    requestRender();
+  });
+});
+
+document.getElementById('fftSourceSeg').addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('#fftSourceSeg button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  params.fftSource = e.target.dataset.fft;
+  document.getElementById('fftMode').textContent = e.target.dataset.fft.toUpperCase();
+});
+
+function updateStageStrip() {
+  document.querySelectorAll('#stageStrip .stage').forEach(s => {
+    s.classList.toggle('on', params.on[s.dataset.st]);
+  });
+}
+
+/* ---------- Aperture preview ---------- */
+function drawApPreview() {
+  const W = 80;
+  ctxAp.fillStyle = '#000';
+  ctxAp.fillRect(0, 0, W, W);
+  const cx = W/2, cy = W/2, R = 32;
+  const n = params.blades;
+  ctxAp.fillStyle = `oklch(0.80 0.14 70)`;
+  ctxAp.beginPath();
+  for (let i=0; i<=180; i++) {
+    const a = (i/180) * Math.PI * 2;
+    let r;
+    if (params.aperture === 'disk') {
+      r = R;
+    } else if (params.aperture === 'hex') {
+      r = R * Math.cos(Math.PI/n) / Math.cos(((a + Math.PI/n) % (2*Math.PI/n)) - Math.PI/n);
+    } else if (params.aperture === 'star') {
+      const k = Math.cos(a * n) * 0.5 + 0.5;
+      r = R * (0.55 + 0.45 * k);
+    } else { // anam
+      r = R / Math.sqrt(Math.cos(a)*Math.cos(a)*0.25 + Math.sin(a)*Math.sin(a));
+    }
+    const x = cx + Math.cos(a)*r;
+    const y = cy + Math.sin(a)*r;
+    if (i === 0) ctxAp.moveTo(x, y); else ctxAp.lineTo(x, y);
+  }
+  ctxAp.closePath();
+  ctxAp.fill();
+  // outline
+  ctxAp.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctxAp.lineWidth = 1;
+  ctxAp.stroke();
+  // crosshair
+  ctxAp.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctxAp.beginPath();
+  ctxAp.moveTo(cx, 4); ctxAp.lineTo(cx, W-4);
+  ctxAp.moveTo(4, cy); ctxAp.lineTo(W-4, cy);
+  ctxAp.stroke();
+  document.getElementById('apSamples').textContent = '48';
+  document.getElementById('apCoc').textContent = (20/params.fstop).toFixed(1) + ' px';
+  document.getElementById('apShape').textContent = params.aperture;
+}
+
+/* ---------- Source tabs ---------- */
+const tabs = document.getElementById('sourceTabs');
+tabs.addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const src = btn.dataset.src;
+  if (src === 'upload') {
+    document.getElementById('fileInput').click();
+    return;
+  }
+  setActiveTab(btn);
+  loadSource(src);
+});
+function setActiveTab(btn) {
+  tabs.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+document.getElementById('fileInput').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const url = URL.createObjectURL(f);
+  const img = new Image();
+  img.onload = () => {
+    uploadSource(img);
+    URL.revokeObjectURL(url);
+    requestRender();
+    setActiveTab([...tabs.querySelectorAll('button')].find(b => b.dataset.src === 'upload'));
+  };
+  img.src = url;
+});
+
+// drag-and-drop
+const drop = document.getElementById('dropOverlay');
+window.addEventListener('dragenter', e => { e.preventDefault(); drop.classList.add('on'); });
+drop.addEventListener('dragleave', e => { e.preventDefault(); drop.classList.remove('on'); });
+drop.addEventListener('dragover', e => e.preventDefault());
+drop.addEventListener('drop', e => {
+  e.preventDefault();
+  drop.classList.remove('on');
+  const f = e.dataTransfer.files[0];
+  if (!f) return;
+  const url = URL.createObjectURL(f);
+  const img = new Image();
+  img.onload = () => {
+    uploadSource(img);
+    URL.revokeObjectURL(url);
+    requestRender();
+    setActiveTab([...tabs.querySelectorAll('button')].find(b => b.dataset.src === 'upload'));
+  };
+  img.src = url;
+});
+
+let webcamStream = null;
+let webcamVideo = null;
+let webcamActive = false;
+async function startWebcam() {
+  if (webcamActive) return;
+  try {
+    webcamStream = await navigator.mediaDevices.getUserMedia({ video: { width: 720, height: 720 } });
+    webcamVideo = document.createElement('video');
+    webcamVideo.srcObject = webcamStream;
+    webcamVideo.autoplay = true;
+    webcamVideo.muted = true;
+    await webcamVideo.play();
+    webcamActive = true;
+  } catch (err) {
+    console.error('webcam denied', err);
+    alert('Webcam access denied or unavailable.');
+  }
+}
+function stopWebcam() {
+  if (webcamStream) {
+    webcamStream.getTracks().forEach(t => t.stop());
+    webcamStream = null;
+  }
+  webcamActive = false;
+}
+
+function loadSource(kind) {
+  params.source = kind;
+  if (kind === 'webcam') {
+    startWebcam();
+  } else {
+    stopWebcam();
+    let c;
+    if (kind === 'sample-night') c = makeNightScene();
+    else if (kind === 'sample-chart') c = makeResChart();
+    if (c) { uploadSource(c); requestRender(); }
+  }
+}
+
+/* ---------- Render loop ---------- */
+let needsRender = true;
+let lastTime = performance.now();
+let fpsAcc = 0, fpsFrames = 0, fpsDisplay = 0;
+let frameMs = 0;
+let lastFFT = 0;
+
+function requestRender() { needsRender = true; }
+
+function tick() {
+  const now = performance.now();
+  const dt = now - lastTime;
+  lastTime = now;
+
+  // Webcam: continuous upload
+  if (webcamActive && webcamVideo && webcamVideo.readyState >= 2) {
+    uploadSource(webcamVideo);
+    needsRender = true;
+  }
+
+  if (needsRender) {
+    frameMs = runPipeline();
+    needsRender = false;
+
+    // Histogram (post-process)
+    computeHistogram(cvAfter);
+
+    // FFT — throttle to 10Hz
+    if (now - lastFFT > 100) {
+      let srcCv;
+      if (params.fftSource === 'before') srcCv = cvBefore;
+      else srcCv = cvAfter;
+      computeFFT(srcCv);
+      lastFFT = now;
+    }
+
+    renderPipelineGraph(passTimings);
+  }
+
+  // FPS
+  fpsAcc += dt;
+  fpsFrames++;
+  if (fpsAcc > 500) {
+    fpsDisplay = (fpsFrames * 1000 / fpsAcc) | 0;
+    fpsAcc = 0; fpsFrames = 0;
+    document.getElementById('stFps').textContent = fpsDisplay;
+    document.getElementById('stMs').textContent = frameMs.toFixed(2) + ' ms';
+    document.getElementById('stPipe').textContent = webcamActive ? 'live' : 'static';
+  }
+
+  requestAnimationFrame(tick);
+}
+
+/* ---------- Crosshair readout on after canvas ---------- */
+const afterRect = () => cvAfter.getBoundingClientRect();
+let readPixBuf = new Uint8Array(4);
+cvAfter.addEventListener('mousemove', e => {
+  const r = afterRect();
+  const x = ((e.clientX - r.left) / r.width * PROC) | 0;
+  const y = ((e.clientY - r.top) / r.height * PROC) | 0;
+  document.getElementById('vpX').textContent = String(x).padStart(4,'0');
+  document.getElementById('vpY').textContent = String(y).padStart(4,'0');
+  // read pixel
+  try {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    // canvas is bottom-up
+    gl.readPixels(x, PROC - y - 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, readPixBuf);
+    const R = readPixBuf[0], G = readPixBuf[1], B = readPixBuf[2];
+    document.getElementById('vpRGB').textContent =
+      R.toString(16).padStart(2,'0').toUpperCase() +
+      G.toString(16).padStart(2,'0').toUpperCase() +
+      B.toString(16).padStart(2,'0').toUpperCase();
+    const L = (0.2126*R + 0.7152*G + 0.0722*B) | 0;
+    document.getElementById('vpL').textContent = L;
+  } catch(_){}
+});
+cvAfter.addEventListener('click', e => {
+  // Set focal plane based on click — use synthetic depth
+  const r = afterRect();
+  const x = (e.clientX - r.left) / r.width;
+  const y = (e.clientY - r.top) / r.height;
+  // For radial depth model: depth at click point = length(uv - 0.5) * sqrt(2)
+  let d;
+  if (params.depthModel === 'radial') {
+    d = Math.hypot(x - 0.5, y - 0.5) * Math.SQRT2;
+  } else {
+    d = 0.5; // fallback
+  }
+  params.focus = Math.min(1, Math.max(0, d));
+  document.querySelector('[data-param="focus"]').value = params.focus;
+  document.querySelector('[data-readout="focus"]').textContent = fmt('focus', params.focus);
+  const marker = document.getElementById('focusMarker');
+  marker.style.left = (x*100) + '%';
+  marker.style.top = (y*100) + '%';
+  marker.classList.add('show');
+  setTimeout(() => marker.classList.remove('show'), 1400);
+  requestRender();
+});
+
+/* ---------- Init ---------- */
+function init() {
+  // GPU info
+  try {
+    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    if (dbg) {
+      const r = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
+      document.getElementById('fGPU').textContent = (r || 'WebGL2').slice(0, 32);
+    }
+  } catch(_){}
+
+  drawApPreview();
+  setActiveTab([...tabs.querySelectorAll('button')].find(b => b.dataset.src === 'sample-night'));
+  loadSource('sample-night');
+  updateStageStrip();
+  requestAnimationFrame(tick);
+}
+
+init();
+</script>
+</body>
+</html>

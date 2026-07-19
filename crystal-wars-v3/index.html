@@ -1,0 +1,949 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>CRYSTAL WARS // Evolution</title>
+<style>
+  :root{
+    --bg:#0a0d12; --panel:#11151c; --line:#1d2530; --ink:#c8d2dd; --dim:#6b7888;
+    --blue:#4f9bff; --red:#ff5b51; --accent:#8affc1; --warn:#ffd166; --bomb:#ff9d3c;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:radial-gradient(1200px 800px at 70% -10%, #131a24 0%, transparent 60%), var(--bg);
+    color:var(--ink); font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+    display:flex; min-height:100%; overflow:hidden;}
+  .stage{flex:1; position:relative; display:flex; align-items:center; justify-content:center; padding:16px;}
+  canvas#gpu{width:min(88vh, calc(100vw - 372px)); height:min(88vh, calc(100vw - 372px));
+    aspect-ratio:1/1; display:block; border-radius:6px;
+    box-shadow:0 0 0 1px var(--line), 0 30px 80px -30px #000; background:#070a0e;}
+  aside{width:344px; flex:none; border-left:1px solid var(--line);
+    background:linear-gradient(180deg,var(--panel),#0c1016);
+    padding:20px 18px; display:flex; flex-direction:column; gap:15px; overflow-y:auto;}
+  .brand{display:flex; align-items:baseline; gap:10px; line-height:1}
+  .brand h1{font-size:16px; letter-spacing:.16em; margin:0; font-weight:600}
+  .brand .v{font-size:11px; color:var(--dim); letter-spacing:.2em}
+  .sub{font-size:10px; color:var(--dim); letter-spacing:.1em; margin-top:-8px}
+  .label{font-size:10px; letter-spacing:.16em; color:var(--dim); text-transform:uppercase; margin-bottom:7px}
+  .group{display:flex; flex-direction:column}
+  .gen{display:flex; gap:10px}
+  .gen .cell{flex:1; border:1px solid var(--line); border-radius:6px; padding:10px 11px; background:#0b0f15}
+  .gen .k{font-size:9px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase}
+  .gen .val{font-size:19px; font-variant-numeric:tabular-nums; margin-top:2px}
+  .gen .val.live{color:var(--accent)}
+  .crystal{display:flex; flex-direction:column}
+  .bar{height:9px; border-radius:5px; background:#0b0f15; overflow:hidden; border:1px solid var(--line)}
+  .bar > i{display:block; height:100%; width:100%; transition:width .12s linear}
+  .barrow{display:flex; justify-content:space-between; font-size:11px; margin-bottom:3px}
+  .barrow .n{color:var(--dim)}
+  .b .barrow .v{color:var(--blue)} .r .barrow .v{color:var(--red)}
+  .b .bar > i{background:linear-gradient(90deg,#2b6bd6,var(--blue))}
+  .r .bar > i{background:linear-gradient(90deg,#d63b33,var(--red))}
+  .genes{display:grid; grid-template-columns:auto 1fr 1fr; gap:5px 9px; align-items:center}
+  .genes.solo{grid-template-columns:auto 1fr}
+  .genes .gl{font-size:10px; color:var(--dim); white-space:nowrap}
+  .gtrack{height:7px; border-radius:4px; background:#0b0f15; border:1px solid var(--line); overflow:hidden; position:relative}
+  .gtrack > b{position:absolute; inset:0 auto 0 0; border-radius:4px}
+  .gtrack.bl > b{background:var(--blue)} .gtrack.rd > b{background:var(--red)}
+  .matchhdr{display:flex; justify-content:space-between; font-size:10px; color:var(--dim); margin-bottom:6px}
+  .matchhdr .bl{color:var(--blue)} .matchhdr .rd{color:var(--red)}
+  .twocol{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+  .champ{border:1px solid var(--line); border-radius:6px; padding:10px; background:#0b0f15}
+  .champ .ttl{font-size:10px; letter-spacing:.1em; margin-bottom:8px; display:flex; justify-content:space-between}
+  .champ.bl .ttl span:first-child{color:var(--blue)} .champ.rd .ttl span:first-child{color:var(--red)}
+  .champ .desc{font-size:10px; color:var(--dim); margin-top:8px; line-height:1.4; min-height:40px}
+  .champ .sc{color:var(--accent)}
+  canvas#spark{width:100%; height:54px; display:block; border:1px solid var(--line); border-radius:6px; background:#0b0f15}
+  .row{display:flex; gap:8px}
+  button{flex:1; appearance:none; cursor:pointer; font:inherit; font-size:11px; letter-spacing:.03em;
+    color:var(--ink); background:#141a22; border:1px solid var(--line); border-radius:5px; padding:9px 6px; transition:.12s}
+  button:hover{border-color:#2c3a4b; background:#172029}
+  button:active{transform:translateY(1px)}
+  button.on{border-color:var(--accent); color:var(--accent)}
+  .slider{display:flex; flex-direction:column; gap:6px; margin-top:10px}
+  .slider .top{display:flex; justify-content:space-between; font-size:11px}
+  .slider .top b{color:var(--ink); font-weight:500}
+  input[type=range]{width:100%; accent-color:var(--accent); height:4px}
+  .legend{display:flex; flex-wrap:wrap; gap:8px 12px; font-size:10px; color:var(--dim); margin-top:6px}
+  .legend .li{display:flex; gap:6px; align-items:center}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .foot{margin-top:auto; font-size:9px; color:var(--dim); line-height:1.6; letter-spacing:.02em}
+  #fatal{position:absolute; inset:16px; display:none; align-items:center; justify-content:center; text-align:center;
+    padding:40px; border-radius:6px; background:#0b0f15; box-shadow:0 0 0 1px var(--line)}
+  #fatal h2{color:var(--warn); letter-spacing:.1em; font-size:16px}
+  #fatal p{color:var(--dim); font-size:13px; line-height:1.6} #fatal code{color:var(--ink)}
+</style>
+</head>
+<body>
+  <div class="stage">
+    <canvas id="gpu"></canvas>
+    <div id="fatal"><div style="max-width:440px">
+      <h2>NO GPU LINK</h2>
+      <p id="fatalmsg">This needs <code>WebGPU</code>. Open it in a recent Chrome or Edge (desktop) and reload.</p>
+    </div></div>
+  </div>
+
+  <aside>
+    <div>
+      <div class="brand"><h1>CRYSTAL WARS</h1><span class="v">v3</span></div>
+      <div class="sub">CO-EVOLVING TACTICS · GPU</div>
+    </div>
+
+    <div class="gen">
+      <div class="cell"><div class="k">Generation</div><div class="val live" id="gen">0</div></div>
+      <div class="cell"><div class="k">Battle</div><div class="val" id="battle">0 / 0</div></div>
+      <div class="cell"><div class="k">FPS</div><div class="val" id="fps">—</div></div>
+    </div>
+
+    <div class="group">
+      <div class="crystal b">
+        <div class="barrow"><span class="n">Blue crystal</span><span class="v" id="c0v">100%</span></div>
+        <div class="bar"><i id="c0bar"></i></div>
+      </div>
+      <div style="height:8px"></div>
+      <div class="crystal r">
+        <div class="barrow"><span class="n">Red crystal</span><span class="v" id="c1v">100%</span></div>
+        <div class="bar"><i id="c1bar"></i></div>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--dim); margin-top:8px">
+        <span>Blue alive: <b id="a0" style="color:var(--blue)">0</b></span>
+        <span>Red alive: <b id="a1" style="color:var(--red)">0</b></span>
+      </div>
+      <div class="legend">
+        <div class="li"><span class="dot" style="background:var(--blue)"></span>Soldier</div>
+        <div class="li"><span class="dot" style="background:var(--bomb)"></span>Bomber</div>
+        <div class="li"><span class="dot" style="background:#cfd8e3;border-radius:2px"></span>Watchtower</div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="label">Current duel — genomes</div>
+      <div class="matchhdr"><span class="bl">BLUE #<b id="mB">0</b></span><span class="rd">RED #<b id="mR">0</b></span></div>
+      <div class="genes" id="matchGenes"></div>
+    </div>
+
+    <div class="group">
+      <div class="label">Fitness over generations</div>
+      <canvas id="spark" width="300" height="54"></canvas>
+    </div>
+
+    <div class="twocol">
+      <div class="champ bl">
+        <div class="ttl"><span>BLUE CHAMPION</span><span class="sc" id="chBs">—</span></div>
+        <div class="genes solo" id="champB"></div>
+        <div class="desc" id="descB">—</div>
+      </div>
+      <div class="champ rd">
+        <div class="ttl"><span>RED CHAMPION</span><span class="sc" id="chRs">—</span></div>
+        <div class="genes solo" id="champR"></div>
+        <div class="desc" id="descR">—</div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="label">Controls</div>
+      <div class="row">
+        <button id="play" class="on">Pause</button>
+        <button id="show">Watch champions</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="reset">Reset evolution</button>
+        <button id="field">Field</button>
+      </div>
+      <div class="slider">
+        <div class="top"><span>Turbo (steps / frame)</span><b id="turboV">4</b></div>
+        <input type="range" id="turbo" min="1" max="16" step="1" value="4">
+      </div>
+      <div class="slider">
+        <div class="top"><span>Mutation strength</span><b id="mutV">0.12</b></div>
+        <input type="range" id="mut" min="0.02" max="0.4" step="0.01" value="0.12">
+      </div>
+    </div>
+
+    <div class="foot">
+      Each genome encodes a tactic plus the placement of two watchtowers and a fraction of bomber units that
+      detonate on contact, killing friend and foe in a blast. Two lineages fight; fitness rewards damage to the
+      enemy crystal, a surviving home crystal and numbers. Selection → crossover → mutation each generation.
+      Pathing fields are solved once on the GPU; battles run entirely in compute shaders.
+    </div>
+  </aside>
+
+<script type="module">
+const cv=document.getElementById('gpu');
+const fail=(m)=>{document.getElementById('fatalmsg').innerHTML=m; document.getElementById('fatal').style.display='flex';};
+if(!navigator.gpu){ fail("This needs <code>WebGPU</code>. Open it in a recent Chrome or Edge (desktop)."); throw new Error("no webgpu"); }
+const adapter=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
+if(!adapter){ fail("WebGPU is exposed but no GPU adapter was granted."); throw new Error("no adapter"); }
+const device=await adapter.requestDevice();
+device.lost.then(i=>fail("GPU device lost: <code>"+i.reason+"</code>. Reload."));
+const ctx=cv.getContext('webgpu');
+const fmt=navigator.gpu.getPreferredCanvasFormat();
+
+// ---------------- constants ----------------
+const GS=128, CELLS=GS*GS, CELL=1.0, WORLD=GS*CELL;
+const CAP=24, ITERS=GS*2, WG=64;
+const CPT=1500, MAXU=2*CPT+64;
+const HPLEN=MAXU+2;                 // last 2 = crystal HP
+const CRYSTAL_HP=6000, POP=8, MAXTICKS=1400;
+const DCAP=2048;                    // detonations / step
+const NTOW=4;                       // 2 per team
+const C0=[8.5,64.5], C1=[WORLD-8.5,64.5];
+const C0CELL=(64*GS)+8, C1CELL=(64*GS)+(GS-9);
+
+function resize(){
+  const dpr=Math.min(devicePixelRatio||1,2); const r=cv.getBoundingClientRect();
+  cv.width=Math.max(1,Math.floor(r.width*dpr)); cv.height=Math.max(1,Math.floor(r.height*dpr));
+  ctx.configure({device,format:fmt,alphaMode:'opaque'});
+}
+new ResizeObserver(resize).observe(cv); resize();
+
+// ============================================================ WGSL
+const COMMON=/* wgsl */`
+struct Unit { pos:vec2<f32>, vel:vec2<f32>, team:u32, cooldown:f32, state:u32, role:u32, };
+struct Sim  { gridSize:u32, cellSize:f32, unitCount:u32, dt:f32, attackRange:f32, crystalRange:f32, time:f32, pad:f32, };
+struct Field{ gridSize:u32, goalCell:u32, flowBase:u32, pad:u32, };
+struct Geno {
+  s0a:f32,s0e:f32,s0s:f32,s0d:f32,s0p:f32,s0f:f32,
+  s1a:f32,s1e:f32,s1s:f32,s1d:f32,s1p:f32,s1f:f32,
+  c0:vec2<f32>, c1:vec2<f32>,
+};
+struct CU  { c0:vec2<f32>, c1:vec2<f32>, };
+struct TI  { t:array<vec4<f32>,${NTOW}>, };
+struct Viz { mode:u32, p0:u32, p1:u32, p2:u32, };
+const BIG:f32=1.0e9; const WALLT:f32=5.0e8; const SQ2:f32=1.4142135;
+const CAP:u32=${CAP}u; const DAMAGE:i32=6; const CRYSTAL_DMG:i32=5; const COOLDOWN:f32=0.55;
+const DCAP:u32=${DCAP}u; const ECRYS:u32=${MAXU}u;
+const BLAST_R:f32=3.6; const BLAST_DMG:i32=200; const BOMB_TRIG:f32=2.6; const CRYSTAL_BOMB:i32=260;
+const TFIRE_R:f32=7.0; const TSIEGE_R:f32=3.0; const TOWER_DMG:i32=14; const TOWER_CD:f32=0.35; const TOWER_CHIP:i32=2;
+`;
+const mk=(c)=>device.createShaderModule({code:COMMON+c});
+
+const SH_INIT=mk(/* wgsl */`
+@group(0)@binding(0) var<storage,read> cost:array<f32>;
+@group(0)@binding(1) var<storage,read_write> dst:array<f32>;
+@group(0)@binding(2) var<uniform> fld:Field;
+@compute @workgroup_size(${WG})
+fn cs(@builtin(global_invocation_id) gid:vec3<u32>){
+  let i=gid.x; let n=fld.gridSize*fld.gridSize; if(i>=n){return;}
+  if(cost[i]>WALLT){dst[i]=BIG; return;}
+  dst[i]=select(BIG,0.0,i==fld.goalCell);
+}`);
+const SH_RELAX=mk(/* wgsl */`
+@group(0)@binding(0) var<storage,read> cost:array<f32>;
+@group(0)@binding(1) var<storage,read> src:array<f32>;
+@group(0)@binding(2) var<storage,read_write> dst:array<f32>;
+@group(0)@binding(3) var<uniform> fld:Field;
+@compute @workgroup_size(${WG})
+fn cs(@builtin(global_invocation_id) gid:vec3<u32>){
+  let gs=i32(fld.gridSize); let i=gid.x; let n=u32(gs*gs); if(i>=n){return;}
+  if(cost[i]>WALLT){dst[i]=BIG; return;}
+  let x=i32(i)%gs; let y=i32(i)/gs; var best=src[i];
+  for(var dy=-1;dy<=1;dy++){for(var dx=-1;dx<=1;dx++){
+    if(dx==0&&dy==0){continue;}
+    let nx=x+dx; let ny=y+dy; if(nx<0||ny<0||nx>=gs||ny>=gs){continue;}
+    let nc=u32(ny*gs+nx); if(cost[nc]>WALLT){continue;}
+    best=min(best,src[nc]+select(1.0,SQ2,dx!=0&&dy!=0));
+  }}
+  dst[i]=best;
+}`);
+const SH_FLOW=mk(/* wgsl */`
+@group(0)@binding(0) var<storage,read> cost:array<f32>;
+@group(0)@binding(1) var<storage,read> integ:array<f32>;
+@group(0)@binding(2) var<storage,read_write> flow:array<vec2<f32>>;
+@group(0)@binding(3) var<uniform> fld:Field;
+@compute @workgroup_size(${WG})
+fn cs(@builtin(global_invocation_id) gid:vec3<u32>){
+  let gs=i32(fld.gridSize); let i=gid.x; let n=u32(gs*gs); if(i>=n){return;}
+  let out=fld.flowBase+i;
+  if(cost[i]>WALLT){flow[out]=vec2<f32>(0.,0.); return;}
+  let x=i32(i)%gs; let y=i32(i)/gs;
+  var bestV=integ[fld.flowBase+i]; var bx=0; var by=0; var found=false;
+  for(var dy=-1;dy<=1;dy++){for(var dx=-1;dx<=1;dx++){
+    if(dx==0&&dy==0){continue;}
+    let nx=x+dx; let ny=y+dy; if(nx<0||ny<0||nx>=gs||ny>=gs){continue;}
+    let nc=u32(ny*gs+nx); if(cost[nc]>WALLT){continue;}
+    let v=integ[fld.flowBase+nc];
+    if(v<bestV){bestV=v; bx=dx; by=dy; found=true;}
+  }}
+  flow[out]=select(vec2<f32>(0.,0.), normalize(vec2<f32>(f32(bx),f32(by))), found);
+}`);
+
+const SH_CLEAR=mk(/* wgsl */`
+@group(0)@binding(0) var<storage,read_write> counts:array<atomic<u32>>;
+@group(0)@binding(1) var<storage,read_write> alive:array<atomic<u32>>;
+@group(0)@binding(2) var<storage,read_write> dcount:array<atomic<u32>>;
+@group(0)@binding(3) var<uniform> sim:Sim;
+@compute @workgroup_size(${WG})
+fn cs(@builtin(global_invocation_id) gid:vec3<u32>){
+  let i=gid.x; let n=sim.gridSize*sim.gridSize;
+  if(i<n){atomicStore(&counts[i],0u);}
+  if(i==0u){atomicStore(&alive[0],0u); atomicStore(&alive[1],0u); atomicStore(&dcount[0],0u);}
+}`);
+const SH_BIN=mk(/* wgsl */`
+@group(0)@binding(0) var<storage,read> units:array<Unit>;
+@group(0)@binding(1) var<storage,read_write> counts:array<atomic<u32>>;
+@group(0)@binding(2) var<storage,read_write> idx:array<u32>;
+@group(0)@binding(3) var<uniform> sim:Sim;
+@compute @workgroup_size(${WG})
+fn cs(@builtin(global_invocation_id) gid:vec3<u32>){
+  let i=gid.x; if(i>=sim.unitCount){return;}
+  let u=units[i]; if(u.state==0u){return;}
+  let gs=i32(sim.gridSize);
+  let cx=clamp(i32(u.pos.x/sim.cellSize),0,gs-1);
+  let cy=clamp(i32(u.pos.y/sim.cellSize),0,gs-1);
+  let c=u32(cy*gs+cx); let old=atomicAdd(&counts[c],1u);
+  if(old<CAP){idx[c*CAP+old]=i;}
+}`);
+
+const SH_SIM=mk(/* wgsl */`
+@group(0)@binding(0) var<storage,read_write> units:array<Unit>;
+@group(0)@binding(1) var<storage,read> flow:array<vec2<f32>>;
+@group(0)@binding(2) var<storage,read> counts:array<u32>;
+@group(0)@binding(3) var<storage,read> idx:array<u32>;
+@group(0)@binding(4) var<storage,read_write> hp:array<atomic<i32>>;
+@group(0)@binding(5) var<storage,read> cost:array<f32>;
+@group(0)@binding(6) var<storage,read_write> deton:array<vec4<f32>>;
+@group(0)@binding(7) var<storage,read_write> dcount:array<atomic<u32>>;
+@group(0)@binding(8) var<uniform> sim:Sim;
+@group(0)@binding(9) var<uniform> g:Geno;
+const BASE_SPEED:f32=18.0;
+fn isWall(p:vec2<f32>)->bool{
+  let gs=i32(sim.gridSize);
+  let x=i32(p.x/sim.cellSize); let y=i32(p.y/sim.cellSize);
+  if(x<0||y<0||x>=gs||y>=gs){return true;}
+  return cost[u32(y*gs+x)]>WALLT;
+}
+@compute @workgroup_size(${WG})
+fn cs(@builtin(global_invocation_id) gid:vec3<u32>){
+  let i=gid.x; if(i>=sim.unitCount){return;}
+  var u=units[i]; if(u.state==0u){return;}
+  let gs=i32(sim.gridSize); let cells=sim.gridSize*sim.gridSize;
+  let cx=clamp(i32(u.pos.x/sim.cellSize),0,gs-1);
+  let cy=clamp(i32(u.pos.y/sim.cellSize),0,gs-1);
+  let cellI=u32(cy*gs+cx);
+
+  var eng:f32; var sepg:f32; var defg:f32; var spdg:f32; var focg:f32;
+  if(u.team==0u){ eng=g.s0e; sepg=g.s0s; defg=g.s0d; spdg=g.s0p; focg=g.s0f; }
+  else          { eng=g.s1e; sepg=g.s1s; defg=g.s1d; spdg=g.s1p; focg=g.s1f; }
+  let sepR=mix(0.9,2.6,sepg); let engR=mix(2.0,12.0,eng);
+  let defR=mix(6.0,42.0,defg); let spdMul=mix(0.6,1.4,spdg);
+
+  let ownC=select(g.c1,g.c0,u.team==0u);
+  let enemyC=select(g.c0,g.c1,u.team==0u);
+  let goEnemy=(u.role==0u)||(u.role==2u);
+  let fieldIdx=select(u.team,1u-u.team,goEnemy);
+  let flowDir=flow[fieldIdx*cells+cellI];
+  let eCrys=ECRYS+(1u-u.team);
+
+  var sep=vec2<f32>(0.,0.); var nearestE:i32=-1; var nearestD2:f32=BIG; var inRange=false;
+  let sepR2=sepR*sepR; let atkR2=sim.attackRange*sim.attackRange;
+  for(var dy=-1;dy<=1;dy++){for(var dx=-1;dx<=1;dx++){
+    let nx=cx+dx; let ny=cy+dy; if(nx<0||ny<0||nx>=gs||ny>=gs){continue;}
+    let c=u32(ny*gs+nx); let cnt=min(counts[c],CAP);
+    for(var k=0u;k<cnt;k++){
+      let j=idx[c*CAP+k]; if(j==i){continue;}
+      let o=units[j]; if(o.state==0u){continue;}
+      let diff=u.pos-o.pos; let d2=dot(diff,diff);
+      if(o.team==u.team){
+        if(d2<sepR2&&d2>1e-6){ let d=sqrt(d2); sep+=(diff/d)*(1.0-d/sepR); }
+      } else {
+        if(d2<nearestD2){nearestD2=d2; nearestE=i32(j);}
+        if(d2<atkR2){inRange=true;}
+      }
+    }
+  }}
+
+  let dC=distance(u.pos,enemyC);
+  let fl=length(flowDir);
+  let fdir=select(vec2<f32>(0.,0.),flowDir/fl,fl>0.01);
+
+  // ---- BOMBER ----
+  if(u.role==2u){
+    if(nearestD2<BOMB_TRIG*BOMB_TRIG || dC<sim.crystalRange){
+      let id=atomicAdd(&dcount[0],1u);
+      if(id<DCAP){ deton[id]=vec4<f32>(u.pos.x,u.pos.y,BLAST_R,f32(u.team)); }
+      if(dC<sim.crystalRange){ atomicSub(&hp[eCrys],CRYSTAL_BOMB); }
+      u.state=0u; units[i]=u; return;
+    }
+    var d=fdir + sep*1.8; let dl=length(d);
+    let dir2=select(vec2<f32>(0.,0.),d/dl,dl>1e-5);
+    var disp=dir2*(BASE_SPEED*spdMul)*sim.dt;
+    var np=u.pos+disp;
+    if(isWall(np)){ let ax=vec2<f32>(u.pos.x+disp.x,u.pos.y); let ay=vec2<f32>(u.pos.x,u.pos.y+disp.y);
+      if(!isWall(ax)){np=ax;} else if(!isWall(ay)){np=ay;} else {np=u.pos;} }
+    let lo=0.5; let hi=f32(sim.gridSize)*sim.cellSize-0.5;
+    np.x=clamp(np.x,lo,hi); np.y=clamp(np.y,lo,hi);
+    u.pos=np; units[i]=u; return;
+  }
+
+  // ---- SOLDIER combat ----
+  u.cooldown=max(0.0,u.cooldown-sim.dt);
+  if(u.cooldown<=0.0){
+    if(inRange&&nearestE>=0){ atomicSub(&hp[u32(nearestE)],DAMAGE); u.cooldown=COOLDOWN; }
+    else if(dC<sim.crystalRange){ atomicSub(&hp[eCrys],CRYSTAL_DMG); u.cooldown=COOLDOWN; }
+  }
+  // ---- SOLDIER steering ----
+  var desired=vec2<f32>(0.,0.);
+  if(u.role==0u){
+    desired=fdir;
+    if(nearestE>=0&&nearestD2<engR*engR){ let toE=normalize(units[nearestE].pos-u.pos); desired=mix(fdir,toE,focg); }
+  } else {
+    let dOwn=distance(u.pos,ownC);
+    if(dOwn>defR){ desired=fdir; }
+    else if(nearestE>=0&&nearestD2<(engR*1.5)*(engR*1.5)){ desired=normalize(units[nearestE].pos-u.pos); }
+    else { desired=vec2<f32>(0.,0.); }
+  }
+  desired+=sep*1.8;
+  let dl=length(desired);
+  let dir2=select(vec2<f32>(0.,0.),desired/dl,dl>1e-5);
+  var speed=BASE_SPEED*spdMul; if(inRange){speed*=0.12;}
+  let disp=dir2*speed*sim.dt;
+  var np=u.pos+disp;
+  if(isWall(np)){ let ax=vec2<f32>(u.pos.x+disp.x,u.pos.y); let ay=vec2<f32>(u.pos.x,u.pos.y+disp.y);
+    if(!isWall(ax)){np=ax;} else if(!isWall(ay)){np=ay;} else {np=u.pos;} }
+  if(u.role==1u){ let d=distance(np,ownC); let lim=defR*1.4; if(d>lim){np=ownC+(np-ownC)/d*lim;} }
+  let lo=0.5; let hi=f32(sim.gridSize)*sim.cellSize-0.5;
+  np.x=clamp(np.x,lo,hi); np.y=clamp(np.y,lo,hi);
+  u.pos=np; units[i]=u;
+}`);
+
+const SH_BLAST=mk(/* wgsl */`
+@group(0)@binding(0) var<storage,read> units:array<Unit>;
+@group(0)@binding(1) var<storage,read_write> hp:array<atomic<i32>>;
+@group(0)@binding(2) var<storage,read> deton:array<vec4<f32>>;
+@group(0)@binding(3) var<storage,read> dcount:array<u32>;
+@group(0)@binding(4) var<uniform> sim:Sim;
+@compute @workgroup_size(${WG})
+fn cs(@builtin(global_invocation_id) gid:vec3<u32>){
+  let i=gid.x; if(i>=sim.unitCount){return;}
+  let u=units[i]; if(u.state==0u){return;}
+  let cnt=min(dcount[0],DCAP); var dmg:i32=0;
+  for(var k=0u;k<cnt;k++){
+    let d=deton[k]; let diff=u.pos-d.xy;
+    if(dot(diff,diff)<d.z*d.z){ dmg+=BLAST_DMG; }
+  }
+  if(dmg>0){ atomicSub(&hp[i],dmg); }
+}`);
+
+const SH_TOWER=mk(/* wgsl */`
+@group(0)@binding(0) var<storage,read> units:array<Unit>;
+@group(0)@binding(1) var<storage,read> counts:array<u32>;
+@group(0)@binding(2) var<storage,read> idx:array<u32>;
+@group(0)@binding(3) var<storage,read_write> hp:array<atomic<i32>>;
+@group(0)@binding(4) var<storage,read_write> towerHp:array<atomic<i32>>;
+@group(0)@binding(5) var<storage,read_write> towerCd:array<f32>;
+@group(0)@binding(6) var<storage,read> deton:array<vec4<f32>>;
+@group(0)@binding(7) var<storage,read> dcount:array<u32>;
+@group(0)@binding(8) var<uniform> ti:TI;
+@group(0)@binding(9) var<uniform> sim:Sim;
+@compute @workgroup_size(${NTOW})
+fn cs(@builtin(global_invocation_id) gid:vec3<u32>){
+  let t=gid.x; if(t>=${NTOW}u){return;}
+  if(atomicLoad(&towerHp[t])<=0){return;}
+  let info=ti.t[t]; let tp=info.xy; let team=u32(info.z);
+  var cd=towerCd[t]-sim.dt;
+  let gs=i32(sim.gridSize);
+  let tcx=clamp(i32(tp.x/sim.cellSize),0,gs-1); let tcy=clamp(i32(tp.y/sim.cellSize),0,gs-1);
+  let R:i32=7;
+  var nE:i32=-1; var nD2:f32=BIG; var siege:i32=0;
+  for(var dy=-R;dy<=R;dy++){for(var dx=-R;dx<=R;dx++){
+    let nx=tcx+dx; let ny=tcy+dy; if(nx<0||ny<0||nx>=gs||ny>=gs){continue;}
+    let c=u32(ny*gs+nx); let cnt=min(counts[c],CAP);
+    for(var k=0u;k<cnt;k++){
+      let j=idx[c*CAP+k]; let o=units[j];
+      if(o.state==0u||o.team==team){continue;}
+      let diff=o.pos-tp; let d2=dot(diff,diff);
+      if(d2<nD2){nD2=d2; nE=i32(j);}
+      if(d2<TSIEGE_R*TSIEGE_R){siege++;}
+    }
+  }}
+  if(nE>=0 && nD2<TFIRE_R*TFIRE_R && cd<=0.0){ atomicSub(&hp[u32(nE)],TOWER_DMG); cd=TOWER_CD; }
+  if(siege>0){ atomicSub(&towerHp[t],siege*TOWER_CHIP); }
+  let dn=min(dcount[0],DCAP);
+  for(var k=0u;k<dn;k++){
+    let d=deton[k]; let diff=tp-d.xy; let rr=d.z+1.0;
+    if(dot(diff,diff)<rr*rr){ atomicSub(&towerHp[t],400); }
+  }
+  towerCd[t]=max(cd,0.0);
+}`);
+
+const SH_RESOLVE=mk(/* wgsl */`
+@group(0)@binding(0) var<storage,read_write> units:array<Unit>;
+@group(0)@binding(1) var<storage,read_write> hp:array<atomic<i32>>;
+@group(0)@binding(2) var<storage,read_write> alive:array<atomic<u32>>;
+@group(0)@binding(3) var<uniform> sim:Sim;
+@compute @workgroup_size(${WG})
+fn cs(@builtin(global_invocation_id) gid:vec3<u32>){
+  let i=gid.x; if(i>=sim.unitCount){return;}
+  var u=units[i]; if(u.state==0u){return;}
+  if(atomicLoad(&hp[i])<=0){ u.state=0u; units[i]=u; }
+  else { atomicAdd(&alive[u.team],1u); }
+}`);
+
+const SH_UNITS=mk(/* wgsl */`
+@group(0)@binding(0) var<storage,read> units:array<Unit>;
+@group(0)@binding(1) var<storage,read> hp:array<i32>;
+@group(0)@binding(2) var<uniform> sim:Sim;
+struct V{@builtin(position) pos:vec4<f32>,@location(0) col:vec3<f32>,@location(1) uv:vec2<f32>};
+@vertex fn vs(@builtin(vertex_index) vi:u32,@builtin(instance_index) ii:u32)->V{
+  var o:V; let u=units[ii];
+  if(u.state==0u){o.pos=vec4<f32>(2.,2.,2.,1.); o.col=vec3<f32>(0.); o.uv=vec2<f32>(0.); return o;}
+  var cn=array<vec2<f32>,6>(vec2<f32>(-1.,-1.),vec2<f32>(1.,-1.),vec2<f32>(-1.,1.),
+                            vec2<f32>(-1.,1.),vec2<f32>(1.,-1.),vec2<f32>(1.,1.));
+  let c=cn[vi];
+  var r=0.6; if(u.role==2u){r=0.85;}
+  let w=u.pos+c*r; let span=f32(sim.gridSize)*sim.cellSize;
+  o.pos=vec4<f32>(w.x/span*2.-1., 1.-w.y/span*2., 0.,1.);
+  let frac=clamp(f32(hp[ii])/100.0,0.0,1.0);
+  var base=select(vec3<f32>(1.0,0.36,0.32),vec3<f32>(0.31,0.61,1.0),u.team==0u);
+  var col=base*(0.4+0.6*frac);
+  if(u.role==1u){col*=0.7;}
+  if(u.role==2u){col=mix(base, vec3<f32>(1.0,0.62,0.22), 0.65)*(0.55+0.45*frac);}
+  o.col=col; o.uv=c; return o;
+}
+@fragment fn fs(in:V)->@location(0) vec4<f32>{
+  let d=length(in.uv); if(d>1.0){discard;}
+  return vec4<f32>(in.col, smoothstep(1.0,0.5,d));
+}`);
+
+const SH_TOWERR=mk(/* wgsl */`
+@group(0)@binding(0) var<storage,read> towerHp:array<i32>;
+@group(0)@binding(1) var<uniform> ti:TI;
+@group(0)@binding(2) var<uniform> sim:Sim;
+struct V{@builtin(position) pos:vec4<f32>,@location(0) col:vec3<f32>,@location(1) uv:vec2<f32>,@location(2) alive:f32};
+@vertex fn vs(@builtin(vertex_index) vi:u32,@builtin(instance_index) ii:u32)->V{
+  var o:V; let info=ti.t[ii]; let center=info.xy; let team=u32(info.z);
+  var cn=array<vec2<f32>,6>(vec2<f32>(-1.,-1.),vec2<f32>(1.,-1.),vec2<f32>(-1.,1.),
+                            vec2<f32>(-1.,1.),vec2<f32>(1.,-1.),vec2<f32>(1.,1.));
+  let c=cn[vi]; let R=7.0;
+  let w=center+c*R; let span=f32(sim.gridSize)*sim.cellSize;
+  o.pos=vec4<f32>(w.x/span*2.-1., 1.-w.y/span*2., 0.,1.);
+  let base=select(vec3<f32>(1.0,0.5,0.46),vec3<f32>(0.55,0.78,1.0),team==0u);
+  o.col=base; o.uv=c; o.alive=select(0.0,1.0,towerHp[ii]>0); return o;
+}
+@fragment fn fs(in:V)->@location(0) vec4<f32>{
+  let d=length(in.uv);
+  let core=smoothstep(0.16,0.0,d);
+  let ring=smoothstep(0.05,0.0,abs(d-0.93))*0.30;
+  var a=core+ring;
+  var col=in.col;
+  if(in.alive<0.5){ col=vec3<f32>(0.4,0.42,0.48); a*=0.4; }
+  if(a<=0.001){discard;}
+  return vec4<f32>(col, a);
+}`);
+
+const SH_FLASH=mk(/* wgsl */`
+@group(0)@binding(0) var<storage,read> deton:array<vec4<f32>>;
+@group(0)@binding(1) var<storage,read> dcount:array<u32>;
+@group(0)@binding(2) var<uniform> sim:Sim;
+struct V{@builtin(position) pos:vec4<f32>,@location(0) uv:vec2<f32>};
+@vertex fn vs(@builtin(vertex_index) vi:u32,@builtin(instance_index) ii:u32)->V{
+  var o:V; let cnt=min(dcount[0],DCAP);
+  if(ii>=cnt){ o.pos=vec4<f32>(2.,2.,2.,1.); o.uv=vec2<f32>(0.); return o; }
+  let d=deton[ii];
+  var cn=array<vec2<f32>,6>(vec2<f32>(-1.,-1.),vec2<f32>(1.,-1.),vec2<f32>(-1.,1.),
+                            vec2<f32>(-1.,1.),vec2<f32>(1.,-1.),vec2<f32>(1.,1.));
+  let c=cn[vi]; let R=d.z*1.25; let w=d.xy+c*R;
+  let span=f32(sim.gridSize)*sim.cellSize;
+  o.pos=vec4<f32>(w.x/span*2.-1., 1.-w.y/span*2., 0.,1.); o.uv=c; return o;
+}
+@fragment fn fs(in:V)->@location(0) vec4<f32>{
+  let d=length(in.uv);
+  let ring=smoothstep(0.10,0.0,abs(d-0.78));
+  let glow=smoothstep(1.0,0.0,d)*0.25;
+  return vec4<f32>(1.0,0.62,0.22,(ring+glow));
+}`);
+
+const SH_BG=mk(/* wgsl */`
+@group(0)@binding(0) var<storage,read> cost:array<f32>;
+@group(0)@binding(1) var<storage,read> integ:array<f32>;
+@group(0)@binding(2) var<uniform> sim:Sim;
+@group(0)@binding(3) var<uniform> viz:Viz;
+struct B{@builtin(position) pos:vec4<f32>,@location(0) uv:vec2<f32>};
+@vertex fn vs(@builtin(vertex_index) vi:u32)->B{
+  var p=array<vec2<f32>,3>(vec2<f32>(-1.,-1.),vec2<f32>(3.,-1.),vec2<f32>(-1.,3.));
+  var o:B; let c=p[vi]; o.pos=vec4<f32>(c,0.,1.); o.uv=vec2<f32>((c.x+1.)*0.5,1.-(c.y+1.)*0.5); return o;
+}
+@fragment fn fs(in:B)->@location(0) vec4<f32>{
+  let gs=i32(sim.gridSize);
+  let x=clamp(i32(in.uv.x*f32(gs)),0,gs-1); let y=clamp(i32(in.uv.y*f32(gs)),0,gs-1);
+  let c=u32(y*gs+x);
+  var col=vec3<f32>(0.035,0.045,0.062);
+  if(cost[c]>WALLT){ col=vec3<f32>(0.13,0.15,0.19); }
+  else if(viz.mode==1u){ let v=integ[c]; if(v<WALLT){ let t=clamp(v/(f32(gs)*1.6),0.,1.);
+    col=mix(col,mix(vec3<f32>(0.05,0.32,0.42),vec3<f32>(0.55,0.10,0.16),t),0.8); } }
+  let fx=fract(in.uv.x*f32(gs)); let fy=fract(in.uv.y*f32(gs));
+  col+=vec3<f32>(0.016)*step(0.94,max(fx,fy));
+  return vec4<f32>(col,1.);
+}`);
+
+// ============================================================ buffers
+const f32b=(n,u)=>device.createBuffer({size:n*4,usage:u});
+const STO=GPUBufferUsage.STORAGE,CD=GPUBufferUsage.COPY_DST,CS=GPUBufferUsage.COPY_SRC,UNI=GPUBufferUsage.UNIFORM;
+const costBuf=f32b(CELLS,STO|CD), scratchA=f32b(CELLS,STO|CS), scratchB=f32b(CELLS,STO);
+const integBuf=f32b(2*CELLS,STO|CD), flowBuf=f32b(2*CELLS*2,STO);
+const unitBuf=device.createBuffer({size:MAXU*32,usage:STO|CD});
+const hpBuf=device.createBuffer({size:HPLEN*4,usage:STO|CD|CS});
+const countBuf=f32b(CELLS,STO), idxBuf=device.createBuffer({size:CELLS*CAP*4,usage:STO});
+const aliveBuf=device.createBuffer({size:8,usage:STO|CS});
+const detonBuf=device.createBuffer({size:DCAP*16,usage:STO});
+const dcountBuf=device.createBuffer({size:4,usage:STO});
+const towerHpBuf=device.createBuffer({size:NTOW*4,usage:STO|CD});
+const towerCdBuf=device.createBuffer({size:NTOW*4,usage:STO|CD});
+const readBuf=device.createBuffer({size:16,usage:GPUBufferUsage.MAP_READ|CD});
+const simUbo=device.createBuffer({size:32,usage:UNI|CD});
+const fldUbo=device.createBuffer({size:16,usage:UNI|CD});
+const genoUbo=device.createBuffer({size:64,usage:UNI|CD});
+const tiUbo=device.createBuffer({size:NTOW*16,usage:UNI|CD});
+const cuUbo=device.createBuffer({size:16,usage:UNI|CD});
+const vizUbo=device.createBuffer({size:16,usage:UNI|CD});
+
+// ============================================================ pipelines
+const cp=(m,e='cs')=>device.createComputePipeline({layout:'auto',compute:{module:m,entryPoint:e}});
+const pInit=cp(SH_INIT),pRelax=cp(SH_RELAX),pFlow=cp(SH_FLOW);
+const pClear=cp(SH_CLEAR),pBin=cp(SH_BIN),pSim=cp(SH_SIM),pBlast=cp(SH_BLAST),pTower=cp(SH_TOWER),pResolve=cp(SH_RESOLVE);
+const ab={color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}};
+const addB={color:{srcFactor:'src-alpha',dstFactor:'one'},alpha:{srcFactor:'one',dstFactor:'one'}};
+const rp_=(m,blend)=>device.createRenderPipeline({layout:'auto',vertex:{module:m,entryPoint:'vs'},
+  fragment:{module:m,entryPoint:'fs',targets:[{format:fmt,blend}]},primitive:{topology:'triangle-list'}});
+const pUnits=rp_(SH_UNITS,ab), pTowerR=rp_(SH_TOWERR,ab), pFlash=rp_(SH_FLASH,addB);
+const pCrystal=device.createRenderPipeline({layout:'auto',vertex:{module:SH_CRYSTAL_MOD(),entryPoint:'vs'},
+  fragment:{module:SH_CRYSTAL_MOD(),entryPoint:'fs',targets:[{format:fmt,blend:addB}]},primitive:{topology:'triangle-list'}});
+function SH_CRYSTAL_MOD(){ return mk(/* wgsl */`
+@group(0)@binding(0) var<storage,read> chp:array<i32>;
+@group(0)@binding(1) var<uniform> cu:CU;
+@group(0)@binding(2) var<uniform> sim:Sim;
+struct V{@builtin(position) pos:vec4<f32>,@location(0) col:vec3<f32>,@location(1) uv:vec2<f32>};
+@vertex fn vs(@builtin(vertex_index) vi:u32,@builtin(instance_index) ii:u32)->V{
+  var o:V; let center=select(cu.c1,cu.c0,ii==0u);
+  var v=array<vec2<f32>,6>(vec2<f32>(0.,-1.),vec2<f32>(1.,0.),vec2<f32>(0.,1.),
+                           vec2<f32>(0.,-1.),vec2<f32>(0.,1.),vec2<f32>(-1.,0.));
+  let c=v[vi]; let frac=clamp(f32(chp[${MAXU}u+ii])/f32(${CRYSTAL_HP}),0.0,1.0);
+  let pulse=3.0+0.45*sin(sim.time*3.0)+1.8*frac;
+  let w=center+c*pulse; let span=f32(sim.gridSize)*sim.cellSize;
+  o.pos=vec4<f32>(w.x/span*2.-1.,1.-w.y/span*2.,0.,1.);
+  let base=select(vec3<f32>(1.0,0.42,0.38),vec3<f32>(0.42,0.72,1.0),ii==0u);
+  o.col=base*(0.45+0.9*frac); o.uv=c; return o;
+}
+@fragment fn fs(in:V)->@location(0) vec4<f32>{
+  let d=length(in.uv); let core=smoothstep(1.05,0.15,d); let edge=smoothstep(1.05,0.85,d)*0.6;
+  return vec4<f32>(in.col,clamp(core+edge,0.0,1.0));
+}`); }
+const pBg=device.createRenderPipeline({layout:'auto',vertex:{module:SH_BG,entryPoint:'vs'},
+  fragment:{module:SH_BG,entryPoint:'fs',targets:[{format:fmt}]},primitive:{topology:'triangle-list'}});
+
+const bg=(p,i,e)=>device.createBindGroup({layout:p.getBindGroupLayout(i),entries:e.map((b,n)=>({binding:n,resource:{buffer:b}}))});
+const bgInit=bg(pInit,0,[costBuf,scratchA,fldUbo]);
+const bgRelaxAB=bg(pRelax,0,[costBuf,scratchA,scratchB,fldUbo]);
+const bgRelaxBA=bg(pRelax,0,[costBuf,scratchB,scratchA,fldUbo]);
+const bgFlow=bg(pFlow,0,[costBuf,integBuf,flowBuf,fldUbo]);
+const bgClear=bg(pClear,0,[countBuf,aliveBuf,dcountBuf,simUbo]);
+const bgBin=bg(pBin,0,[unitBuf,countBuf,idxBuf,simUbo]);
+const bgSim=bg(pSim,0,[unitBuf,flowBuf,countBuf,idxBuf,hpBuf,costBuf,detonBuf,dcountBuf,simUbo,genoUbo]);
+const bgBlast=bg(pBlast,0,[unitBuf,hpBuf,detonBuf,dcountBuf,simUbo]);
+const bgTower=bg(pTower,0,[unitBuf,countBuf,idxBuf,hpBuf,towerHpBuf,towerCdBuf,detonBuf,dcountBuf,tiUbo,simUbo]);
+const bgResolve=bg(pResolve,0,[unitBuf,hpBuf,aliveBuf,simUbo]);
+const bgU=bg(pUnits,0,[unitBuf,hpBuf,simUbo]);
+const bgTR=bg(pTowerR,0,[towerHpBuf,tiUbo,simUbo]);
+const bgFlash=bg(pFlash,0,[detonBuf,dcountBuf,simUbo]);
+const bgCrystal=bg(pCrystal,0,[hpBuf,cuUbo,simUbo]);
+const bgBG=bg(pBg,0,[costBuf,integBuf,simUbo,vizUbo]);
+
+// ============================================================ map + fields
+const cost=new Float32Array(CELLS);
+function buildMap(){
+  cost.fill(1.0);
+  const wall=(x0,y0,x1,y1)=>{for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++)if(x>=0&&y>=0&&x<GS&&y<GS)cost[y*GS+x]=1e9;};
+  const sym=(x,y,w,h)=>{ wall(x,y,x+w,y+h); wall(GS-x-w,y,GS-x,y+h); wall(x,GS-y-h,x+w,GS-y); wall(GS-x-w,GS-y-h,GS-x,GS-y); };
+  // central spine with two symmetric gaps about y=64
+  wall(63,0,65,40); wall(63,48,65,80); wall(63,88,65,128);
+  // 4-fold symmetric obstacles
+  sym(28,24,14,9);
+  sym(46,16,9,9);
+  sym(20,50,8,12);
+  sym(40,46,10,8);
+  sym(8,30,8,8);
+  // keep crystal corridors open
+  for(let y=60;y<69;y++){ for(let x=0;x<16;x++){cost[y*GS+x]=1.0;} for(let x=GS-16;x<GS;x++){cost[y*GS+x]=1.0;} }
+}
+function nearestOpen(cell){
+  if(cost[cell]<5e8) return cell;
+  const cx=cell%GS, cy=(cell/GS)|0;
+  for(let r=1;r<14;r++) for(let dy=-r;dy<=r;dy++) for(let dx=-r;dx<=r;dx++){
+    const x=cx+dx,y=cy+dy; if(x<0||y<0||x>=GS||y>=GS)continue;
+    if(cost[y*GS+x]<5e8) return y*GS+x;
+  }
+  return cell;
+}
+function rebuildField(idx,goalCell){
+  const base=idx*CELLS;
+  device.queue.writeBuffer(fldUbo,0,new Uint32Array([GS,goalCell,base,0]));
+  const enc=device.createCommandEncoder(); const grp=Math.ceil(CELLS/WG);
+  const p=enc.beginComputePass();
+  p.setPipeline(pInit); p.setBindGroup(0,bgInit); p.dispatchWorkgroups(grp);
+  p.setPipeline(pRelax);
+  for(let i=0;i<ITERS;i++){ p.setBindGroup(0,(i&1)?bgRelaxBA:bgRelaxAB); p.dispatchWorkgroups(grp); }
+  p.end();
+  enc.copyBufferToBuffer(scratchA,0,integBuf,base*4,CELLS*4);
+  const p2=enc.beginComputePass(); p2.setPipeline(pFlow); p2.setBindGroup(0,bgFlow); p2.dispatchWorkgroups(grp); p2.end();
+  device.queue.submit([enc.finish()]);
+}
+
+// ============================================================ genome / GA
+const NG=11, NG_SHOW=7, MAX_BOMB=0.45;
+const GLAB=["Aggression","Engage","Spacing","Defend","Boldness","Focus","Bombers"];
+const rnd=()=>Math.random();
+const randn=()=>{let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+const c01=(x)=>Math.max(0,Math.min(1,x));
+function newGenome(){const g=new Float32Array(NG);for(let i=0;i<NG;i++)g[i]=rnd();return{genes:g,fit:0,n:0,score:0};}
+function clone(o){return{genes:Float32Array.from(o.genes),fit:0,n:0,score:0};}
+let pop=[[],[]], gen=0, mutRate=0.12;
+function initPops(){pop=[[],[]];for(let t=0;t<2;t++)for(let i=0;i<POP;i++)pop[t].push(newGenome());gen=0;histB.length=0;histR.length=0;champB=null;champR=null;}
+function tournament(p){let b=null;for(let k=0;k<3;k++){const c=p[(Math.random()*p.length)|0];if(!b||c.score>b.score)b=c;}return b;}
+function crossover(a,b){const g=new Float32Array(NG);for(let i=0;i<NG;i++){const al=Math.random();g[i]=c01(a.genes[i]*al+b.genes[i]*(1-al));}return{genes:g,fit:0,n:0,score:0};}
+function mutate(o){for(let i=0;i<NG;i++){if(Math.random()<0.85)o.genes[i]=c01(o.genes[i]+randn()*mutRate);else o.genes[i]=rnd();}}
+function evolve(p){
+  for(const g of p)g.score=g.fit/Math.max(1,g.n);
+  p.sort((a,b)=>b.score-a.score);
+  const next=[clone(p[0]),clone(p[1])];
+  while(next.length<POP){const c=crossover(tournament(p),tournament(p));mutate(c);next.push(c);}
+  return{next,best:p[0]};
+}
+
+// ============================================================ battle
+let schedule=[],cur=0;
+function beginGeneration(){
+  for(const t of[0,1])for(const g of pop[t]){g.fit=0;g.n=0;}
+  schedule=[];
+  for(let i=0;i<POP;i++)schedule.push({b:i,r:i});
+  for(let i=0;i<POP;i++)schedule.push({b:i,r:(i+1)%POP});
+  cur=0; startBattle(schedule[0]);
+}
+const uArr=new Float32Array(2*CPT*8), uU=new Uint32Array(uArr.buffer), hArr=new Int32Array(HPLEN);
+function towerWorld(team,gx,gy){
+  const xr=team===0?[6,58]:[70,122];
+  const x=xr[0]+gx*(xr[1]-xr[0]), y=10+gy*108;
+  const cell=nearestOpen(((y|0))*GS+(x|0));
+  return [(cell%GS)+0.5, ((cell/GS)|0)+0.5];
+}
+function spawnArmies(g0,g1){
+  const side=Math.ceil(Math.sqrt(CPT)), sp=1.0;
+  const fill=(off,team,g,cx,dir)=>{
+    const nBomb=Math.round(g[6]*MAX_BOMB*CPT);
+    const rem=CPT-nBomb, nAtt=Math.round(g[0]*rem);
+    for(let k=0;k<CPT;k++){
+      const row=(k/side)|0, colp=k%side;
+      const x=cx+dir*(3+row*sp), y=64-(side*sp)/2+colp*sp, o=(off+k)*8;
+      uArr[o]=x; uArr[o+1]=y; uArr[o+2]=0; uArr[o+3]=0;
+      uU[o+4]=team; uArr[o+5]=Math.random()*0.5; uU[o+6]=1;
+      uU[o+7]= k<nBomb?2 : (k<nBomb+nAtt?0:1);
+      hArr[off+k]=100;
+    }
+  };
+  fill(0,0,g0,C0[0],+1); fill(CPT,1,g1,C1[0],-1);
+  hArr[MAXU]=CRYSTAL_HP; hArr[MAXU+1]=CRYSTAL_HP;
+  device.queue.writeBuffer(unitBuf,0,uArr.buffer);
+  device.queue.writeBuffer(hpBuf,0,hArr.buffer);
+  // towers
+  const tw=new Float32Array(NTOW*4);
+  const t0a=towerWorld(0,g0[7],g0[8]), t0b=towerWorld(0,g0[9],g0[10]);
+  const t1a=towerWorld(1,g1[7],g1[8]), t1b=towerWorld(1,g1[9],g1[10]);
+  const set=(i,p,team)=>{tw[i*4]=p[0];tw[i*4+1]=p[1];tw[i*4+2]=team;tw[i*4+3]=0;};
+  set(0,t0a,0); set(1,t0b,0); set(2,t1a,1); set(3,t1b,1);
+  device.queue.writeBuffer(tiUbo,0,tw.buffer);
+  device.queue.writeBuffer(towerHpBuf,0,new Int32Array([1800,1800,1800,1800]).buffer);
+  device.queue.writeBuffer(towerCdBuf,0,new Float32Array([0,0,0,0]).buffer);
+}
+function writeGeno(g0,g1){
+  const ab2=new ArrayBuffer(64),dv=new DataView(ab2);
+  for(let i=0;i<6;i++)dv.setFloat32(i*4,g0[i],true);
+  for(let i=0;i<6;i++)dv.setFloat32(24+i*4,g1[i],true);
+  dv.setFloat32(48,C0[0],true);dv.setFloat32(52,C0[1],true);
+  dv.setFloat32(56,C1[0],true);dv.setFloat32(60,C1[1],true);
+  device.queue.writeBuffer(genoUbo,0,ab2);
+}
+let battleId=0,tick=0,battleActive=false,curMatch=null,mode='evolve';
+let latest={c0:CRYSTAL_HP,c1:CRYSTAL_HP,a0:CPT,a1:CPT},readValid=false;
+function startBattle(match,showcase){
+  battleId++; tick=0; battleActive=true; curMatch=match;
+  latest={c0:CRYSTAL_HP,c1:CRYSTAL_HP,a0:CPT,a1:CPT}; readValid=false;
+  const g0=showcase?champB.genes:pop[0][match.b].genes;
+  const g1=showcase?champR.genes:pop[1][match.r].genes;
+  writeGeno(g0,g1); spawnArmies(g0,g1);
+  document.getElementById('mB').textContent=showcase?'★':match.b;
+  document.getElementById('mR').textContent=showcase?'★':match.r;
+  setGenes(matchGeneEls.b,g0); setGenes(matchGeneEls.r,g1);
+}
+function fitness(team,r){
+  const HP=CRYSTAL_HP;
+  const myHP=team==0?r.c0:r.c1, opHP=team==0?r.c1:r.c0;
+  const myAl=team==0?r.a0:r.a1, opAl=team==0?r.a1:r.a0;
+  const opDmg=1-Math.max(0,opHP)/HP, myDmg=1-Math.max(0,myHP)/HP;
+  const win=(opHP<=0&&myHP>0)?1:0, loss=(myHP<=0&&opHP>0)?1:0;
+  const armyAdv=(myAl-opAl)/CPT, speed=win?(1-r.tick/MAXTICKS):0;
+  return 3*win-2*loss+1.6*opDmg-1.2*myDmg+0.5*armyAdv+1.0*speed;
+}
+let champB=null,champR=null; const histB=[],histR=[];
+function endBattle(){
+  battleActive=false; const r={...latest,tick};
+  if(mode==='evolve'){
+    const m=curMatch, f0=fitness(0,r), f1=fitness(1,r);
+    pop[0][m.b].fit+=f0; pop[0][m.b].n++; pop[1][m.r].fit+=f1; pop[1][m.r].n++;
+    cur++;
+    if(cur>=schedule.length){
+      const eB=evolve(pop[0]), eR=evolve(pop[1]);
+      champB=clone(eB.best); champB.score=eB.best.score; champR=clone(eR.best); champR.score=eR.best.score;
+      histB.push(eB.best.score); histR.push(eR.best.score);
+      pop[0]=eB.next; pop[1]=eR.next; gen++; updateChampions(); drawSpark(); beginGeneration();
+    } else startBattle(schedule[cur]);
+  } else startBattle(null,true);
+}
+
+// ============================================================ readback
+let rbPending=false;
+function requestReadback(enc){
+  if(rbPending) return false;
+  enc.copyBufferToBuffer(hpBuf,MAXU*4,readBuf,0,8);
+  enc.copyBufferToBuffer(aliveBuf,0,readBuf,8,8);
+  return true;
+}
+async function pollReadback(myId){
+  rbPending=true;
+  try{
+    await readBuf.mapAsync(GPUMapMode.READ);
+    const mr=readBuf.getMappedRange();
+    const i=new Int32Array(mr,0,2), u=new Uint32Array(mr,8,2);
+    if(myId===battleId){ latest={c0:i[0],c1:i[1],a0:u[0],a1:u[1]}; readValid=true; }
+    readBuf.unmap();
+  }catch(e){}
+  rbPending=false;
+}
+
+// ============================================================ uniforms / loop
+function writeSim(){
+  const a=new ArrayBuffer(32),dv=new DataView(a);
+  dv.setUint32(0,GS,true); dv.setFloat32(4,CELL,true); dv.setUint32(8,2*CPT,true); dv.setFloat32(12,1/60,true);
+  dv.setFloat32(16,1.6,true); dv.setFloat32(20,3.5,true); dv.setFloat32(24,performance.now()/1000,true); dv.setFloat32(28,0,true);
+  device.queue.writeBuffer(simUbo,0,a);
+}
+let turbo=4,paused=false,frame=0,prev=performance.now(),fpsAcc=0,fpsN=0;
+function loop(now){
+  let dt=(now-prev)/1000; prev=now; fpsAcc+=dt; fpsN++; frame++;
+  writeSim();
+  const enc=device.createCommandEncoder();
+  if(!paused&&battleActive){
+    const steps=mode==='showcase'?1:turbo;
+    const cgrp=Math.ceil(CELLS/WG), ugrp=Math.ceil((2*CPT)/WG);
+    const c=enc.beginComputePass();
+    for(let s=0;s<steps;s++){
+      c.setPipeline(pClear);  c.setBindGroup(0,bgClear);  c.dispatchWorkgroups(cgrp);
+      c.setPipeline(pBin);    c.setBindGroup(0,bgBin);    c.dispatchWorkgroups(ugrp);
+      c.setPipeline(pSim);    c.setBindGroup(0,bgSim);    c.dispatchWorkgroups(ugrp);
+      c.setPipeline(pBlast);  c.setBindGroup(0,bgBlast);  c.dispatchWorkgroups(ugrp);
+      c.setPipeline(pTower);  c.setBindGroup(0,bgTower);  c.dispatchWorkgroups(1);
+      c.setPipeline(pResolve);c.setBindGroup(0,bgResolve);c.dispatchWorkgroups(ugrp);
+    }
+    c.end(); tick+=steps;
+  }
+  let didCopy=false;
+  if(!paused&&battleActive&&frame%4===0) didCopy=requestReadback(enc);
+  const view=ctx.getCurrentTexture().createView();
+  const r=enc.beginRenderPass({colorAttachments:[{view,clearValue:{r:0.02,g:0.03,b:0.04,a:1},loadOp:'clear',storeOp:'store'}]});
+  r.setPipeline(pBg);      r.setBindGroup(0,bgBG);      r.draw(3,1,0,0);
+  r.setPipeline(pTowerR);  r.setBindGroup(0,bgTR);      r.draw(6,NTOW,0,0);
+  r.setPipeline(pUnits);   r.setBindGroup(0,bgU);       r.draw(6,2*CPT,0,0);
+  r.setPipeline(pCrystal); r.setBindGroup(0,bgCrystal); r.draw(6,2,0,0);
+  r.setPipeline(pFlash);   r.setBindGroup(0,bgFlash);   r.draw(6,DCAP,0,0);
+  r.end();
+  device.queue.submit([enc.finish()]);
+  if(didCopy) pollReadback(battleId);
+  if(battleActive&&(tick>=MAXTICKS||(readValid&&(latest.c0<=0||latest.c1<=0)))) endBattle();
+  if(frame%4===0) updateLiveHUD();
+  if(fpsAcc>=0.5){document.getElementById('fps').textContent=Math.round(fpsN/fpsAcc);fpsAcc=0;fpsN=0;}
+  requestAnimationFrame(loop);
+}
+
+// ============================================================ HUD
+function geneRowSolo(parent){
+  const els=[];
+  for(let i=0;i<NG_SHOW;i++){
+    const l=document.createElement('div'); l.className='gl'; l.textContent=GLAB[i];
+    const t=document.createElement('div'); t.className='gtrack bl'; const b=document.createElement('b'); t.appendChild(b);
+    parent.appendChild(l); parent.appendChild(t); els.push(b);
+  } return els;
+}
+function dualGeneRows(parent){
+  const blue=[],red=[];
+  const e=(c,txt,col,al)=>{const d=document.createElement('div');d.className=c;if(txt!==undefined)d.textContent=txt;if(col)d.style.color=col;if(al)d.style.textAlign=al;return d;};
+  parent.appendChild(e('gl','')); parent.appendChild(e('gl','blue','var(--blue)','center')); parent.appendChild(e('gl','red','var(--red)','center'));
+  for(let i=0;i<NG_SHOW;i++){
+    parent.appendChild(e('gl',GLAB[i]));
+    const tb=document.createElement('div'); tb.className='gtrack bl'; const bb=document.createElement('b'); tb.appendChild(bb);
+    const tr=document.createElement('div'); tr.className='gtrack rd'; const rb=document.createElement('b'); tr.appendChild(rb);
+    parent.appendChild(tb); parent.appendChild(tr); blue.push(bb); red.push(rb);
+  } return {b:blue,r:red};
+}
+const matchGeneEls=dualGeneRows(document.getElementById('matchGenes'));
+const champBEls=geneRowSolo(document.getElementById('champB'));
+const champREls=geneRowSolo(document.getElementById('champR'));
+champREls.forEach(b=>{b.parentElement.classList.remove('bl');b.parentElement.classList.add('rd');});
+function setGenes(els,g){for(let i=0;i<NG_SHOW;i++)els[i].style.width=(g[i]*100).toFixed(0)+'%';}
+function describe(g){
+  let s=g[0]>0.62?'Offensive':(g[0]<0.38?'Defensive':'Balanced');
+  if(g[5]<0.34)s+=', crystal rush'; else if(g[5]>0.66)s+=', clears army first';
+  if(g[6]>0.4)s+='. Heavy bombers';
+  const fwd=(g[7]+g[9])/2; s+= fwd>0.6?'. Towers pushed forward':(fwd<0.4?'. Towers guard the base':'. Towers mid-field');
+  return s+'.';
+}
+function updateChampions(){
+  if(champB){setGenes(champBEls,champB.genes);document.getElementById('chBs').textContent=champB.score.toFixed(2);document.getElementById('descB').textContent=describe(champB.genes);}
+  if(champR){setGenes(champREls,champR.genes);document.getElementById('chRs').textContent=champR.score.toFixed(2);document.getElementById('descR').textContent=describe(champR.genes);}
+}
+function updateLiveHUD(){
+  document.getElementById('gen').textContent=gen;
+  document.getElementById('battle').textContent=(mode==='showcase')?'★ show':((cur+1)+' / '+schedule.length);
+  const c0=Math.max(0,latest.c0)/CRYSTAL_HP, c1=Math.max(0,latest.c1)/CRYSTAL_HP;
+  document.getElementById('c0bar').style.width=(c0*100)+'%';
+  document.getElementById('c1bar').style.width=(c1*100)+'%';
+  document.getElementById('c0v').textContent=Math.round(c0*100)+'%';
+  document.getElementById('c1v').textContent=Math.round(c1*100)+'%';
+  document.getElementById('a0').textContent=latest.a0; document.getElementById('a1').textContent=latest.a1;
+}
+const sc=document.getElementById('spark'), sx=sc.getContext('2d');
+function drawSpark(){
+  const W=sc.width,H=sc.height; sx.clearRect(0,0,W,H);
+  const all=histB.concat(histR); if(!all.length)return;
+  let lo=Math.min(...all),hi=Math.max(...all); if(hi-lo<1e-3){hi+=1;lo-=1;}
+  const plot=(arr,col)=>{sx.strokeStyle=col;sx.lineWidth=1.5;sx.beginPath();
+    arr.forEach((v,i)=>{const x=arr.length>1?i/(arr.length-1)*(W-6)+3:W/2;const y=H-4-((v-lo)/(hi-lo))*(H-8);i?sx.lineTo(x,y):sx.moveTo(x,y);});sx.stroke();};
+  plot(histB,'#4f9bff'); plot(histR,'#ff5b51');
+}
+
+// ============================================================ controls
+const playBtn=document.getElementById('play');
+playBtn.onclick=()=>{paused=!paused;playBtn.classList.toggle('on',!paused);playBtn.textContent=paused?'Start':'Pause';};
+const showBtn=document.getElementById('show');
+showBtn.onclick=()=>{
+  if(mode==='evolve'){ if(!champB||!champR)return; mode='showcase';showBtn.classList.add('on');showBtn.textContent='Back to evolution';startBattle(null,true); }
+  else { mode='evolve';showBtn.classList.remove('on');showBtn.textContent='Watch champions';beginGeneration(); }
+};
+document.getElementById('reset').onclick=()=>{mode='evolve';showBtn.classList.remove('on');showBtn.textContent='Watch champions';initPops();updateChampions();drawSpark();beginGeneration();};
+const fieldBtn=document.getElementById('field'); let heat=false;
+fieldBtn.onclick=()=>{heat=!heat;fieldBtn.classList.toggle('on',heat);device.queue.writeBuffer(vizUbo,0,new Uint32Array([heat?1:0,0,0,0]));};
+const turboEl=document.getElementById('turbo'),turboV=document.getElementById('turboV');
+turboEl.oninput=()=>{turbo=+turboEl.value;turboV.textContent=turboEl.value;};
+const mutEl=document.getElementById('mut'),mutVEl=document.getElementById('mutV');
+mutEl.oninput=()=>{mutRate=+mutEl.value;mutVEl.textContent=(+mutEl.value).toFixed(2);};
+
+// ============================================================ boot
+buildMap();
+device.queue.writeBuffer(costBuf,0,cost.buffer);
+device.queue.writeBuffer(cuUbo,0,new Float32Array([C0[0],C0[1],C1[0],C1[1]]).buffer);
+device.queue.writeBuffer(vizUbo,0,new Uint32Array([0,0,0,0]));
+rebuildField(0,C0CELL); rebuildField(1,C1CELL);
+initPops(); beginGeneration();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

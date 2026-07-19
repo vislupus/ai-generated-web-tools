@@ -1,0 +1,2179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>The Math Beauty Gallery — ~50 Chaotic Systems, Attractors & Fractals</title>
+<style>
+  :root{
+    --bg:#0a0c11; --panel:#141823; --ink:#e8edf5; --muted:#8a96a8;
+    --accent:#7aa2ff; --accent2:#ffd166; --line:#222a3a; --tag:#1d2434;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5;}
+  header{padding:24px 24px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(10,12,17,.92);backdrop-filter:blur(6px);z-index:10}
+  h1{margin:0 0 6px;font-size:22px;letter-spacing:.3px}
+  h1 span{color:var(--accent)}
+  .sub{color:var(--muted);font-size:13px;max-width:880px}
+  nav{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  nav button{background:var(--tag);border:1px solid var(--line);color:var(--ink);
+    padding:5px 10px;border-radius:999px;cursor:pointer;font-size:12px}
+  nav button.active{background:var(--accent);border-color:var(--accent);color:#0a0c11;font-weight:600}
+  main{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px;padding:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+  .card h2{margin:0;padding:11px 14px;font-size:14px;border-bottom:1px solid var(--line);
+    display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .card h2 small{color:var(--muted);font-weight:400;font-size:11px;text-align:right}
+  .badge{font-size:10px;background:var(--tag);border:1px solid var(--line);padding:2px 6px;border-radius:6px;color:var(--accent2)}
+  .canvas-wrap{position:relative;aspect-ratio:1/1;background:#000}
+  canvas{width:100%;height:100%;display:block}
+  .controls{padding:8px 12px;display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;font-size:11px;border-top:1px solid var(--line)}
+  .controls label{color:var(--muted)}
+  .controls span{color:var(--accent2);font-variant-numeric:tabular-nums;text-align:right;min-width:48px}
+  .controls input[type=range]{accent-color:var(--accent);width:100%}
+  .row{display:flex;gap:6px;padding:6px 12px;border-top:1px solid var(--line);flex-wrap:wrap}
+  button{background:#1d2434;border:1px solid var(--line);color:var(--ink);
+    padding:5px 9px;border-radius:7px;cursor:pointer;font-size:11px}
+  button:hover{background:#26304a}
+  .desc{padding:8px 12px;color:var(--muted);font-size:11px;border-top:1px solid var(--line);font-family:ui-monospace,Menlo,Consolas,monospace}
+  footer{padding:24px;color:var(--muted);font-size:12px;text-align:center;border-top:1px solid var(--line)}
+  code{background:#0e131c;border:1px solid var(--line);padding:1px 5px;border-radius:5px;color:#cbd5e1}
+  a{color:var(--accent)}
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+<header>
+  <h1>The Math Beauty Gallery <span>·</span> ~50 chaotic systems, attractors &amp; fractals</h1>
+  <div class="sub">
+    Interactive renderings of strange attractors, fractals and beauty-generating equations from the
+    chaos-theory literature: Lorenz, Rössler, Pickover, de Jong, Sprott, Markus–Hess, Mandelbrot, Newton,
+    Hladni, Maurer, Field–Golubitsky and many more. All math runs live in pure JavaScript — drag the
+    sliders, hit <b>🎲</b> for a curated preset, and <b>⬇</b> to save a PNG.
+  </div>
+  <nav id="nav"></nav>
+</header>
+
+<main id="gallery"></main>
+
+<footer>
+  Sources: <a href="https://paulbourke.net/fractals/">paulbourke.net/fractals</a> ·
+  <a href="https://sprott.physics.wisc.edu">sprott.physics.wisc.edu</a> ·
+  <a href="https://en.wikipedia.org/wiki/Chaos_theory">Wikipedia – Chaos theory</a> ·
+  <a href="https://en.wikipedia.org/wiki/List_of_fractals_by_Hausdorff_dimension">List of fractals by Hausdorff dimension</a> ·
+  <a href="https://softologyblog.wordpress.com/category/fractals/">softologyblog</a> ·
+  <a href="https://www.kaggle.com/code/vislupus/attractors">Kaggle – attractors (vislupus)</a>
+</footer>
+
+<script>
+/* =====================================================================
+   Shared helpers
+   ===================================================================== */
+
+const CATEGORIES = {
+  map2d: '2D iterated maps',
+  flow3d: '3D continuous flows',
+  fractal: 'Escape-time & complex fractals',
+  ifs:    'IFS / L-system fractals',
+  pattern:'Wave & parametric patterns',
+};
+
+function clearCanvas(ctx, W, H, rgb=[6,8,14]) {
+  const img = ctx.createImageData(W,H);
+  const d = img.data;
+  for (let i=0;i<d.length;i+=4){ d[i]=rgb[0]; d[i+1]=rgb[1]; d[i+2]=rgb[2]; d[i+3]=255; }
+  ctx.putImageData(img,0,0);
+}
+
+/* palette utilities */
+function palette(t, mode='turbo'){
+  t = Math.max(0, Math.min(1, t));
+  if (mode==='fire')   return [255*Math.pow(t,0.4), 220*Math.pow(t,1.1), 90*Math.pow(t,2.2)];
+  if (mode==='ice')    return [80*Math.pow(t,1.4), 180*Math.pow(t,0.8), 255*Math.pow(t,0.5)];
+  if (mode==='aurora') return [120*Math.pow(t,1.5), 240*Math.pow(t,0.7), 180*Math.pow(t,1.2)];
+  if (mode==='violet') return [180*Math.pow(t,1.0), 100*Math.pow(t,1.6), 220*Math.pow(t,0.7)];
+  if (mode==='gold')   return [255*Math.pow(t,0.6), 200*Math.pow(t,1.0), 90*Math.pow(t,2.0)];
+  if (mode==='rose')   return [240*Math.pow(t,0.6), 100*Math.pow(t,1.2), 150*Math.pow(t,0.9)];
+  if (mode==='lime')   return [120*Math.pow(t,1.2), 230*Math.pow(t,0.7), 100*Math.pow(t,1.4)];
+  if (mode==='ocean')  return [40*Math.pow(t,1.3), 160*Math.pow(t,0.9), 220*Math.pow(t,0.7)];
+  // turbo
+  const r = Math.round(34.61 + t*(1172.33 - t*(10793.56 - t*(33300.12 - t*(38394.49 - t*14825.05)))));
+  const g = Math.round(23.31 + t*(557.33  + t*(1225.33  - t*(3574.96  - t*(1073.77  + t*707.56)))));
+  const b = Math.round(27.2  + t*(3211.1  - t*(15327.97 - t*(27814 - t*(22569.18 - t*6838.66)))));
+  return [Math.max(0,Math.min(255,r)),Math.max(0,Math.min(255,g)),Math.max(0,Math.min(255,b))];
+}
+
+/* universal histogram renderer for any 2D iterated map */
+function histogramRender(canvas, iterFn, opts={}) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const bg = opts.bg || [6,8,14];
+  ctx.fillStyle = `rgb(${bg[0]},${bg[1]},${bg[2]})`;
+  ctx.fillRect(0,0,W,H);
+  const N = opts.iters || 600000;
+  const hist = new Float32Array(W*H);
+
+  // burn in
+  let p = iterFn.init ? iterFn.init() : [0.1, 0.1];
+  for (let i=0;i<500;i++) p = iterFn.step(p);
+
+  // bounds
+  let xmin=1e9,xmax=-1e9,ymin=1e9,ymax=-1e9;
+  let q = [...p];
+  for (let i=0;i<8000;i++){
+    q = iterFn.step(q);
+    if (!isFinite(q[0])||!isFinite(q[1])){ q=[0.1,0.1]; continue;}
+    if (q[0]<xmin)xmin=q[0]; if(q[0]>xmax)xmax=q[0];
+    if (q[1]<ymin)ymin=q[1]; if(q[1]>ymax)ymax=q[1];
+  }
+  if (!isFinite(xmin)||xmax-xmin<1e-9){ return; }
+  const pad = (opts.pad ?? 0.05) * Math.max(xmax-xmin, ymax-ymin);
+  xmin-=pad; xmax+=pad; ymin-=pad; ymax+=pad;
+  const sc = Math.min((W-2)/(xmax-xmin), (H-2)/(ymax-ymin));
+  const cx = W/2 - sc*(xmax+xmin)/2;
+  const cy = H/2 - sc*(ymax+ymin)/2;
+
+  for (let i=0;i<N;i++){
+    p = iterFn.step(p);
+    if (!isFinite(p[0])||!isFinite(p[1])){ p=[0.1,0.1]; continue;}
+    const px=(cx+sc*p[0])|0;
+    const py=(cy+sc*p[1])|0;
+    if (px>=0&&py>=0&&px<W&&py<H) hist[py*W+px]+=1;
+  }
+  let max=0;
+  for (let i=0;i<hist.length;i++) if (hist[i]>max) max=hist[i];
+  if (max===0) return;
+  const lm = Math.log(1+max);
+  const img = ctx.getImageData(0,0,W,H);
+  const d = img.data;
+  const mode = opts.palette || 'turbo';
+  for (let i=0;i<hist.length;i++){
+    if (hist[i]===0) continue;
+    const v = Math.log(1+hist[i])/lm;
+    const c = palette(Math.pow(v, opts.gamma||0.9), mode);
+    const k = i*4;
+    d[k]   = c[0];
+    d[k+1] = c[1];
+    d[k+2] = c[2];
+  }
+  ctx.putImageData(img,0,0);
+}
+
+/* renderer for continuous 3D flows projected to 2D */
+function flow3DRender(canvas, stepFn, opts={}) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = '#04060a'; ctx.fillRect(0,0,W,H);
+  const N = opts.iters || 500000;
+  const dt = opts.dt || 0.005;
+  const proj = opts.proj || ((x,y,z)=>[x,z]);
+  let p = (opts.init||[0.1,0.1,0.1]).slice();
+  // burn-in
+  for (let i=0;i<2000;i++) p = stepFn(p, dt);
+
+  // bounds
+  let amin=1e9,amax=-1e9,bmin=1e9,bmax=-1e9;
+  let q=[...p];
+  for (let i=0;i<6000;i++){
+    q = stepFn(q,dt);
+    if (!isFinite(q[0])){ break; }
+    const [a,b] = proj(q[0],q[1],q[2]);
+    if (a<amin)amin=a; if(a>amax)amax=a;
+    if (b<bmin)bmin=b; if(b>bmax)bmax=b;
+  }
+  if (amax-amin<1e-6||bmax-bmin<1e-6) return;
+  const pad = 0.05 * Math.max(amax-amin, bmax-bmin);
+  amin-=pad;amax+=pad;bmin-=pad;bmax+=pad;
+  const sc = Math.min((W-2)/(amax-amin),(H-2)/(bmax-bmin));
+  const cx = W/2 - sc*(amax+amin)/2;
+  const cy = H/2 - sc*(bmax+bmin)/2;
+
+  const hist = new Float32Array(W*H);
+  for (let i=0;i<N;i++){
+    p = stepFn(p, dt);
+    if (!isFinite(p[0])){ p = (opts.init||[0.1,0.1,0.1]).slice(); continue; }
+    const [a,b] = proj(p[0],p[1],p[2]);
+    const px=(cx+sc*a)|0, py=H - 1 - ((cy+sc*b)|0 - H + 1) - 0; // flip y
+    const fy = (cy+sc*b)|0;
+    if (px>=0&&fy>=0&&px<W&&fy<H) hist[fy*W+px] += 1;
+  }
+  let max=0;
+  for (let i=0;i<hist.length;i++) if (hist[i]>max) max=hist[i];
+  if (max===0) return;
+  const lm = Math.log(1+max);
+  const img = ctx.getImageData(0,0,W,H);
+  const d = img.data;
+  const mode = opts.palette || 'aurora';
+  for (let i=0;i<hist.length;i++){
+    if (hist[i]===0) continue;
+    const v = Math.log(1+hist[i])/lm;
+    const c = palette(Math.pow(v, opts.gamma||0.85), mode);
+    const k = i*4;
+    d[k]=c[0]; d[k+1]=c[1]; d[k+2]=c[2];
+  }
+  ctx.putImageData(img,0,0);
+}
+
+/* card factory */
+function makeCard({title, badge, sub, desc, category, controls, draw, presets, palettes}) {
+  const main = document.getElementById('gallery');
+  const card = document.createElement('section');
+  card.className = 'card';
+  card.dataset.cat = category;
+  card.innerHTML = `
+    <h2><span>${title}${badge?` <span class="badge">${badge}</span>`:''}</span><small>${sub||''}</small></h2>
+    <div class="canvas-wrap"><canvas></canvas></div>
+    <div class="controls"></div>
+    <div class="row"></div>
+    <div class="desc">${desc||''}</div>`;
+  const canvas = card.querySelector('canvas');
+  const cWrap = card.querySelector('.canvas-wrap');
+  const cBox = card.querySelector('.controls');
+  const rBox = card.querySelector('.row');
+  main.appendChild(card);
+
+  const fit = () => {
+    const r = cWrap.getBoundingClientRect();
+    const s = Math.max(200, Math.min(540, Math.floor(r.width)));
+    canvas.width = s; canvas.height = s;
+  };
+  fit();
+  let resizeT;
+  new ResizeObserver(()=>{ clearTimeout(resizeT); resizeT=setTimeout(()=>{fit(); render();}, 150);}).observe(cWrap);
+
+  const state = {};
+  (controls||[]).forEach(c => state[c.id] = c.value);
+  if (palettes) state.palette = palettes[0];
+
+  (controls||[]).forEach(c => {
+    const lab = document.createElement('label'); lab.textContent = c.label;
+    const inp = document.createElement('input');
+    inp.type = 'range'; inp.min = c.min; inp.max = c.max; inp.step = c.step;
+    inp.value = c.value;
+    const val = document.createElement('span'); val.textContent = (+c.value).toFixed(3);
+    let raf;
+    inp.oninput = () => {
+      state[c.id] = +inp.value;
+      val.textContent = (+inp.value).toFixed(3);
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(render);
+    };
+    cBox.appendChild(lab); cBox.appendChild(inp); cBox.appendChild(val);
+    c._input = inp; c._val = val;
+  });
+
+  const btnRender = document.createElement('button');
+  btnRender.textContent = '↻';
+  btnRender.title = 'Re-render';
+  btnRender.onclick = render;
+  rBox.appendChild(btnRender);
+
+  if (presets && presets.length){
+    const b = document.createElement('button');
+    b.textContent = '🎲 preset';
+    b.onclick = () => {
+      const p = presets[Math.floor(Math.random()*presets.length)];
+      (controls||[]).forEach(c => {
+        if (p[c.id] !== undefined) {
+          c._input.value = p[c.id];
+          state[c.id] = +p[c.id];
+          c._val.textContent = (+p[c.id]).toFixed(3);
+        }
+      });
+      render();
+    };
+    rBox.appendChild(b);
+  }
+
+  if (palettes && palettes.length>1){
+    const b = document.createElement('button');
+    b.textContent = '🎨 ' + state.palette;
+    b.onclick = () => {
+      const i = (palettes.indexOf(state.palette)+1) % palettes.length;
+      state.palette = palettes[i];
+      b.textContent = '🎨 ' + state.palette;
+      render();
+    };
+    rBox.appendChild(b);
+  }
+
+  const btnSave = document.createElement('button');
+  btnSave.textContent = '⬇ PNG';
+  btnSave.onclick = () => {
+    const link = document.createElement('a');
+    link.download = title.replace(/[^a-z0-9]+/gi,'_').toLowerCase()+'.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
+  rBox.appendChild(btnSave);
+
+  function render(){ draw(canvas, state); }
+  render();
+}
+
+/* =====================================================================
+   2D ITERATED MAPS  (≈18)
+   ===================================================================== */
+
+makeCard({
+  title:'Clifford attractor', category:'map2d', badge:'2D',
+  sub:'Pickover 1988',
+  desc:'x ← sin(a·y)+c·cos(a·x);  y ← sin(b·x)+d·cos(b·y)',
+  palettes:['turbo','fire','aurora','ice','violet','gold'],
+  presets:[
+    {a:-1.4,b:1.6,c:1.0,d:0.7},{a:-1.7,b:1.8,c:-1.9,d:-0.4},
+    {a:-1.8,b:-2.0,c:-0.5,d:-0.9},{a:1.7,b:1.7,c:0.6,d:1.2},
+    {a:-1.24458,b:-1.25275,c:-1.81599,d:-1.90866},
+  ],
+  controls:[
+    {id:'a',label:'a',min:-3,max:3,step:0.001,value:-1.4},
+    {id:'b',label:'b',min:-3,max:3,step:0.001,value:1.6},
+    {id:'c',label:'c',min:-3,max:3,step:0.001,value:1.0},
+    {id:'d',label:'d',min:-3,max:3,step:0.001,value:0.7},
+  ],
+  draw:(c,s)=> histogramRender(c, {
+    step:(p)=>[Math.sin(s.a*p[1])+s.c*Math.cos(s.a*p[0]),
+               Math.sin(s.b*p[0])+s.d*Math.cos(s.b*p[1])]
+  }, {iters:700000, palette:s.palette})
+});
+
+makeCard({
+  title:'Peter de Jong attractor', category:'map2d', badge:'2D',
+  desc:'x ← sin(a·y)−cos(b·x);  y ← sin(c·x)−cos(d·y)',
+  palettes:['ocean','turbo','fire','aurora','violet','gold','rose'],
+  presets:[
+    {a:1.4,b:-2.3,c:2.4,d:-2.1},{a:-2.7,b:-0.09,c:-0.86,d:-2.2},
+    {a:1.641,b:1.902,c:0.316,d:1.525},{a:-2.0,b:-2.0,c:-1.2,d:2.0},
+    {a:2.01,b:-2.53,c:1.61,d:-0.33},
+  ],
+  controls:[
+    {id:'a',label:'a',min:-3,max:3,step:0.001,value:1.4},
+    {id:'b',label:'b',min:-3,max:3,step:0.001,value:-2.3},
+    {id:'c',label:'c',min:-3,max:3,step:0.001,value:2.4},
+    {id:'d',label:'d',min:-3,max:3,step:0.001,value:-2.1},
+  ],
+  draw:(c,s)=> histogramRender(c, {
+    step:(p)=>[Math.sin(s.a*p[1])-Math.cos(s.b*p[0]),
+               Math.sin(s.c*p[0])-Math.cos(s.d*p[1])]
+  }, {iters:700000, palette:s.palette})
+});
+
+makeCard({
+  title:'Svensson attractor', category:'map2d', badge:'2D',
+  desc:'x ← d·sin(a·x)−sin(b·y);  y ← c·cos(a·x)+cos(b·y)',
+  palettes:['rose','turbo','aurora','fire','gold'],
+  presets:[
+    {a:1.4,b:1.56,c:1.4,d:-6.56},{a:-2.337,b:-2.337,c:0.533,d:1.378},
+    {a:1.5,b:-1.8,c:1.6,d:0.9},
+  ],
+  controls:[
+    {id:'a',label:'a',min:-3,max:3,step:0.001,value:1.4},
+    {id:'b',label:'b',min:-3,max:3,step:0.001,value:1.56},
+    {id:'c',label:'c',min:-3,max:3,step:0.001,value:1.4},
+    {id:'d',label:'d',min:-8,max:8,step:0.001,value:-6.56},
+  ],
+  draw:(c,s)=> histogramRender(c, {
+    step:(p)=>[s.d*Math.sin(s.a*p[0])-Math.sin(s.b*p[1]),
+               s.c*Math.cos(s.a*p[0])+Math.cos(s.b*p[1])]
+  }, {iters:700000, palette:s.palette})
+});
+
+makeCard({
+  title:'Bedhead attractor', category:'map2d', badge:'2D',
+  desc:'x ← sin(x·y/b)·y + cos(a·x − y);  y ← x + sin(y)/b',
+  palettes:['violet','turbo','aurora','rose'],
+  presets:[{a:-0.81,b:-0.92},{a:0.65,b:0.7},{a:-0.78,b:1.4}],
+  controls:[
+    {id:'a',label:'a',min:-3,max:3,step:0.001,value:-0.81},
+    {id:'b',label:'b',min:-3,max:3,step:0.001,value:-0.92},
+  ],
+  draw:(c,s)=> histogramRender(c, {
+    step:(p)=>[Math.sin(p[0]*p[1]/s.b)*p[1]+Math.cos(s.a*p[0]-p[1]),
+               p[0]+Math.sin(p[1])/s.b]
+  }, {iters:700000, palette:s.palette})
+});
+
+makeCard({
+  title:'Fractal Dream attractor', category:'map2d', badge:'2D',
+  desc:'x ← sin(b·y)+c·sin(b·x);  y ← sin(a·x)+d·sin(a·y)',
+  palettes:['aurora','turbo','gold','rose'],
+  presets:[{a:-0.966918,b:2.879879,c:0.765145,d:0.744728},
+           {a:-2.7,b:-0.09,c:1.86,d:-2.2},
+           {a:-2.8276,b:1.2813,c:1.9655,d:0.597}],
+  controls:[
+    {id:'a',label:'a',min:-3,max:3,step:0.001,value:-0.966918},
+    {id:'b',label:'b',min:-3,max:3,step:0.001,value:2.879879},
+    {id:'c',label:'c',min:-3,max:3,step:0.001,value:0.765145},
+    {id:'d',label:'d',min:-3,max:3,step:0.001,value:0.744728},
+  ],
+  draw:(c,s)=> histogramRender(c, {
+    step:(p)=>[Math.sin(s.b*p[1])+s.c*Math.sin(s.b*p[0]),
+               Math.sin(s.a*p[0])+s.d*Math.sin(s.a*p[1])]
+  }, {iters:700000, palette:s.palette})
+});
+
+makeCard({
+  title:'Hopalong', category:'map2d', badge:'2D',
+  sub:'Barry Martin, 1986',
+  desc:'x ← y − sign(x)·√|b·x − c|;  y ← a − x',
+  palettes:['gold','fire','turbo'],
+  presets:[{a:0.4,b:1.0,c:0.0},{a:7.17,b:8.44,c:2.56},{a:2,b:0.05,c:0},{a:7.7,b:0.13,c:8.15}],
+  controls:[
+    {id:'a',label:'a',min:-10,max:10,step:0.001,value:7.17},
+    {id:'b',label:'b',min:-10,max:10,step:0.001,value:8.44},
+    {id:'c',label:'c',min:-10,max:10,step:0.001,value:2.56},
+  ],
+  draw:(c,s)=> histogramRender(c, {
+    step:(p)=>[p[1]-Math.sign(p[0])*Math.sqrt(Math.abs(s.b*p[0]-s.c)), s.a-p[0]]
+  }, {iters:700000, palette:s.palette})
+});
+
+makeCard({
+  title:'Hénon map', category:'map2d', badge:'2D',
+  sub:'Hénon 1976',
+  desc:'x ← 1 − a·x² + y;  y ← b·x',
+  palettes:['fire','turbo','aurora'],
+  presets:[{a:1.4,b:0.3},{a:1.06,b:0.3},{a:1.2,b:0.3}],
+  controls:[
+    {id:'a',label:'a',min:0,max:1.5,step:0.001,value:1.4},
+    {id:'b',label:'b',min:-0.5,max:0.7,step:0.001,value:0.3},
+  ],
+  draw:(c,s)=> histogramRender(c, {
+    step:(p)=>[1 - s.a*p[0]*p[0] + p[1], s.b*p[0]]
+  }, {iters:700000, palette:s.palette, gamma:0.6})
+});
+
+makeCard({
+  title:'Lozi map', category:'map2d', badge:'2D',
+  desc:'x ← 1 − a·|x| + y;  y ← b·x',
+  palettes:['violet','fire','turbo'],
+  presets:[{a:1.7,b:0.5},{a:1.5,b:0.5}],
+  controls:[
+    {id:'a',label:'a',min:1.2,max:1.9,step:0.001,value:1.7},
+    {id:'b',label:'b',min:-0.7,max:0.7,step:0.001,value:0.5},
+  ],
+  draw:(c,s)=> histogramRender(c, {
+    step:(p)=>[1 - s.a*Math.abs(p[0]) + p[1], s.b*p[0]]
+  }, {iters:700000, palette:s.palette, gamma:0.6})
+});
+
+makeCard({
+  title:'Tinkerbell map', category:'map2d', badge:'2D',
+  desc:'x ← x² − y² + a·x + b·y;  y ← 2·x·y + c·x + d·y',
+  palettes:['rose','aurora','turbo'],
+  presets:[{a:0.9,b:-0.6013,c:2.0,d:0.5}, {a:0.3,b:0.6,c:2,d:0.27}],
+  controls:[
+    {id:'a',label:'a',min:-1,max:1.5,step:0.001,value:0.9},
+    {id:'b',label:'b',min:-1,max:1,step:0.001,value:-0.6013},
+    {id:'c',label:'c',min:-1,max:3,step:0.001,value:2.0},
+    {id:'d',label:'d',min:-1,max:1,step:0.001,value:0.5},
+  ],
+  draw:(c,s)=> histogramRender(c, {
+    init:()=>[-0.72,-0.64],
+    step:(p)=>[p[0]*p[0]-p[1]*p[1]+s.a*p[0]+s.b*p[1],
+               2*p[0]*p[1]+s.c*p[0]+s.d*p[1]]
+  }, {iters:600000, palette:s.palette})
+});
+
+makeCard({
+  title:'Ikeda map', category:'map2d', badge:'2D',
+  sub:'Ikeda 1979',
+  desc:'t = 0.4 − 6/(1+x²+y²); x ← 1+u(x·cos t − y·sin t); y ← u(x·sin t + y·cos t)',
+  palettes:['gold','turbo','aurora','fire'],
+  presets:[{u:0.918},{u:0.9},{u:0.85},{u:0.76}],
+  controls:[ {id:'u',label:'u',min:0.5,max:1,step:0.001,value:0.918} ],
+  draw:(c,s)=> histogramRender(c, {
+    init:()=>[0.1,0.1],
+    step:(p)=>{
+      const t = 0.4 - 6/(1+p[0]*p[0]+p[1]*p[1]);
+      return [1 + s.u*(p[0]*Math.cos(t)-p[1]*Math.sin(t)),
+                  s.u*(p[0]*Math.sin(t)+p[1]*Math.cos(t))];
+    }
+  }, {iters:700000, palette:s.palette})
+});
+
+makeCard({
+  title:'Gingerbread man map', category:'map2d', badge:'2D',
+  desc:'x ← 1 − a·y + b·|x|;  y ← x',
+  palettes:['aurora','fire','gold','rose'],
+  presets:[{a:1,b:-1.1},{a:1,b:1}],
+  controls:[
+    {id:'a',label:'a',min:-2,max:2,step:0.01,value:1},
+    {id:'b',label:'b',min:-2,max:2,step:0.01,value:-1.1},
+  ],
+  draw:(c,s)=> histogramRender(c, {
+    init:()=>[-0.1,0],
+    step:(p)=>[1 - s.a*p[1] + s.b*Math.abs(p[0]), p[0]]
+  }, {iters:700000, palette:s.palette})
+});
+
+makeCard({
+  title:'Gumowski–Mira map', category:'map2d', badge:'2D',
+  sub:'CERN, 1980',
+  desc:'F(x)=a·x+2(1−a)x²/(1+x²); x ← y+F(x); y ← −x+F(x_new)',
+  palettes:['violet','aurora','rose','turbo'],
+  presets:[{a:0.008,b:0.05},{a:-0.49,b:0.0},{a:0.31,b:0.05}],
+  controls:[
+    {id:'a',label:'a',min:-1,max:1,step:0.001,value:0.008},
+    {id:'b',label:'b',min:-1,max:1,step:0.001,value:0.05},
+  ],
+  draw:(c,s)=> histogramRender(c, {
+    init:()=>[0,1],
+    step:(p)=>{
+      const F = x => s.a*x + 2*(1-s.a)*x*x/(1+x*x);
+      const xn = p[1] + s.b*p[1] + F(p[0]);
+      const yn = -p[0] + F(xn);
+      return [xn, yn];
+    }
+  }, {iters:600000, palette:s.palette})
+});
+
+makeCard({
+  title:'Duffing map', category:'map2d', badge:'2D',
+  desc:'x ← y;  y ← −b·x + a·y − y³',
+  palettes:['ocean','turbo','aurora'],
+  presets:[{a:2.75,b:0.15},{a:2.75,b:0.2}],
+  controls:[
+    {id:'a',label:'a',min:1,max:3,step:0.001,value:2.75},
+    {id:'b',label:'b',min:-0.2,max:1,step:0.001,value:0.15},
+  ],
+  draw:(c,s)=> histogramRender(c, {
+    init:()=>[1,1],
+    step:(p)=>[p[1], -s.b*p[0]+s.a*p[1]-p[1]*p[1]*p[1]]
+  }, {iters:700000, palette:s.palette})
+});
+
+makeCard({
+  title:'Standard map', category:'map2d', badge:'2D',
+  sub:'Chirikov',
+  desc:'p ← p + K·sin(θ);  θ ← θ + p   (mod 2π)',
+  palettes:['turbo','aurora','fire'],
+  presets:[{K:0.97},{K:1.5},{K:2.5},{K:0.5}],
+  controls:[ {id:'K',label:'K',min:0,max:5,step:0.001,value:0.97} ],
+  draw:(c,s)=>{
+    // multi-start, since standard map has many tori
+    const ctx=c.getContext('2d'); const W=c.width,H=c.height;
+    clearCanvas(ctx,W,H,[5,7,12]);
+    const hist=new Float32Array(W*H);
+    const TAU=Math.PI*2;
+    const STARTS=50, ITERS=12000;
+    for (let st=0; st<STARTS; st++){
+      let th = TAU*st/STARTS;
+      let pp = (st-STARTS/2)/STARTS*TAU;
+      for (let i=0;i<ITERS;i++){
+        pp = pp + s.K*Math.sin(th);
+        th = th + pp;
+        // wrap
+        let tx = th - TAU*Math.floor(th/TAU);
+        let py = pp - TAU*Math.floor((pp+Math.PI)/TAU);
+        const px = (tx/TAU*W)|0;
+        const qy = ((py+Math.PI)/TAU*H)|0;
+        if (px>=0&&qy>=0&&px<W&&qy<H) hist[qy*W+px]+=1;
+      }
+    }
+    let max=0; for(let i=0;i<hist.length;i++) if(hist[i]>max) max=hist[i];
+    const lm=Math.log(1+max);
+    const img=ctx.getImageData(0,0,W,H); const d=img.data;
+    for (let i=0;i<hist.length;i++){
+      if (hist[i]===0) continue;
+      const v = Math.log(1+hist[i])/lm;
+      const co = palette(Math.pow(v,0.6), s.palette);
+      const k = i*4;
+      d[k]=co[0]; d[k+1]=co[1]; d[k+2]=co[2];
+    }
+    ctx.putImageData(img,0,0);
+  }
+});
+
+makeCard({
+  title:"Arnold's cat map", category:'map2d', badge:'2D',
+  desc:'(x,y) ← (2x+y, x+y) mod 1 — visualized by mapping image points',
+  palettes:['turbo'],
+  presets:[{iter:1},{iter:3},{iter:5},{iter:8}],
+  controls:[
+    {id:'iter',label:'iterations',min:0,max:20,step:1,value:3},
+    {id:'res',label:'grid',min:80,max:300,step:10,value:200},
+  ],
+  draw:(c,s)=>{
+    const ctx=c.getContext('2d'); const W=c.width,H=c.height;
+    clearCanvas(ctx,W,H,[8,10,16]);
+    const img=ctx.createImageData(W,H); const d=img.data;
+    const R = s.res|0;
+    for (let j=0;j<R;j++){
+      for (let i=0;i<R;i++){
+        let x=i, y=j;
+        for (let it=0;it<s.iter;it++){
+          const nx = (2*x + y) % R;
+          const ny = (x + y) % R;
+          x=nx; y=ny;
+        }
+        // colour by source position
+        const r = (i/R*255)|0;
+        const g = (j/R*255)|0;
+        const b = 180-((i+j)/(2*R)*120)|0;
+        const px = ((x+0.5)/R*W)|0;
+        const py = ((y+0.5)/R*H)|0;
+        if (px>=0&&py>=0&&px<W&&py<H){
+          const k=(py*W+px)*4;
+          d[k]=r; d[k+1]=g; d[k+2]=b; d[k+3]=255;
+        }
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+});
+
+makeCard({
+  title:'Symmetric icon', category:'map2d', badge:'2D',
+  sub:'Field & Golubitsky 1992',
+  desc:'z ← (λ + α|z|² + β·Re(zⁿ))·z + γ·conj(z)^(n−1)',
+  palettes:['gold','turbo','aurora','rose','fire'],
+  presets:[
+    {lam:-2.5,alpha:5,beta:-1.9,gam:1,n:5},
+    {lam:1.56,alpha:-1,beta:0.1,gam:-0.82,n:3},
+    {lam:1.806,alpha:-1.806,beta:0,gam:1,n:5},
+    {lam:-2.05,alpha:3,beta:-16.79,gam:1,n:9},
+    {lam:-1.86,alpha:2,beta:0,gam:1,n:4},
+  ],
+  controls:[
+    {id:'lam',  label:'λ', min:-3,max:3,  step:0.01, value:-2.5},
+    {id:'alpha',label:'α', min:-10,max:10,step:0.01, value:5},
+    {id:'beta', label:'β', min:-20,max:20,step:0.01, value:-1.9},
+    {id:'gam',  label:'γ', min:-3,max:3,  step:0.01, value:1},
+    {id:'n',    label:'n', min:3,max:12,  step:1,    value:5},
+  ],
+  draw:(c,s)=> histogramRender(c, {
+    init:()=>[0.01,0.003],
+    step:(p)=>{
+      const x=p[0], y=p[1];
+      const r2 = x*x+y*y;
+      // z^(n-1) via repeated multiplication
+      let zrn=x, zin=y;
+      for (let k=1;k<s.n-1;k++){
+        const a = zrn*x - zin*y;
+        const b = zrn*y + zin*x;
+        zrn=a; zin=b;
+      }
+      const cn1r =  zrn, cn1i = -zin;
+      const znr = zrn*x - zin*y;
+      const fac = s.lam + s.alpha*r2 + s.beta*znr;
+      return [fac*x + s.gam*cn1r, fac*y + s.gam*cn1i];
+    }
+  }, {iters:700000, palette:s.palette, gamma:0.7})
+});
+
+makeCard({
+  title:'Pickover popcorn', category:'map2d', badge:'2D',
+  desc:'x ← x − h·sin(y+tan(3y));  y ← y − h·sin(x+tan(3x))',
+  palettes:['fire','turbo','rose','violet'],
+  presets:[{h:0.05},{h:0.075},{h:0.1}],
+  controls:[ {id:'h',label:'h',min:0.01,max:0.2,step:0.001,value:0.05} ],
+  draw:(c,s)=>{
+    const ctx=c.getContext('2d'); const W=c.width,H=c.height;
+    clearCanvas(ctx,W,H,[8,8,14]);
+    const hist=new Float32Array(W*H);
+    const scale=W/8.5;
+    // multi-start grid
+    for (let sj=0;sj<40;sj++){
+      for (let si=0;si<40;si++){
+        let x = -4 + 8*si/40;
+        let y = -4 + 8*sj/40;
+        for (let it=0;it<400;it++){
+          const xn = x - s.h*Math.sin(y + Math.tan(3*y));
+          const yn = y - s.h*Math.sin(x + Math.tan(3*x));
+          x=xn; y=yn;
+          if (!isFinite(x)||!isFinite(y)) break;
+          const px = (W/2 + x*scale)|0;
+          const py = (H/2 + y*scale)|0;
+          if (px>=0&&py>=0&&px<W&&py<H) hist[py*W+px]+=1;
+        }
+      }
+    }
+    let max=0; for(let i=0;i<hist.length;i++) if(hist[i]>max) max=hist[i];
+    if (!max) return;
+    const lm=Math.log(1+max);
+    const img=ctx.getImageData(0,0,W,H); const d=img.data;
+    for (let i=0;i<hist.length;i++){
+      if (!hist[i]) continue;
+      const v=Math.log(1+hist[i])/lm;
+      const co=palette(Math.pow(v,0.7),s.palette);
+      const k=i*4; d[k]=co[0]; d[k+1]=co[1]; d[k+2]=co[2];
+    }
+    ctx.putImageData(img,0,0);
+  }
+});
+
+makeCard({
+  title:'Bogdanov map', category:'map2d', badge:'2D',
+  desc:'y ← y + e·y + k·x(x−1) + μ·x·y;  x ← x + y',
+  palettes:['aurora','turbo','rose'],
+  presets:[{e:0,k:1.2,mu:0},{e:0.01,k:1.6,mu:0},{e:-0.1,k:1.44,mu:0}],
+  controls:[
+    {id:'e', label:'ε', min:-0.3,max:0.3,step:0.001,value:0},
+    {id:'k', label:'k', min:0.5,max:2,step:0.001,value:1.2},
+    {id:'mu',label:'μ',min:-1,max:1,step:0.001,value:0},
+  ],
+  draw:(c,s)=> histogramRender(c, {
+    init:()=>[0.1,0.1],
+    step:(p)=>{
+      const yn = p[1] + s.e*p[1] + s.k*p[0]*(p[0]-1) + s.mu*p[0]*p[1];
+      const xn = p[0] + yn;
+      return [xn, yn];
+    }
+  }, {iters:600000, palette:s.palette})
+});
+
+/* =====================================================================
+   3D CONTINUOUS FLOWS  (≈20)
+   ===================================================================== */
+
+makeCard({
+  title:'Lorenz attractor', category:'flow3d', badge:'3D',
+  sub:'Lorenz 1963',
+  desc:'dx=σ(y−x); dy=x(ρ−z)−y; dz=xy−βz   — XZ projection',
+  palettes:['aurora','turbo','fire','ocean','gold'],
+  presets:[{sig:10,rho:28,beta:2.667},{sig:14,rho:35,beta:2.667},{sig:10,rho:99.96,beta:2.667}],
+  controls:[
+    {id:'sig', label:'σ', min:1,max:30,step:0.1,value:10},
+    {id:'rho', label:'ρ', min:1,max:100,step:0.1,value:28},
+    {id:'beta',label:'β', min:0.1,max:10,step:0.01,value:2.667},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*s.sig*(y-x), y+dt*(x*(s.rho-z)-y), z+dt*(x*y-s.beta*z)];
+  }, {init:[0.1,0,0], dt:0.004, iters:500000, palette:s.palette, proj:(x,y,z)=>[x,z]})
+});
+
+makeCard({
+  title:'Rössler attractor', category:'flow3d', badge:'3D',
+  sub:'Rössler 1976',
+  desc:'dx=−y−z; dy=x+a·y; dz=b+z(x−c)',
+  palettes:['fire','turbo','aurora','violet'],
+  presets:[{a:0.2,b:0.2,c:5.7},{a:0.1,b:0.1,c:14},{a:0.343,b:1.82,c:9.75}],
+  controls:[
+    {id:'a',label:'a',min:0,max:0.5,step:0.001,value:0.2},
+    {id:'b',label:'b',min:0,max:2,step:0.001,value:0.2},
+    {id:'c',label:'c',min:1,max:15,step:0.001,value:5.7},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*(-y-z), y+dt*(x+s.a*y), z+dt*(s.b+z*(x-s.c))];
+  }, {init:[0.1,0,0], dt:0.02, iters:400000, palette:s.palette, proj:(x,y,z)=>[x,y]})
+});
+
+makeCard({
+  title:'Aizawa attractor', category:'flow3d', badge:'3D',
+  desc:'dx=(z−b)x−d·y; dy=d·x+(z−b)y; dz=c+a·z−z³/3−(x²+y²)(1+e·z)+f·z·x³',
+  palettes:['violet','aurora','turbo','gold'],
+  presets:[{a:0.95,b:0.7,c:0.65,d:3.5,e:0.25,f:0.1}],
+  controls:[
+    {id:'a',label:'a',min:0,max:2,step:0.01,value:0.95},
+    {id:'b',label:'b',min:0,max:2,step:0.01,value:0.7},
+    {id:'c',label:'c',min:0,max:2,step:0.01,value:0.65},
+    {id:'d',label:'d',min:0,max:6,step:0.01,value:3.5},
+    {id:'e',label:'e',min:0,max:1,step:0.01,value:0.25},
+    {id:'f',label:'f',min:0,max:0.5,step:0.01,value:0.1},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*((z-s.b)*x - s.d*y),
+            y+dt*(s.d*x + (z-s.b)*y),
+            z+dt*(s.c + s.a*z - z*z*z/3 - (x*x+y*y)*(1+s.e*z) + s.f*z*x*x*x)];
+  }, {init:[0.1,0,0], dt:0.005, iters:500000, palette:s.palette,
+      proj:(x,y,z)=>[x*Math.cos(0.45)-z*Math.sin(0.45), y+0.25*(x*Math.sin(0.45)+z*Math.cos(0.45))]})
+});
+
+makeCard({
+  title:"Thomas' cyclic attractor", category:'flow3d', badge:'3D',
+  desc:'dx=sin(y)−b·x; dy=sin(z)−b·y; dz=sin(x)−b·z',
+  palettes:['turbo','aurora','rose'],
+  presets:[{b:0.208186},{b:0.1},{b:0.18}],
+  controls:[ {id:'b',label:'b',min:0,max:0.5,step:0.001,value:0.208186} ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*(Math.sin(y)-s.b*x),
+            y+dt*(Math.sin(z)-s.b*y),
+            z+dt*(Math.sin(x)-s.b*z)];
+  }, {init:[0.1,0,0], dt:0.05, iters:500000, palette:s.palette,
+      proj:(x,y,z)=>[x*0.77-z*0.64, y+0.3*(x*0.64+z*0.77)]})
+});
+
+makeCard({
+  title:'Halvorsen attractor', category:'flow3d', badge:'3D',
+  desc:'dx=−a·x − 4y − 4z − y²; cyclic in (x,y,z)',
+  palettes:['aurora','turbo','fire'],
+  presets:[{a:1.4},{a:1.27},{a:1.89}],
+  controls:[ {id:'a',label:'a',min:0.5,max:2.5,step:0.001,value:1.4} ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*(-s.a*x - 4*y - 4*z - y*y),
+            y+dt*(-s.a*y - 4*z - 4*x - z*z),
+            z+dt*(-s.a*z - 4*x - 4*y - x*x)];
+  }, {init:[-1.48,-1.51,2.04], dt:0.008, iters:500000, palette:s.palette,
+      proj:(x,y,z)=>[x*0.8-z*0.6, y+0.3*(x*0.6+z*0.8)]})
+});
+
+makeCard({
+  title:'Dadras attractor', category:'flow3d', badge:'3D',
+  desc:'dx=y−a·x+b·y·z; dy=c·y−x·z+z; dz=d·x·y−e·z',
+  palettes:['fire','turbo','rose'],
+  presets:[{a:3,b:2.7,c:1.7,d:2,e:9}],
+  controls:[
+    {id:'a',label:'a',min:0,max:5,step:0.01,value:3},
+    {id:'b',label:'b',min:0,max:5,step:0.01,value:2.7},
+    {id:'c',label:'c',min:0,max:5,step:0.01,value:1.7},
+    {id:'d',label:'d',min:0,max:5,step:0.01,value:2},
+    {id:'e',label:'e',min:0,max:15,step:0.01,value:9},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*(y-s.a*x+s.b*y*z),
+            y+dt*(s.c*y-x*z+z),
+            z+dt*(s.d*x*y-s.e*z)];
+  }, {init:[1.1,2.1,-2], dt:0.005, iters:500000, palette:s.palette,
+      proj:(x,y,z)=>[x*0.8-z*0.6, y+0.3*(x*0.6+z*0.8)]})
+});
+
+makeCard({
+  title:'Three-Scroll (TSUCS-2)', category:'flow3d', badge:'3D',
+  desc:'dx=a(y−x)+c·x·z; dy=e·y−x·z; dz=b·z+x·y−d·x²',
+  palettes:['turbo','aurora','gold'],
+  presets:[{a:40,b:0.833,c:0.5,d:0.65,e:20}],
+  controls:[
+    {id:'a',label:'a',min:1,max:80,step:0.1,value:40},
+    {id:'b',label:'b',min:0,max:5,step:0.001,value:0.833},
+    {id:'c',label:'c',min:0,max:2,step:0.001,value:0.5},
+    {id:'d',label:'d',min:0,max:2,step:0.001,value:0.65},
+    {id:'e',label:'e',min:0,max:40,step:0.01,value:20},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*(s.a*(y-x)+s.c*x*z),
+            y+dt*(s.e*y - x*z),
+            z+dt*(s.b*z + x*y - s.d*x*x)];
+  }, {init:[0.1,1,-0.1], dt:0.0008, iters:500000, palette:s.palette,
+      proj:(x,y,z)=>[x*0.8-y*0.6, z+0.3*(x*0.6+y*0.8)]})
+});
+
+makeCard({
+  title:'Chen attractor', category:'flow3d', badge:'3D',
+  sub:'Chen 1999',
+  desc:'dx=a(y−x); dy=(c−a)x − x·z + c·y; dz=x·y − b·z',
+  palettes:['aurora','fire','turbo'],
+  presets:[{a:35,b:3,c:28},{a:35,b:3,c:25}],
+  controls:[
+    {id:'a',label:'a',min:1,max:60,step:0.1,value:35},
+    {id:'b',label:'b',min:0.1,max:8,step:0.01,value:3},
+    {id:'c',label:'c',min:5,max:40,step:0.1,value:28},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*s.a*(y-x),
+            y+dt*((s.c-s.a)*x - x*z + s.c*y),
+            z+dt*(x*y - s.b*z)];
+  }, {init:[-0.1,0.5,-0.6], dt:0.001, iters:500000, palette:s.palette,
+      proj:(x,y,z)=>[x,z]})
+});
+
+makeCard({
+  title:'Chua circuit', category:'flow3d', badge:'3D',
+  sub:'Chua 1983',
+  desc:"Double-scroll: dx=α(y−x−f(x)); dy=x−y+z; dz=−β·y",
+  palettes:['violet','turbo','rose','fire'],
+  presets:[{alpha:15.6,beta:28,m0:-1.143,m1:-0.714}],
+  controls:[
+    {id:'alpha',label:'α',min:5,max:25,step:0.01,value:15.6},
+    {id:'beta', label:'β',min:5,max:50,step:0.01,value:28},
+    {id:'m0',   label:'m0',min:-2,max:0,step:0.001,value:-1.143},
+    {id:'m1',   label:'m1',min:-2,max:0,step:0.001,value:-0.714},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    const fx = s.m1*x + 0.5*(s.m0-s.m1)*(Math.abs(x+1)-Math.abs(x-1));
+    return [x+dt*s.alpha*(y - x - fx),
+            y+dt*(x - y + z),
+            z+dt*(-s.beta*y)];
+  }, {init:[0.7,0,0], dt:0.01, iters:500000, palette:s.palette,
+      proj:(x,y,z)=>[x,z]})
+});
+
+makeCard({
+  title:'Arneodo attractor', category:'flow3d', badge:'3D',
+  desc:'dx=y; dy=z; dz=−a·x − b·y − c·z + d·x³',
+  palettes:['turbo','aurora','gold'],
+  presets:[{a:-5.5,b:3.5,c:-1,d:-1}],
+  controls:[
+    {id:'a',label:'a',min:-10,max:10,step:0.01,value:-5.5},
+    {id:'b',label:'b',min:-10,max:10,step:0.01,value:3.5},
+    {id:'c',label:'c',min:-3,max:3,step:0.01,value:-1},
+    {id:'d',label:'d',min:-3,max:3,step:0.01,value:-1},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*y, y+dt*z, z+dt*(-s.a*x - s.b*y - s.c*z + s.d*x*x*x)];
+  }, {init:[0.2,0.3,0.4], dt:0.01, iters:500000, palette:s.palette, proj:(x,y,z)=>[x,z]})
+});
+
+makeCard({
+  title:'Sprott B', category:'flow3d', badge:'3D',
+  sub:'J.C. Sprott 1994',
+  desc:'dx=a·y·z; dy=x−y; dz=1−x·y',
+  palettes:['gold','turbo','fire','aurora'],
+  presets:[{a:0.4},{a:0.5},{a:0.3}],
+  controls:[ {id:'a',label:'a',min:0.1,max:1.5,step:0.001,value:0.4} ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*s.a*y*z, y+dt*(x-y), z+dt*(1-x*y)];
+  }, {init:[0.05,0.05,0.05], dt:0.01, iters:500000, palette:s.palette, proj:(x,y,z)=>[x,z]})
+});
+
+makeCard({
+  title:'Rabinovich–Fabrikant', category:'flow3d', badge:'3D',
+  desc:'dx=y(z−1+x²)+γ·x; dy=x(3z+1−x²)+γ·y; dz=−2z(α+x·y)',
+  palettes:['aurora','turbo','rose'],
+  presets:[{alpha:0.14,gamma:0.10}],
+  controls:[
+    {id:'alpha',label:'α',min:0,max:1,step:0.001,value:0.14},
+    {id:'gamma',label:'γ',min:0,max:1,step:0.001,value:0.10},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*(y*(z-1+x*x) + s.gamma*x),
+            y+dt*(x*(3*z+1-x*x) + s.gamma*y),
+            z+dt*(-2*z*(s.alpha + x*y))];
+  }, {init:[-1,0,0.5], dt:0.005, iters:500000, palette:s.palette, proj:(x,y,z)=>[x,z]})
+});
+
+makeCard({
+  title:'Nose–Hoover', category:'flow3d', badge:'3D',
+  desc:'dx=y; dy=−x+y·z; dz=a−y²',
+  palettes:['turbo','aurora','fire'],
+  presets:[{a:1.5},{a:1.7},{a:2}],
+  controls:[ {id:'a',label:'a',min:0.5,max:3,step:0.001,value:1.5} ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*y, y+dt*(-x+y*z), z+dt*(s.a - y*y)];
+  }, {init:[0.1,0,0], dt:0.01, iters:500000, palette:s.palette, proj:(x,y,z)=>[x,z]})
+});
+
+makeCard({
+  title:'WINDMI attractor', category:'flow3d', badge:'3D',
+  desc:'dx=y; dy=z; dz=−a·z − y + b − e^x',
+  palettes:['violet','turbo'],
+  presets:[{a:0.7,b:2.5},{a:0.7,b:2.8}],
+  controls:[
+    {id:'a',label:'a',min:0.1,max:1.5,step:0.01,value:0.7},
+    {id:'b',label:'b',min:1,max:4,step:0.01,value:2.5},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*y, y+dt*z, z+dt*(-s.a*z - y + s.b - Math.exp(x))];
+  }, {init:[0,0.8,0], dt:0.02, iters:400000, palette:s.palette, proj:(x,y,z)=>[x,y]})
+});
+
+makeCard({
+  title:'Four-Wing attractor', category:'flow3d', badge:'3D',
+  desc:'dx=a·x + y·z; dy=b·x + c·y − x·z; dz=−z − x·y',
+  palettes:['aurora','turbo','rose'],
+  presets:[{a:0.2,b:-0.01,c:-0.4}],
+  controls:[
+    {id:'a',label:'a',min:0,max:1,step:0.001,value:0.2},
+    {id:'b',label:'b',min:-1,max:1,step:0.001,value:-0.01},
+    {id:'c',label:'c',min:-1,max:0,step:0.001,value:-0.4},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*(s.a*x + y*z), y+dt*(s.b*x + s.c*y - x*z), z+dt*(-z - x*y)];
+  }, {init:[1,-1,1], dt:0.01, iters:500000, palette:s.palette, proj:(x,y,z)=>[x,y]})
+});
+
+makeCard({
+  title:'Chen–Lee', category:'flow3d', badge:'3D',
+  desc:'dx=a·x − y·z; dy=b·y + x·z; dz=c·z + x·y/3',
+  palettes:['fire','turbo','gold'],
+  presets:[{a:5,b:-10,c:-0.38}],
+  controls:[
+    {id:'a',label:'a',min:0,max:10,step:0.01,value:5},
+    {id:'b',label:'b',min:-20,max:0,step:0.01,value:-10},
+    {id:'c',label:'c',min:-1,max:0,step:0.001,value:-0.38},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*(s.a*x - y*z), y+dt*(s.b*y + x*z), z+dt*(s.c*z + x*y/3)];
+  }, {init:[1,-1,1], dt:0.005, iters:500000, palette:s.palette, proj:(x,y,z)=>[x,y]})
+});
+
+makeCard({
+  title:'Bouali attractor', category:'flow3d', badge:'3D',
+  desc:'dx=x(4−y)+α·z; dy=−y(1−x²); dz=−x(1.5−s·z)−0.05·z',
+  palettes:['aurora','turbo','rose'],
+  presets:[{a:0.3,s:1}],
+  controls:[
+    {id:'a',label:'α',min:0,max:1,step:0.001,value:0.3},
+    {id:'s',label:'s',min:0.5,max:2,step:0.001,value:1},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*(x*(4-y) + s.a*z),
+            y+dt*(-y*(1-x*x)),
+            z+dt*(-x*(1.5 - s.s*z) - 0.05*z)];
+  }, {init:[0.3,1,0], dt:0.01, iters:500000, palette:s.palette, proj:(x,y,z)=>[x,y]})
+});
+
+makeCard({
+  title:'Burke–Shaw', category:'flow3d', badge:'3D',
+  desc:'dx=−s(x+y); dy=−y − s·x·z; dz=s·x·y + v',
+  palettes:['turbo','aurora','violet'],
+  presets:[{s:10,v:4.272}],
+  controls:[
+    {id:'s',label:'s',min:1,max:20,step:0.01,value:10},
+    {id:'v',label:'v',min:0,max:8,step:0.001,value:4.272},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*(-s.s*(x+y)), y+dt*(-y - s.s*x*z), z+dt*(s.s*x*y + s.v)];
+  }, {init:[0.6,0,0], dt:0.005, iters:500000, palette:s.palette, proj:(x,y,z)=>[x,z]})
+});
+
+makeCard({
+  title:'Lorenz-84 (climate)', category:'flow3d', badge:'3D',
+  sub:'Lorenz 1984',
+  desc:'dx=−a·x − y² − z² + a·F;  dy=−y + x·y − b·x·z + G;  dz=−z + b·x·y + x·z',
+  palettes:['aurora','turbo','gold'],
+  presets:[{a:0.25,b:4,F:8,G:1}],
+  controls:[
+    {id:'a',label:'a',min:0.05,max:1,step:0.001,value:0.25},
+    {id:'b',label:'b',min:1,max:6,step:0.001,value:4},
+    {id:'F',label:'F',min:0,max:12,step:0.01,value:8},
+    {id:'G',label:'G',min:0,max:4,step:0.01,value:1},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*(-s.a*x - y*y - z*z + s.a*s.F),
+            y+dt*(-y + x*y - s.b*x*z + s.G),
+            z+dt*(-z + s.b*x*y + x*z)];
+  }, {init:[0.5,0.5,0.5], dt:0.02, iters:400000, palette:s.palette, proj:(x,y,z)=>[y,z]})
+});
+
+makeCard({
+  title:'Yu–Wang', category:'flow3d', badge:'3D',
+  desc:'dx=a(y−x); dy=b·x − c·x·z; dz=e^(x·y) − d·z',
+  palettes:['fire','turbo','rose'],
+  presets:[{a:10,b:40,c:2,d:2.5}],
+  controls:[
+    {id:'a',label:'a',min:1,max:20,step:0.1,value:10},
+    {id:'b',label:'b',min:10,max:60,step:0.1,value:40},
+    {id:'c',label:'c',min:0.1,max:5,step:0.01,value:2},
+    {id:'d',label:'d',min:0.1,max:5,step:0.01,value:2.5},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    const e = Math.exp(Math.max(-30,Math.min(30,x*y)));
+    return [x+dt*s.a*(y-x), y+dt*(s.b*x - s.c*x*z), z+dt*(e - s.d*z)];
+  }, {init:[0.1,0,0], dt:0.0015, iters:300000, palette:s.palette, proj:(x,y,z)=>[x,z]})
+});
+
+makeCard({
+  title:'Dequan Li', category:'flow3d', badge:'3D',
+  desc:'dx=a(y−x)+d·x·z; dy=k·x+f·y−x·z; dz=c·z+x·y−e·x²',
+  palettes:['turbo','aurora','gold'],
+  presets:[{a:40,c:1.833,d:0.16,e:0.65,k:55,f:20}],
+  controls:[
+    {id:'a',label:'a',min:1,max:80,step:0.1,value:40},
+    {id:'c',label:'c',min:0,max:5,step:0.001,value:1.833},
+    {id:'d',label:'d',min:0,max:1,step:0.001,value:0.16},
+    {id:'e',label:'e',min:0,max:2,step:0.001,value:0.65},
+    {id:'k',label:'k',min:1,max:80,step:0.1,value:55},
+    {id:'f',label:'f',min:1,max:40,step:0.1,value:20},
+  ],
+  draw:(c,s)=> flow3DRender(c, (p,dt)=>{
+    const [x,y,z]=p;
+    return [x+dt*(s.a*(y-x)+s.d*x*z),
+            y+dt*(s.k*x+s.f*y-x*z),
+            z+dt*(s.c*z + x*y - s.e*x*x)];
+  }, {init:[0.1,0,0], dt:0.0006, iters:400000, palette:s.palette, proj:(x,y,z)=>[x,z]})
+});
+
+/* =====================================================================
+   ESCAPE-TIME & COMPLEX FRACTALS  (≈10)
+   ===================================================================== */
+
+function escapeRender(canvas, opts){
+  const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+  const img=ctx.createImageData(W,H); const d=img.data;
+  const MAX = opts.max||120;
+  const zoom = opts.zoom, cx=opts.cx, cy=opts.cy;
+  const pal = opts.palette||'turbo';
+  for (let j=0;j<H;j++){
+    const ci = cy + (j-H/2)/H*zoom*2;
+    for (let i=0;i<W;i++){
+      const cr = cx + (i-W/2)/W*zoom*2;
+      const r = opts.iter(cr, ci, MAX);
+      const k=(j*W+i)*4;
+      if (r.inside){ d[k]=0;d[k+1]=0;d[k+2]=0;d[k+3]=255; }
+      else {
+        let t = r.iter/MAX;
+        if (r.smooth!==undefined) t = (r.iter - r.smooth)/MAX;
+        const co = palette(Math.pow(t,0.45), pal);
+        d[k]=co[0]; d[k+1]=co[1]; d[k+2]=co[2]; d[k+3]=255;
+      }
+    }
+  }
+  ctx.putImageData(img,0,0);
+}
+
+makeCard({
+  title:'Mandelbrot set', category:'fractal', badge:'C',
+  desc:'z ← z² + c',
+  palettes:['turbo','fire','aurora','ice','violet','gold','rose'],
+  presets:[
+    {zoom:1.5,cx:-0.5,cy:0},
+    {zoom:0.05,cx:-0.745,cy:0.113},
+    {zoom:0.01,cx:-0.8,cy:0.156},
+    {zoom:0.005,cx:-1.7493,cy:0},
+  ],
+  controls:[
+    {id:'zoom',label:'zoom',min:0.001,max:2,step:0.001,value:1.5},
+    {id:'cx',label:'cx',min:-2,max:1,step:0.001,value:-0.5},
+    {id:'cy',label:'cy',min:-1.5,max:1.5,step:0.001,value:0},
+  ],
+  draw:(c,s)=> escapeRender(c, {zoom:s.zoom,cx:s.cx,cy:s.cy,palette:s.palette,max:200,
+    iter:(cr,ci,MAX)=>{
+      let zr=0, zi=0, n=0;
+      while(n<MAX){
+        const zr2=zr*zr-zi*zi+cr, zi2=2*zr*zi+ci;
+        zr=zr2; zi=zi2;
+        if (zr*zr+zi*zi>4) break;
+        n++;
+      }
+      return n===MAX ? {inside:true} : {iter:n};
+    }})
+});
+
+makeCard({
+  title:'Julia set', category:'fractal', badge:'C',
+  desc:'z ← z² + c   (c fixed, plane = initial z)',
+  palettes:['aurora','turbo','fire','violet','rose'],
+  presets:[
+    {zoom:1.5,cx:0,cy:0,jr:-0.7,ji:0.27015},
+    {zoom:1.5,cx:0,cy:0,jr:0.285,ji:0.01},
+    {zoom:1.5,cx:0,cy:0,jr:-0.835,ji:-0.2321},
+    {zoom:1.5,cx:0,cy:0,jr:-0.4,ji:0.6},
+  ],
+  controls:[
+    {id:'zoom',label:'zoom',min:0.05,max:2,step:0.001,value:1.5},
+    {id:'cx',label:'cx',min:-1.5,max:1.5,step:0.001,value:0},
+    {id:'cy',label:'cy',min:-1.5,max:1.5,step:0.001,value:0},
+    {id:'jr',label:'Re(c)',min:-1,max:1,step:0.001,value:-0.7},
+    {id:'ji',label:'Im(c)',min:-1,max:1,step:0.001,value:0.27015},
+  ],
+  draw:(c,s)=> escapeRender(c, {zoom:s.zoom,cx:s.cx,cy:s.cy,palette:s.palette,max:200,
+    iter:(zr,zi,MAX)=>{
+      let n=0;
+      while(n<MAX){
+        const zr2=zr*zr-zi*zi+s.jr, zi2=2*zr*zi+s.ji;
+        zr=zr2; zi=zi2;
+        if (zr*zr+zi*zi>4) break;
+        n++;
+      }
+      return n===MAX ? {inside:true} : {iter:n};
+    }})
+});
+
+makeCard({
+  title:'Burning Ship', category:'fractal', badge:'C',
+  sub:'Michelitsch & Rössler 1992',
+  desc:'z ← (|Re|+i|Im|)² + c',
+  palettes:['fire','turbo','aurora','gold'],
+  presets:[
+    {zoom:1.8,cx:-0.5,cy:-0.5},
+    {zoom:0.05,cx:-1.762,cy:-0.028},
+    {zoom:0.012,cx:-1.755,cy:-0.0294},
+  ],
+  controls:[
+    {id:'zoom',label:'zoom',min:0.001,max:2,step:0.001,value:1.8},
+    {id:'cx',label:'cx',min:-2,max:1,step:0.001,value:-0.5},
+    {id:'cy',label:'cy',min:-2,max:1,step:0.001,value:-0.5},
+  ],
+  draw:(c,s)=> escapeRender(c, {zoom:s.zoom,cx:s.cx,cy:s.cy,palette:s.palette,max:160,
+    iter:(cr,ci,MAX)=>{
+      let zr=0,zi=0,n=0;
+      while(n<MAX){
+        const ar=Math.abs(zr),ai=Math.abs(zi);
+        const zr2=ar*ar-ai*ai+cr, zi2=2*ar*ai+ci;
+        zr=zr2; zi=zi2;
+        if (zr*zr+zi*zi>4) break;
+        n++;
+      }
+      return n===MAX?{inside:true}:{iter:n};
+    }})
+});
+
+makeCard({
+  title:'Tricorn (Mandelbar)', category:'fractal', badge:'C',
+  desc:'z ← conj(z)² + c',
+  palettes:['aurora','turbo','fire','rose'],
+  presets:[{zoom:2,cx:0,cy:0}],
+  controls:[
+    {id:'zoom',label:'zoom',min:0.05,max:2.5,step:0.001,value:2},
+    {id:'cx',label:'cx',min:-2,max:2,step:0.001,value:0},
+    {id:'cy',label:'cy',min:-2,max:2,step:0.001,value:0},
+  ],
+  draw:(c,s)=> escapeRender(c, {zoom:s.zoom,cx:s.cx,cy:s.cy,palette:s.palette,max:120,
+    iter:(cr,ci,MAX)=>{
+      let zr=0,zi=0,n=0;
+      while(n<MAX){
+        const zr2=zr*zr-zi*zi+cr, zi2=-2*zr*zi+ci;
+        zr=zr2; zi=zi2;
+        if (zr*zr+zi*zi>4) break;
+        n++;
+      }
+      return n===MAX?{inside:true}:{iter:n};
+    }})
+});
+
+makeCard({
+  title:'Multibrot (z^p + c)', category:'fractal', badge:'C',
+  desc:'z ← z^p + c   ·   non-integer powers give exotic shapes',
+  palettes:['violet','turbo','aurora','fire','rose'],
+  presets:[{p:3,zoom:1.5,cx:0,cy:0},{p:5,zoom:1.5,cx:0,cy:0},
+           {p:2.5,zoom:1.5,cx:0,cy:0},{p:4,zoom:1.5,cx:0,cy:0}],
+  controls:[
+    {id:'p',   label:'p',   min:2,max:8,step:0.01,value:3},
+    {id:'zoom',label:'zoom',min:0.05,max:2.5,step:0.001,value:1.5},
+    {id:'cx',  label:'cx',  min:-2,max:2,step:0.001,value:0},
+    {id:'cy',  label:'cy',  min:-2,max:2,step:0.001,value:0},
+  ],
+  draw:(c,s)=> escapeRender(c, {zoom:s.zoom,cx:s.cx,cy:s.cy,palette:s.palette,max:140,
+    iter:(cr,ci,MAX)=>{
+      let zr=0,zi=0,n=0;
+      while(n<MAX){
+        const r = Math.hypot(zr,zi);
+        const a = Math.atan2(zi,zr);
+        const rp = Math.pow(r, s.p);
+        zr = rp*Math.cos(s.p*a)+cr;
+        zi = rp*Math.sin(s.p*a)+ci;
+        if (zr*zr+zi*zi>1e6) break;
+        n++;
+      }
+      return n===MAX?{inside:true}:{iter:n};
+    }})
+});
+
+makeCard({
+  title:'Newton fractal', category:'fractal', badge:'C',
+  desc:'z ← z − (z³−1)/(3z²)   – basins of attraction to 3 roots',
+  palettes:['turbo','fire','aurora','rose','violet'],
+  presets:[{zoom:1.5,cx:0,cy:0},{zoom:0.4,cx:0.6,cy:0.4},{zoom:0.05,cx:0.7,cy:0.35}],
+  controls:[
+    {id:'zoom',label:'zoom',min:0.005,max:2.5,step:0.001,value:1.5},
+    {id:'cx',  label:'cx',  min:-1.5,max:1.5,step:0.001,value:0},
+    {id:'cy',  label:'cy',  min:-1.5,max:1.5,step:0.001,value:0},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    const img=ctx.createImageData(W,H); const d=img.data;
+    const roots=[[1,0],[-0.5,Math.sqrt(3)/2],[-0.5,-Math.sqrt(3)/2]];
+    const baseCol=[[230,90,90],[90,210,140],[100,150,240]];
+    const MAX=30, eps=1e-3;
+    for (let j=0;j<H;j++){
+      const im0 = st.cy+(j-H/2)/H*st.zoom*2;
+      for (let i=0;i<W;i++){
+        let re = st.cx+(i-W/2)/W*st.zoom*2, im=im0;
+        let n=0, ri=-1;
+        for (;n<MAX;n++){
+          const r2=re*re-im*im, i2=2*re*im;
+          const r3=r2*re-i2*im, i3=r2*im+i2*re;
+          const fr=r3-1, fi=i3, dr=3*r2, di=3*i2;
+          const denom=dr*dr+di*di;
+          if(denom===0) break;
+          const qr=(fr*dr+fi*di)/denom, qi=(fi*dr-fr*di)/denom;
+          re-=qr; im-=qi;
+          for(let k=0;k<3;k++){
+            const dx=re-roots[k][0], dy=im-roots[k][1];
+            if (dx*dx+dy*dy<eps){ ri=k; break;}
+          }
+          if (ri>=0) break;
+        }
+        const k=(j*W+i)*4;
+        if (ri<0){ d[k]=0;d[k+1]=0;d[k+2]=0;d[k+3]=255;}
+        else {
+          const shade=1-n/MAX;
+          const co=baseCol[ri];
+          d[k]=co[0]*shade; d[k+1]=co[1]*shade; d[k+2]=co[2]*shade; d[k+3]=255;
+        }
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+});
+
+makeCard({
+  title:'Phoenix fractal', category:'fractal', badge:'C',
+  desc:'zₙ₊₁ = zₙ² + c + p·zₙ₋₁',
+  palettes:['fire','turbo','aurora','violet','rose'],
+  presets:[{zoom:1.3,cx:0,cy:0,p:-0.5,c:0.5667},
+           {zoom:1.3,cx:0,cy:0,p:-0.5,c:0.6}],
+  controls:[
+    {id:'zoom',label:'zoom',min:0.05,max:2,step:0.001,value:1.3},
+    {id:'cx',  label:'cx',  min:-2,max:2,step:0.001,value:0},
+    {id:'cy',  label:'cy',  min:-2,max:2,step:0.001,value:0},
+    {id:'c',   label:'Re(c)',min:-1,max:1,step:0.001,value:0.5667},
+    {id:'p',   label:'p',    min:-1,max:1,step:0.001,value:-0.5},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    const img=ctx.createImageData(W,H); const d=img.data;
+    const MAX=150;
+    for (let j=0;j<H;j++){
+      const yi = st.cy+(j-H/2)/H*st.zoom*2;
+      for (let i=0;i<W;i++){
+        let zr=st.cx+(i-W/2)/W*st.zoom*2, zi=yi;
+        let pr=0, pi=0;
+        let n=0;
+        while(n<MAX){
+          const nzr = zr*zr - zi*zi + st.c + st.p*pr;
+          const nzi = 2*zr*zi + st.p*pi;
+          pr=zr; pi=zi;
+          zr=nzr; zi=nzi;
+          if (zr*zr+zi*zi>4) break;
+          n++;
+        }
+        const k=(j*W+i)*4;
+        if (n===MAX){ d[k]=0;d[k+1]=0;d[k+2]=0; d[k+3]=255; }
+        else {
+          const t=n/MAX;
+          const co=palette(Math.pow(t,0.5), st.palette);
+          d[k]=co[0]; d[k+1]=co[1]; d[k+2]=co[2]; d[k+3]=255;
+        }
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+});
+
+makeCard({
+  title:'Nova fractal', category:'fractal', badge:'C',
+  desc:'z ← z − R·(z³−1)/(3z²) + c   (relaxed Newton)',
+  palettes:['aurora','turbo','fire','violet'],
+  presets:[{zoom:1.3,cx:0,cy:0,R:1,jr:-0.2,ji:0.0},
+           {zoom:1.3,cx:0,cy:0,R:1.5,jr:0.1,ji:0.1}],
+  controls:[
+    {id:'zoom',label:'zoom',min:0.05,max:2,step:0.001,value:1.3},
+    {id:'cx',  label:'cx',  min:-1.5,max:1.5,step:0.001,value:0},
+    {id:'cy',  label:'cy',  min:-1.5,max:1.5,step:0.001,value:0},
+    {id:'R',   label:'R',   min:0.1,max:2.5,step:0.01,value:1},
+    {id:'jr',  label:'cR',  min:-0.5,max:0.5,step:0.001,value:-0.2},
+    {id:'ji',  label:'cI',  min:-0.5,max:0.5,step:0.001,value:0},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    const img=ctx.createImageData(W,H); const d=img.data;
+    const MAX=80;
+    for (let j=0;j<H;j++){
+      const yi = st.cy+(j-H/2)/H*st.zoom*2;
+      for (let i=0;i<W;i++){
+        let re = st.cx+(i-W/2)/W*st.zoom*2, im=yi;
+        let n=0, conv=false;
+        while(n<MAX){
+          const r2=re*re-im*im, i2=2*re*im;
+          const r3=r2*re-i2*im, i3=r2*im+i2*re;
+          const fr=r3-1, fi=i3, dr=3*r2, di=3*i2;
+          const denom=dr*dr+di*di+1e-12;
+          const qr=(fr*dr+fi*di)/denom*st.R, qi=(fi*dr-fr*di)/denom*st.R;
+          const nre = re - qr + st.jr;
+          const nim = im - qi + st.ji;
+          if (Math.hypot(nre-re,nim-im)<1e-4){ conv=true; break;}
+          re=nre; im=nim;
+          n++;
+        }
+        const k=(j*W+i)*4;
+        if (!conv){ d[k]=0;d[k+1]=0;d[k+2]=0; d[k+3]=255; }
+        else {
+          const t=n/MAX;
+          const co=palette(Math.pow(t,0.6), st.palette);
+          d[k]=co[0]; d[k+1]=co[1]; d[k+2]=co[2]; d[k+3]=255;
+        }
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+});
+
+makeCard({
+  title:'Buddhabrot', category:'fractal', badge:'orbit',
+  sub:'Melinda Green 1993',
+  desc:'Histogram orbits of points that ESCAPE the Mandelbrot set',
+  palettes:['gold','fire','aurora','turbo','ice'],
+  presets:[{samples:6,max:200,xc:-0.5,yc:0,zoom:1.5},
+           {samples:8,max:500,xc:-0.5,yc:0,zoom:1.5}],
+  controls:[
+    {id:'samples',label:'samples (×100k)',min:1,max:15,step:1,value:6},
+    {id:'max',    label:'max iter',min:50,max:1000,step:50,value:200},
+    {id:'xc',     label:'cx',  min:-2,max:1,step:0.001,value:-0.5},
+    {id:'yc',     label:'cy',  min:-1.5,max:1.5,step:0.001,value:0},
+    {id:'zoom',   label:'zoom',min:0.1,max:2,step:0.001,value:1.5},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+    const hist=new Float32Array(W*H);
+    const N=(st.samples|0)*100000;
+    const MAX=st.max|0;
+    const xmin=st.xc-st.zoom, xmax=st.xc+st.zoom;
+    const ymin=st.yc-st.zoom, ymax=st.yc+st.zoom;
+    const traj = new Float64Array(MAX*2);
+    for (let s=0;s<N;s++){
+      const cr = -2 + 3*Math.random();
+      const ci = -1.5 + 3*Math.random();
+      let zr=0,zi=0,n=0;
+      while(n<MAX){
+        const zr2=zr*zr-zi*zi+cr, zi2=2*zr*zi+ci;
+        zr=zr2; zi=zi2;
+        traj[2*n]=zr; traj[2*n+1]=zi;
+        if (zr*zr+zi*zi>4) break;
+        n++;
+      }
+      if (n<MAX){
+        for (let i=0;i<n;i++){
+          const x=traj[2*i], y=traj[2*i+1];
+          if (x>=xmin&&x<xmax&&y>=ymin&&y<ymax){
+            const px = ((x-xmin)/(xmax-xmin)*W)|0;
+            const py = ((y-ymin)/(ymax-ymin)*H)|0;
+            if (px>=0&&py>=0&&px<W&&py<H) hist[py*W+px]+=1;
+          }
+        }
+      }
+    }
+    let max=0; for(let i=0;i<hist.length;i++) if(hist[i]>max) max=hist[i];
+    if(!max) return;
+    const lm=Math.log(1+max);
+    const img=ctx.getImageData(0,0,W,H); const d=img.data;
+    for (let i=0;i<hist.length;i++){
+      if (!hist[i]) continue;
+      const v=Math.log(1+hist[i])/lm;
+      const co=palette(Math.pow(v,0.45), st.palette);
+      const k=i*4; d[k]=co[0]; d[k+1]=co[1]; d[k+2]=co[2];
+    }
+    ctx.putImageData(img,0,0);
+  }
+});
+
+makeCard({
+  title:'Markus–Hess Lyapunov', category:'fractal', badge:'1989',
+  desc:'Logistic map with alternating r values from a string; coloured by Lyapunov exp.',
+  palettes:['gold','fire','aurora','ice','rose'],
+  presets:[
+    {seq:0,xmin:2.5,xmax:3.4,ymin:3.4,ymax:4},
+    {seq:1,xmin:3.0,xmax:4.0,ymin:3.0,ymax:4.0},
+    {seq:2,xmin:2.6,xmax:3.7,ymin:3.4,ymax:4.0},
+  ],
+  controls:[
+    {id:'seq',label:'sequence',min:0,max:3,step:1,value:0},
+    {id:'xmin',label:'a min',min:2,max:4,step:0.001,value:2.5},
+    {id:'xmax',label:'a max',min:2,max:4,step:0.001,value:3.4},
+    {id:'ymin',label:'b min',min:2,max:4,step:0.001,value:3.4},
+    {id:'ymax',label:'b max',min:2,max:4,step:0.001,value:4},
+  ],
+  draw:(canvas,st)=>{
+    const seqs = [
+      "AAAAAABBBBBB",
+      "BBBBBBAAAAAA",
+      "ABBAA",
+      "ABABABCABABC",
+    ];
+    const seq = seqs[st.seq|0]||seqs[0];
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    const img=ctx.createImageData(W,H); const d=img.data;
+    const N=400;
+    for (let j=0;j<H;j++){
+      const b = st.ymin + (j/H)*(st.ymax-st.ymin);
+      for (let i=0;i<W;i++){
+        const a = st.xmin + (i/W)*(st.xmax-st.xmin);
+        let x=0.5, lyap=0;
+        for (let n=0;n<N;n++){
+          const r = seq[n%seq.length]==='A' ? a : (seq[n%seq.length]==='B' ? b : (a+b)/2);
+          x = r*x*(1-x);
+          const v = Math.abs(r*(1-2*x));
+          if (v>0) lyap += Math.log(v);
+        }
+        lyap /= N;
+        const k=(j*W+i)*4;
+        if (lyap<0){
+          const t = Math.min(1, -lyap/2);
+          const co = palette(Math.pow(t,0.7), st.palette);
+          d[k]=co[0]; d[k+1]=co[1]; d[k+2]=co[2];
+        } else {
+          const t = Math.min(1, lyap/1.5);
+          d[k]=20*(1-t); d[k+1]=10*(1-t); d[k+2]=40*(1-t);
+        }
+        d[k+3]=255;
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+});
+
+makeCard({
+  title:'Logistic bifurcation', category:'fractal', badge:'1D',
+  desc:'xₙ₊₁ = r·x(1−x)   — classic doubling cascade',
+  palettes:['gold'],
+  presets:[{rmin:2.5,rmax:4.0},{rmin:3.5,rmax:3.9},{rmin:3.84,rmax:3.857}],
+  controls:[
+    {id:'rmin',label:'r min',min:0,max:4,step:0.001,value:2.5},
+    {id:'rmax',label:'r max',min:0,max:4,step:0.001,value:4},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#0a0c11'; ctx.fillRect(0,0,W,H);
+    const img=ctx.getImageData(0,0,W,H); const d=img.data;
+    for (let i=0;i<W;i++){
+      const r = st.rmin + (i/W)*(st.rmax-st.rmin);
+      let x = 0.4;
+      for (let n=0;n<400;n++) x = r*x*(1-x);
+      for (let n=0;n<300;n++){
+        x = r*x*(1-x);
+        const py = ((1-x)*H)|0;
+        if (py>=0 && py<H){
+          const k=(py*W+i)*4;
+          d[k] = Math.min(255, d[k]+50);
+          d[k+1]= Math.min(255, d[k+1]+200);
+          d[k+2]= Math.min(255, d[k+2]+90);
+          d[k+3]=255;
+        }
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+});
+
+/* =====================================================================
+   IFS / L-system  (≈4)
+   ===================================================================== */
+
+makeCard({
+  title:'Barnsley fern', category:'ifs', badge:'IFS',
+  desc:'4 affine transforms — produces a leaf of Asplenium adiantum-nigrum',
+  palettes:['lime','aurora','gold'],
+  presets:[
+    {p1:0.85, r1:0.04, r2:-0.04, r3:0.2}, // classic
+    {p1:0.92, r1:0.08, r2:-0.08, r3:0.2},
+  ],
+  controls:[
+    {id:'p1', label:'P1', min:0.7,max:0.95,step:0.001,value:0.85},
+    {id:'r1', label:'rot', min:-0.2,max:0.2,step:0.001,value:0.04},
+    {id:'r2', label:'rot2',min:-0.2,max:0.2,step:0.001,value:-0.04},
+    {id:'r3', label:'r3',  min:0.1, max:0.3,step:0.001,value:0.2},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#06080a'; ctx.fillRect(0,0,W,H);
+    let x=0, y=0;
+    const N=200000;
+    const xmin=-3,xmax=3,ymin=0,ymax=10;
+    const sx=W/(xmax-xmin), sy=H/(ymax-ymin);
+    const img=ctx.getImageData(0,0,W,H); const d=img.data;
+    for (let i=0;i<N;i++){
+      const r = Math.random();
+      let nx, ny;
+      if (r < 0.01){ nx=0; ny=0.16*y; }
+      else if (r < st.p1){
+        nx = 0.85*x + st.r1*y;
+        ny = -st.r2*x + 0.85*y + 1.6;
+      } else if (r < st.p1 + 0.07){
+        nx = st.r3*x - 0.26*y;
+        ny = 0.23*x + 0.22*y + 1.6;
+      } else {
+        nx = -0.15*x + 0.28*y;
+        ny = 0.26*x + 0.24*y + 0.44;
+      }
+      x=nx; y=ny;
+      const px=((x-xmin)*sx)|0;
+      const py=(H-1-((y-ymin)*sy))|0;
+      if (px>=0&&py>=0&&px<W&&py<H){
+        const k=(py*W+px)*4;
+        const co = palette(0.4 + 0.5*(y/ymax), st.palette);
+        d[k]=Math.min(255,d[k]+co[0]*0.6);
+        d[k+1]=Math.min(255,d[k+1]+co[1]*0.6);
+        d[k+2]=Math.min(255,d[k+2]+co[2]*0.6);
+        d[k+3]=255;
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+});
+
+makeCard({
+  title:'Sierpinski (Chaos game)', category:'ifs', badge:'IFS',
+  desc:'Random walk towards N vertices with factor r — varying gives gaskets, snowflakes, more',
+  palettes:['turbo','fire','aurora','gold','rose'],
+  presets:[
+    {N:3,r:0.5},{N:4,r:0.5},{N:5,r:0.5},{N:5,r:0.382},{N:6,r:0.333},{N:7,r:0.55}
+  ],
+  controls:[
+    {id:'N',label:'vertices',min:3,max:9,step:1,value:5},
+    {id:'r',label:'ratio',min:0.2,max:0.7,step:0.001,value:0.382},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    clearCanvas(ctx,W,H,[5,7,12]);
+    const verts=[];
+    for (let i=0;i<st.N;i++){
+      const a = -Math.PI/2 + i*2*Math.PI/st.N;
+      verts.push([Math.cos(a)*W*0.42 + W/2, Math.sin(a)*H*0.42 + H/2]);
+    }
+    let x=W/2, y=H/2;
+    const img=ctx.getImageData(0,0,W,H); const d=img.data;
+    const N=200000;
+    for (let i=0;i<N;i++){
+      const v = verts[Math.floor(Math.random()*verts.length)];
+      x = x + st.r*(v[0]-x);
+      y = y + st.r*(v[1]-y);
+      const px=x|0, py=y|0;
+      if (px>=0&&py>=0&&px<W&&py<H){
+        const k=(py*W+px)*4;
+        const t = i/N;
+        const co = palette(t, st.palette);
+        d[k]=co[0]; d[k+1]=co[1]; d[k+2]=co[2]; d[k+3]=255;
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+});
+
+makeCard({
+  title:'Heighway dragon', category:'ifs', badge:'L-sys',
+  desc:'L-system: X→X+YF+, Y→−FX−Y',
+  palettes:['turbo','aurora','fire','rose'],
+  presets:[{depth:10},{depth:12},{depth:14}],
+  controls:[ {id:'depth',label:'depth',min:6,max:16,step:1,value:12} ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#0a0c11'; ctx.fillRect(0,0,W,H);
+    let s = "FX";
+    for (let i=0;i<st.depth;i++){
+      let r = "";
+      for (const ch of s){
+        if (ch==='X') r += "X+YF+";
+        else if (ch==='Y') r += "-FX-Y";
+        else r += ch;
+      }
+      s = r;
+    }
+    let x=0, y=0, ang=0;
+    let xmin=1e9,xmax=-1e9,ymin=1e9,ymax=-1e9;
+    const pts=[[0,0]];
+    for (const ch of s){
+      if (ch==='F'){ x+=Math.cos(ang); y+=Math.sin(ang); pts.push([x,y]); 
+        if(x<xmin)xmin=x;if(x>xmax)xmax=x;if(y<ymin)ymin=y;if(y>ymax)ymax=y;}
+      else if (ch==='+') ang += Math.PI/2;
+      else if (ch==='-') ang -= Math.PI/2;
+    }
+    const pad=2;
+    xmin-=pad;xmax+=pad;ymin-=pad;ymax+=pad;
+    const sc=Math.min((W-4)/(xmax-xmin),(H-4)/(ymax-ymin));
+    const cx=W/2-sc*(xmax+xmin)/2;
+    const cy=H/2-sc*(ymax+ymin)/2;
+    ctx.lineWidth=1;
+    for (let i=1;i<pts.length;i++){
+      const c = palette(i/pts.length, st.palette);
+      ctx.strokeStyle = `rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
+      ctx.beginPath();
+      ctx.moveTo(cx+sc*pts[i-1][0], cy+sc*pts[i-1][1]);
+      ctx.lineTo(cx+sc*pts[i][0],   cy+sc*pts[i][1]);
+      ctx.stroke();
+    }
+  }
+});
+
+makeCard({
+  title:'Koch snowflake', category:'ifs', badge:'L-sys',
+  desc:'Classic F → F+F−−F+F   (60° turns)',
+  palettes:['ice','turbo','aurora'],
+  presets:[{depth:4},{depth:5},{depth:6}],
+  controls:[ {id:'depth',label:'depth',min:1,max:6,step:1,value:4} ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#06090d'; ctx.fillRect(0,0,W,H);
+    let s = "F--F--F";
+    for (let i=0;i<st.depth;i++){
+      let r="";
+      for (const ch of s){
+        if (ch==='F') r+="F+F--F+F"; else r+=ch;
+      }
+      s=r;
+    }
+    let x=0,y=0,ang=0;
+    const pts=[[0,0]];
+    let xmin=0,xmax=0,ymin=0,ymax=0;
+    for (const ch of s){
+      if (ch==='F'){ x+=Math.cos(ang); y+=Math.sin(ang); pts.push([x,y]);
+        if(x<xmin)xmin=x;if(x>xmax)xmax=x;if(y<ymin)ymin=y;if(y>ymax)ymax=y;}
+      else if (ch==='+') ang += Math.PI/3;
+      else if (ch==='-') ang -= Math.PI/3;
+    }
+    const pad=1;
+    xmin-=pad;xmax+=pad;ymin-=pad;ymax+=pad;
+    const sc=Math.min((W-4)/(xmax-xmin),(H-4)/(ymax-ymin));
+    const cx=W/2-sc*(xmax+xmin)/2;
+    const cy=H/2-sc*(ymax+ymin)/2;
+    ctx.lineWidth=1;
+    for (let i=1;i<pts.length;i++){
+      const co = palette(i/pts.length, st.palette);
+      ctx.strokeStyle=`rgb(${co[0]|0},${co[1]|0},${co[2]|0})`;
+      ctx.beginPath();
+      ctx.moveTo(cx+sc*pts[i-1][0], cy+sc*pts[i-1][1]);
+      ctx.lineTo(cx+sc*pts[i][0],   cy+sc*pts[i][1]);
+      ctx.stroke();
+    }
+  }
+});
+
+makeCard({
+  title:'Apollonian gasket', category:'ifs', badge:'circles',
+  desc:'Recursive circle packing (Descartes circle theorem)',
+  palettes:['turbo','fire','aurora','rose'],
+  presets:[{depth:6},{depth:8}],
+  controls:[ {id:'depth',label:'depth',min:2,max:9,step:1,value:7} ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#06090d'; ctx.fillRect(0,0,W,H);
+    const cx=W/2, cy=H/2, R=W*0.45;
+    // 3 mutually tangent circles inside outer circle
+    const k0 = -1/R;
+    const r = R*(2*Math.sqrt(3)-3); // not used directly; build via curvatures
+    // Use solution for inner 3: r_inner = R*(2*sqrt(3)-3)/3 approximation; build via Descartes
+    // Simpler: place 3 circles of radius R/(1+2/sqrt(3)) at 120°
+    const rA = R*(Math.sqrt(3))/(2+Math.sqrt(3));
+    const dist = R - rA;
+    const cs = [
+      {x:cx, y:cy, r:-R}, // outer (negative curvature)
+      {x:cx+dist*Math.cos(-Math.PI/2),         y:cy+dist*Math.sin(-Math.PI/2),         r:rA},
+      {x:cx+dist*Math.cos(-Math.PI/2+2.094),   y:cy+dist*Math.sin(-Math.PI/2+2.094),   r:rA},
+      {x:cx+dist*Math.cos(-Math.PI/2+4.188),   y:cy+dist*Math.sin(-Math.PI/2+4.188),   r:rA},
+    ];
+
+    function drawC(c, col){
+      ctx.strokeStyle=col;
+      ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, Math.abs(c.r), 0, Math.PI*2);
+      ctx.stroke();
+    }
+    cs.forEach((c,i)=> drawC(c, `rgb(${palette(i/cs.length, st.palette).map(v=>v|0).join(',')})`));
+
+    // Descartes circle theorem: k4 = k1+k2+k3 ± 2*sqrt(k1*k2+k2*k3+k3*k1)
+    // For each triplet of mutually tangent circles, find a 4th tangent circle
+    function curv(c){ return 1/c.r; }
+    function descartes(c1,c2,c3,sign){
+      const k1=curv(c1),k2=curv(c2),k3=curv(c3);
+      const k4 = k1+k2+k3 + sign*2*Math.sqrt(Math.abs(k1*k2+k2*k3+k3*k1));
+      // centers via complex k*c
+      const cx1 = c1.x*k1, cy1=c1.y*k1;
+      const cx2 = c2.x*k2, cy2=c2.y*k2;
+      const cx3 = c3.x*k3, cy3=c3.y*k3;
+      // sum approach (real coords)
+      const sumx = cx1+cx2+cx3, sumy = cy1+cy2+cy3;
+      // for the offset use sqrt term
+      const offx = 2*Math.sqrt(Math.abs(cx1*cx2+cx2*cx3+cx3*cx1 - (cy1*cy2+cy2*cy3+cy3*cy1)*0));
+      // Simpler 2D treatment using complex numbers
+      // k4*z4 = k1*z1+k2*z2+k3*z3 ± 2*sqrt(k1*k2*z1*z2 + k2*k3*z2*z3 + k3*k1*z3*z1)
+      const z1r=c1.x, z1i=c1.y, z2r=c2.x,z2i=c2.y, z3r=c3.x,z3i=c3.y;
+      function cmul(a,b){return [a[0]*b[0]-a[1]*b[1], a[0]*b[1]+a[1]*b[0]];}
+      function csqrt(a){
+        const m=Math.hypot(a[0],a[1]);
+        return [Math.sqrt((m+a[0])/2), Math.sign(a[1]||1)*Math.sqrt((m-a[0])/2)];
+      }
+      const term = [
+        k1*k2*z1r*z2r - k1*k2*z1i*z2i + k2*k3*z2r*z3r - k2*k3*z2i*z3i + k3*k1*z3r*z1r - k3*k1*z3i*z1i,
+        k1*k2*(z1r*z2i+z1i*z2r) + k2*k3*(z2r*z3i+z2i*z3r) + k3*k1*(z3r*z1i+z3i*z1r),
+      ];
+      const sq = csqrt(term);
+      const sumzx = k1*z1r + k2*z2r + k3*z3r + sign*2*sq[0];
+      const sumzy = k1*z1i + k2*z2i + k3*z3i + sign*2*sq[1];
+      if (Math.abs(k4)<1e-8) return null;
+      return { x: sumzx/k4, y: sumzy/k4, r: 1/k4 };
+    }
+
+    const queue = [];
+    // generate inner circle initially
+    queue.push([cs[0],cs[1],cs[2],cs[3]]);
+    let depth = st.depth|0;
+    function recurse(quartet, lvl){
+      if (lvl>depth) return;
+      const [a,b,c,d] = quartet;
+      const triples = [[a,b,c,d],[a,b,d,c],[a,c,d,b],[b,c,d,a]];
+      for (const [c1,c2,c3,old] of triples){
+        const newC = descartes(c1,c2,c3,+1);
+        const newC2= descartes(c1,c2,c3,-1);
+        for (const cand of [newC,newC2]){
+          if (!cand || !isFinite(cand.x) || !isFinite(cand.y) || Math.abs(cand.r)<0.5) continue;
+          // exclude the existing 'old'
+          if (Math.abs(cand.r-old.r)<0.5 && Math.hypot(cand.x-old.x,cand.y-old.y)<0.5) continue;
+          if (Math.abs(cand.r)>R*1.2) continue;
+          const col = palette(0.2+0.7*(1-Math.abs(cand.r)/R), st.palette);
+          drawC(cand, `rgb(${col.map(v=>v|0).join(',')})`);
+          recurse([c1,c2,c3,cand], lvl+1);
+        }
+      }
+    }
+    recurse(queue[0], 0);
+  }
+});
+
+/* =====================================================================
+   WAVE & PARAMETRIC PATTERNS  (≈8)
+   ===================================================================== */
+
+makeCard({
+  title:'Chladni patterns', category:'pattern', badge:'wave',
+  sub:'vibrating plate, 1787',
+  desc:'cos(mπx)·cos(nπy) − cos(nπx)·cos(mπy) = 0',
+  palettes:['gold','aurora','ice','rose','turbo'],
+  presets:[{m:3,n:5},{m:4,n:7},{m:7,n:11},{m:9,n:13},{m:2,n:15},{m:5,n:8}],
+  controls:[
+    {id:'m',label:'m',min:1,max:20,step:1,value:5},
+    {id:'n',label:'n',min:1,max:20,step:1,value:7},
+    {id:'sharp',label:'sharpness',min:1,max:80,step:1,value:30},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    const img=ctx.createImageData(W,H); const d=img.data;
+    const PI=Math.PI;
+    for (let j=0;j<H;j++){
+      const y=j/H;
+      for (let i=0;i<W;i++){
+        const x=i/W;
+        const v = Math.cos(st.m*PI*x)*Math.cos(st.n*PI*y)
+                - Math.cos(st.n*PI*x)*Math.cos(st.m*PI*y);
+        const a = Math.exp(-st.sharp*Math.abs(v));
+        const co = palette(0.1 + a*0.9, st.palette);
+        const k=(j*W+i)*4;
+        d[k]=co[0]; d[k+1]=co[1]; d[k+2]=co[2]; d[k+3]=255;
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+});
+
+makeCard({
+  title:'Phyllotaxis (Vogel)', category:'pattern', badge:'φ',
+  desc:'r=c√n, θ=n·α   — sunflower seed spiral',
+  palettes:['gold','rose','aurora','turbo'],
+  presets:[{angle:137.5077,n:1500,c:6},{angle:137.3,n:1500,c:6},{angle:99.5,n:1500,c:6},{angle:222.5,n:1500,c:6}],
+  controls:[
+    {id:'angle',label:'angle°',min:0,max:360,step:0.001,value:137.5077},
+    {id:'n',label:'points',min:100,max:4000,step:50,value:1500},
+    {id:'c',label:'scale',min:1,max:14,step:0.1,value:6},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#0b0d12'; ctx.fillRect(0,0,W,H);
+    const cx=W/2, cy=H/2;
+    const ang = st.angle*Math.PI/180;
+    for (let n=0;n<st.n;n++){
+      const r = st.c*Math.sqrt(n);
+      const th = n*ang;
+      const x = cx + r*Math.cos(th);
+      const y = cy + r*Math.sin(th);
+      const co = palette(n/st.n, st.palette);
+      ctx.fillStyle=`rgb(${co.map(v=>v|0).join(',')})`;
+      ctx.beginPath();
+      ctx.arc(x,y,1.5+0.004*n,0,Math.PI*2);
+      ctx.fill();
+    }
+  }
+});
+
+makeCard({
+  title:'Maurer Rose', category:'pattern', badge:'curve',
+  sub:'Maurer 1987',
+  desc:'Connect r=sin(n·θ) sampled in steps of d° — primes produce most ornate roses',
+  palettes:['rose','aurora','turbo'],
+  presets:[{n:2,d:39},{n:6,d:71},{n:7,d:19},{n:11,d:67},{n:5,d:97},{n:3,d:47}],
+  controls:[
+    {id:'n',label:'n',min:1,max:30,step:1,value:6},
+    {id:'d',label:'d°',min:1,max:179,step:1,value:71},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#0b0d12'; ctx.fillRect(0,0,W,H);
+    const cx=W/2, cy=H/2, R=W*0.45;
+    ctx.lineWidth=1;
+    const co1 = palette(0.65, st.palette);
+    ctx.strokeStyle = `rgb(${co1.map(v=>v|0).join(',')})`;
+    ctx.beginPath();
+    for (let k=0;k<=361;k++){
+      const t = (k*st.d)*Math.PI/180;
+      const r = Math.sin(st.n*t);
+      const x = cx + R*r*Math.cos(t);
+      const y = cy + R*r*Math.sin(t);
+      if (k===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    const co2 = palette(0.2, st.palette);
+    ctx.strokeStyle = `rgba(${co2.map(v=>v|0).join(',')},0.55)`;
+    ctx.beginPath();
+    for (let k=0;k<=361;k++){
+      const t = k*Math.PI/180;
+      const r = Math.sin(st.n*t);
+      const x = cx + R*r*Math.cos(t);
+      const y = cy + R*r*Math.sin(t);
+      if (k===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+});
+
+makeCard({
+  title:'Lissajous figure', category:'pattern', badge:'curve',
+  desc:'x=A·sin(a·t+δ); y=B·sin(b·t)',
+  palettes:['turbo','aurora','rose','gold'],
+  presets:[{a:3,b:2,delta:Math.PI/2},{a:5,b:4,delta:Math.PI/3},{a:7,b:5,delta:0},{a:9,b:8,delta:Math.PI/4}],
+  controls:[
+    {id:'a',label:'a',min:1,max:15,step:1,value:5},
+    {id:'b',label:'b',min:1,max:15,step:1,value:4},
+    {id:'delta',label:'δ',min:0,max:Math.PI,step:0.001,value:1.047},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#0b0d12'; ctx.fillRect(0,0,W,H);
+    const cx=W/2, cy=H/2, A=W*0.42, B=H*0.42;
+    ctx.lineWidth=1;
+    const N=5000;
+    for (let i=0;i<N;i++){
+      const t = i/N * Math.PI*2;
+      const x = cx + A*Math.sin(st.a*t + st.delta);
+      const y = cy + B*Math.sin(st.b*t);
+      const co = palette(i/N, st.palette);
+      ctx.fillStyle=`rgb(${co.map(v=>v|0).join(',')})`;
+      ctx.fillRect(x|0, y|0, 1, 1);
+    }
+  }
+});
+
+makeCard({
+  title:'Hypotrochoid (Spirograph)', category:'pattern', badge:'curve',
+  desc:'x=(R−r)cos t + d·cos((R−r)/r·t); y=(R−r)sin t − d·sin((R−r)/r·t)',
+  palettes:['aurora','turbo','rose','gold'],
+  presets:[{R:5,r:3,d:5},{R:8,r:5,d:7},{R:13,r:5,d:11},{R:11,r:3,d:7}],
+  controls:[
+    {id:'R',label:'R',min:2,max:20,step:1,value:8},
+    {id:'r',label:'r',min:1,max:10,step:1,value:5},
+    {id:'d',label:'d',min:1,max:14,step:1,value:7},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#0b0d12'; ctx.fillRect(0,0,W,H);
+    const cx=W/2, cy=H/2;
+    const max = (st.R + st.d)*1.1;
+    const sc = (W*0.45)/max;
+    ctx.lineWidth=1;
+    const co = palette(0.6, st.palette);
+    ctx.strokeStyle=`rgb(${co.map(v=>v|0).join(',')})`;
+    ctx.beginPath();
+    const period = 2*Math.PI*st.r;
+    const N=4000;
+    for (let i=0;i<=N;i++){
+      const t = i/N * period;
+      const x = cx + sc*((st.R-st.r)*Math.cos(t) + st.d*Math.cos((st.R-st.r)/st.r*t));
+      const y = cy + sc*((st.R-st.r)*Math.sin(t) - st.d*Math.sin((st.R-st.r)/st.r*t));
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+});
+
+makeCard({
+  title:'Harmonograph', category:'pattern', badge:'damped',
+  desc:'Two damped pendulums on x and y — physical lab device of the 1840s',
+  palettes:['rose','aurora','gold','turbo'],
+  presets:[
+    {f1:2.01,f2:3,f3:3,f4:2,p1:0.0,p2:1.5,p3:0.0,p4:1.5,d1:0.004,d2:0.008,d3:0.002,d4:0.0015},
+    {f1:3.0,f2:2.0,f3:5.0,f4:4.0,p1:0.5,p2:0.0,p3:0.0,p4:1.0,d1:0.002,d2:0.002,d3:0.002,d4:0.002},
+  ],
+  controls:[
+    {id:'f1',label:'fx1',min:0.5,max:6,step:0.001,value:2.01},
+    {id:'f2',label:'fx2',min:0.5,max:6,step:0.001,value:3.0},
+    {id:'f3',label:'fy1',min:0.5,max:6,step:0.001,value:3.0},
+    {id:'f4',label:'fy2',min:0.5,max:6,step:0.001,value:2.0},
+    {id:'d1',label:'damp',min:0,max:0.02,step:0.0001,value:0.004},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#0a0c11'; ctx.fillRect(0,0,W,H);
+    const cx=W/2, cy=H/2, A=W*0.38;
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    const N=8000;
+    const co = palette(0.5, st.palette);
+    ctx.strokeStyle = `rgb(${co.map(v=>v|0).join(',')})`;
+    for (let i=0;i<N;i++){
+      const t = i*0.02;
+      const e = Math.exp(-st.d1*t);
+      const x = cx + A*e*(Math.sin(st.f1*t)+0.6*Math.sin(st.f2*t+1.2));
+      const y = cy + A*e*(Math.sin(st.f3*t+0.5)+0.6*Math.sin(st.f4*t));
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+});
+
+makeCard({
+  title:'Truchet tiles', category:'pattern', badge:'tile',
+  desc:'Each cell holds 1 of 2 quarter-arcs, random rotation — endless mazes',
+  palettes:['aurora','turbo','gold','rose'],
+  presets:[{N:14},{N:22},{N:32}],
+  controls:[ {id:'N',label:'grid',min:6,max:48,step:1,value:22},
+             {id:'seed',label:'seed',min:0,max:99,step:1,value:7} ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#0a0c11'; ctx.fillRect(0,0,W,H);
+    const N=st.N|0;
+    const s = W/N;
+    let seed = st.seed|0 + 1;
+    function rnd(){ seed = (seed*9301+49297) % 233280; return seed/233280; }
+    ctx.lineWidth = Math.max(1, s*0.18);
+    for (let j=0;j<N;j++){
+      for (let i=0;i<N;i++){
+        const x=i*s, y=j*s;
+        const c = palette((i+j)/(2*N), st.palette);
+        ctx.strokeStyle = `rgb(${c.map(v=>v|0).join(',')})`;
+        ctx.beginPath();
+        if (rnd()<0.5){
+          ctx.arc(x, y, s/2, 0, Math.PI/2);
+          ctx.moveTo(x+s, y+s);
+          ctx.arc(x+s, y+s, s/2, Math.PI, 1.5*Math.PI);
+        } else {
+          ctx.arc(x+s, y, s/2, Math.PI/2, Math.PI);
+          ctx.moveTo(x, y+s);
+          ctx.arc(x, y+s, s/2, 1.5*Math.PI, 2*Math.PI);
+        }
+        ctx.stroke();
+      }
+    }
+  }
+});
+
+makeCard({
+  title:'Quasi-crystal interference', category:'pattern', badge:'wave',
+  desc:'Sum of N plane waves at equal angles — fractal-like aperiodic patterns',
+  palettes:['turbo','aurora','gold','ice'],
+  presets:[{N:5,freq:0.18},{N:7,freq:0.18},{N:9,freq:0.18},{N:11,freq:0.15}],
+  controls:[
+    {id:'N',label:'waves',min:3,max:13,step:1,value:7},
+    {id:'freq',label:'freq',min:0.04,max:0.4,step:0.001,value:0.18},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    const img=ctx.createImageData(W,H); const d=img.data;
+    const angles=[];
+    for (let i=0;i<st.N;i++) angles.push(Math.PI*i/st.N);
+    for (let j=0;j<H;j++){
+      for (let i=0;i<W;i++){
+        let sum=0;
+        const x = i - W/2, y = j - H/2;
+        for (const a of angles){
+          sum += Math.cos((x*Math.cos(a)+y*Math.sin(a))*st.freq);
+        }
+        const v = (sum/st.N + 1)/2;
+        const co = palette(v, st.palette);
+        const k = (j*W+i)*4;
+        d[k]=co[0]; d[k+1]=co[1]; d[k+2]=co[2]; d[k+3]=255;
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+});
+
+makeCard({
+  title:'Domain coloring · sin(z)·z', category:'pattern', badge:'ℂ',
+  desc:'Color by arg(f(z)); brightness by |f(z)| — visualises complex functions',
+  palettes:['turbo'],
+  presets:[{fn:0,zoom:3},{fn:1,zoom:5},{fn:2,zoom:5},{fn:3,zoom:2}],
+  controls:[
+    {id:'fn',label:'function',min:0,max:3,step:1,value:0},
+    {id:'zoom',label:'zoom',min:0.5,max:8,step:0.01,value:3},
+  ],
+  draw:(canvas,st)=>{
+    const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+    const img=ctx.createImageData(W,H); const d=img.data;
+    function hsl(h,s,l){
+      // h in [0,1)
+      const c = (1-Math.abs(2*l-1))*s;
+      const x = c*(1-Math.abs(((h*6)%2)-1));
+      const m = l - c/2;
+      let r=0,g=0,b=0;
+      if (h<1/6){r=c;g=x;}
+      else if(h<2/6){r=x;g=c;}
+      else if(h<3/6){g=c;b=x;}
+      else if(h<4/6){g=x;b=c;}
+      else if(h<5/6){r=x;b=c;}
+      else {r=c;b=x;}
+      return [(r+m)*255,(g+m)*255,(b+m)*255];
+    }
+    function f(zr,zi){
+      // 0: sin(z)*z   1: z^3-1  2: 1/(z^4+1)  3: e^z
+      if (st.fn===0){
+        const sr = Math.sin(zr)*Math.cosh(zi);
+        const si = Math.cos(zr)*Math.sinh(zi);
+        return [sr*zr - si*zi, sr*zi + si*zr];
+      }
+      if (st.fn===1){
+        const r2=zr*zr-zi*zi, i2=2*zr*zi;
+        return [r2*zr-i2*zi-1, r2*zi+i2*zr];
+      }
+      if (st.fn===2){
+        const r2=zr*zr-zi*zi, i2=2*zr*zi;
+        const r4=r2*r2-i2*i2+1, i4=2*r2*i2;
+        const den=r4*r4+i4*i4+1e-9;
+        return [r4/den, -i4/den];
+      }
+      // e^z
+      const e = Math.exp(zr);
+      return [e*Math.cos(zi), e*Math.sin(zi)];
+    }
+    for (let j=0;j<H;j++){
+      const zi = (j-H/2)/H*st.zoom*2;
+      for (let i=0;i<W;i++){
+        const zr = (i-W/2)/W*st.zoom*2;
+        const v = f(zr, zi);
+        const arg = Math.atan2(v[1], v[0]);
+        const mag = Math.hypot(v[0], v[1]);
+        const hue = (arg/Math.PI/2 + 1) % 1;
+        const l = 1 - 1/(1 + Math.log(1+mag));
+        const co = hsl(hue, 0.9, 0.3 + 0.5*l);
+        const k=(j*W+i)*4;
+        d[k]=co[0]; d[k+1]=co[1]; d[k+2]=co[2]; d[k+3]=255;
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+});
+
+/* =====================================================================
+   Category filter
+   ===================================================================== */
+(function buildNav(){
+  const nav = document.getElementById('nav');
+  const cats = ['all', ...Object.keys(CATEGORIES)];
+  const labels = {all:'All', ...CATEGORIES};
+  cats.forEach(c => {
+    const b = document.createElement('button');
+    b.textContent = labels[c];
+    if (c==='all') b.classList.add('active');
+    b.onclick = ()=>{
+      document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      document.querySelectorAll('main .card').forEach(card=>{
+        if (c==='all' || card.dataset.cat===c) card.classList.remove('hidden');
+        else card.classList.add('hidden');
+      });
+    };
+    nav.appendChild(b);
+  });
+})();
+</script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a033c6cc7d973402',t:'MTc4MDAzOTY0Ng=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

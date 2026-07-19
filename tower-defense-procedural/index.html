@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tower Defense — Procedural</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#080c14;--panel:#0f1623;--p2:#151d2e;--border:#1c2940;--accent:#38bdf8;--adim:#0c4a6e;--gold:#fbbf24;--red:#ef4444;--green:#22c55e;--text:#e2e8f0;--dim:#4a5568;--font:'Segoe UI',Tahoma,sans-serif}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font)}
+#app{display:flex;width:100%;height:100%}
+#panel{width:280px;min-width:280px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:12px;gap:8px;overflow-y:auto}
+.ph{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding-bottom:8px}
+.ph h1{font-size:15px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent)}
+.ph .logo{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#000}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.sc{background:var(--p2);border:1px solid var(--border);border-radius:7px;padding:6px 8px}
+.sc .l{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--dim)}
+.sc .v{font-size:16px;font-weight:700;margin-top:1px}
+.sc .v.hp{color:var(--red)}.sc .v.gold{color:var(--gold)}.sc .v.wave{color:var(--accent)}.sc .v.en{color:#c084fc}
+.st{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin-top:2px}
+.sr{display:flex;gap:4px}
+.sb{flex:1;padding:5px;border:1px solid var(--border);border-radius:5px;background:var(--p2);color:var(--dim);font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+.sb:hover{border-color:var(--accent);color:var(--text)}.sb.active{background:var(--adim);border-color:var(--accent);color:var(--accent)}
+#tower-buttons{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.tb{display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--p2);border:1px solid var(--border);border-radius:7px;padding:6px 4px;cursor:pointer;transition:all .15s;color:var(--text);font-family:var(--font);text-align:center}
+.tb:hover{border-color:var(--accent)}.tb.selected{border-color:var(--accent);background:var(--adim)}.tb.disabled{opacity:.35}
+.ti{width:28px;height:28px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
+.tn{font-size:10px;font-weight:600;line-height:1.1}.td{font-size:8px;color:var(--dim)}.tc{font-size:9px;color:var(--gold);font-weight:600}
+.abs{display:flex;gap:5px}
+.ab{flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;gap:3px;background:var(--p2);border:1px solid var(--border);border-radius:7px;padding:6px 3px;cursor:pointer;transition:all .15s;color:var(--text);font-family:var(--font)}
+.ab:hover{border-color:var(--accent)}.ab.selected{border-color:#f59e0b;background:#78350f44}.ab.on-cd{opacity:.45;cursor:not-allowed}
+.ab .ai{font-size:18px}.ab .an{font-size:9px;font-weight:600}.ab .ac{font-size:8px;color:var(--dim)}
+.acd{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);height:0%;pointer-events:none}
+/* Upgrade panel */
+#upg-panel{background:var(--p2);border:1px solid var(--border);border-radius:7px;padding:8px;display:none}
+#upg-panel .upg-title{font-size:11px;font-weight:600;margin-bottom:4px}
+#upg-panel .upg-info{font-size:9px;color:var(--dim);margin-bottom:6px}
+#upg-panel .upg-lvl{display:flex;gap:3px;margin-bottom:6px}
+#upg-panel .upg-pip{width:100%;height:4px;border-radius:2px;background:var(--border)}
+#upg-panel .upg-pip.filled{background:var(--accent)}
+.btn{padding:7px;border:none;border-radius:7px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;transition:opacity .15s;text-transform:uppercase;letter-spacing:.5px;width:100%}
+.btn:hover{opacity:.85}.btn:disabled{opacity:.3;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:#000}.btn-danger{background:var(--red);color:#fff}.btn-secondary{background:var(--border);color:var(--text)}.btn-green{background:var(--green);color:#000}
+.br{display:flex;gap:5px}.br .btn{flex:1}
+#help{font-size:9px;color:var(--dim);line-height:1.4;border-top:1px solid var(--border);padding-top:6px;margin-top:auto}
+#cw{flex:1;display:flex;align-items:center;justify-content:center;position:relative;background:radial-gradient(ellipse at 50% 40%,#0f172a 0%,#080c14 70%)}
+canvas{display:block;border-radius:5px}
+#ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:10;pointer-events:none;opacity:0;transition:opacity .3s;backdrop-filter:blur(4px)}
+#ov.show{opacity:1;pointer-events:all}
+#ob{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:32px 44px;text-align:center;box-shadow:0 0 60px rgba(56,189,248,.1)}
+#ob h2{font-size:28px;margin-bottom:6px}#ob p{color:var(--dim);margin-bottom:16px;font-size:13px}#ob .btn{min-width:160px;padding:10px;font-size:13px}
+#tt{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:7px 10px;font-size:10px;display:none;z-index:5;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="panel">
+  <div class="ph"><div class="logo">TD</div><h1>Tower Defense</h1></div>
+  <div class="stats">
+    <div class="sc"><div class="l">Wave</div><div class="v wave" id="ui-wave">0/20</div></div>
+    <div class="sc"><div class="l">Health</div><div class="v hp" id="ui-hp">20</div></div>
+    <div class="sc"><div class="l">Gold</div><div class="v gold" id="ui-gold">300</div></div>
+    <div class="sc"><div class="l">Enemies</div><div class="v en" id="ui-en">0</div></div>
+  </div>
+  <div class="st">Speed</div>
+  <div class="sr">
+    <button class="sb active" data-speed="1">1×</button>
+    <button class="sb" data-speed="2">2×</button>
+    <button class="sb" data-speed="4">4×</button>
+  </div>
+  <div class="st">Towers (click to select, click tile to build)</div>
+  <div id="tower-buttons"></div>
+  <div class="st">Abilities</div>
+  <div class="abs">
+    <button class="ab" id="ab-mine"><div class="acd" id="ab-mine-cd"></div><span class="ai">💣</span><span class="an">Mine</span><span class="ac" id="ab-mine-txt">Ready</span></button>
+    <button class="ab" id="ab-nuke"><div class="acd" id="ab-nuke-cd"></div><span class="ai">☢️</span><span class="an">Nuke</span><span class="ac" id="ab-nuke-txt">Ready</span></button>
+  </div>
+  <div id="upg-panel">
+    <div class="upg-title" id="upg-title">Cannon Lv.1</div>
+    <div class="upg-info" id="upg-info">DMG 14 · RNG 2.5 · Rate 1.0/s</div>
+    <div class="upg-lvl" id="upg-lvl"></div>
+    <div class="br">
+      <button class="btn btn-green" id="btn-upg">Upgrade (40g)</button>
+      <button class="btn btn-secondary" id="btn-sell">Sell (30g)</button>
+    </div>
+  </div>
+  <button class="btn btn-primary" id="btn-wave">Start Wave</button>
+  <button class="btn btn-danger" id="btn-restart">New Game</button>
+  <div id="help"><b>How to play:</b> Select tower → click green tile. Click placed tower to upgrade/sell. 💣Mine on path (60s CD). ☢️Nuke radius blast (180s CD). Survive 20 waves!</div>
+</div>
+<div id="cw">
+  <canvas id="game"></canvas>
+  <div id="tt"></div>
+  <div id="ov"><div id="ob"><h2 id="ov-t">Game Over</h2><p id="ov-m">You survived 5 waves.</p><button class="btn btn-primary" id="ov-b">Play Again</button></div></div>
+</div>
+</div>
+<script>
+// ═══════════════════════════════════════════════
+//  TOWER DEFENSE — 8 TOWERS, 5 UPGRADE LEVELS
+// ═══════════════════════════════════════════════
+const COLS=22,ROWS=14,TOTAL_WAVES=20;
+const T={EMPTY:0,PATH:1,START:2,END:3,TOWER:4,MINE:5};
+
+// 8 Tower definitions — base stats at level 1
+// Each level multiplies: damage*1.4, range+0.15, rate*1.1
+// Upgrade cost = base cost * 0.6 * level
+const TDEFS=[
+  {id:'cannon',  name:'Cannon',      color:'#38bdf8',c2:'#0ea5e9',cost:50, range:2.5,damage:14, rate:1.0, desc:'Balanced',       icon:'◎', projType:'bullet'},
+  {id:'sniper',  name:'Sniper',      color:'#a78bfa',c2:'#7c3aed',cost:80, range:4.5,damage:50, rate:0.35,desc:'Long range',     icon:'⊕', projType:'bullet'},
+  {id:'rapid',   name:'Blaster',     color:'#fb923c',c2:'#ea580c',cost:60, range:1.8,damage:5,  rate:4.5, desc:'Fast fire',      icon:'✦', projType:'bullet'},
+  {id:'frost',   name:'Frost',       color:'#67e8f9',c2:'#06b6d4',cost:70, range:2.2,damage:8,  rate:1.5, desc:'Slows 50%',      icon:'❄', projType:'bullet'},
+  {id:'rocket',  name:'Rocket',      color:'#f43f5e',c2:'#e11d48',cost:100,range:3.0,damage:60, rate:0.5, desc:'Splash damage',  icon:'🚀',projType:'rocket'},
+  {id:'flame',   name:'Flame',       color:'#f97316',c2:'#c2410c',cost:90, range:1.5,damage:3,  rate:10,  desc:'Burns in cone',  icon:'🔥',projType:'flame'},
+  {id:'mg',      name:'Machinegun',  color:'#a3e635',c2:'#65a30d',cost:75, range:2.0,damage:4,  rate:8,   desc:'Rapid bullets',  icon:'⊙', projType:'bullet'},
+  {id:'laser',   name:'Laser',       color:'#e879f9',c2:'#c026d3',cost:120,range:3.5,damage:25, rate:2.0, desc:'Beam, pierces',  icon:'⚡',projType:'laser'},
+];
+
+let canvas,ctx,CELL;
+let grid=[],path=[],pathSet;
+let towers=[],enemies=[],projectiles=[],particles=[],mines=[];
+let gold,hp,wave,waveActive,enemiesLeft,gameOver;
+let selDef=null,selTower=null,hoverCell=null;
+let spawnTimer,spawnQ;
+let lastTime=0,gameSpeed=1,activeAb=null;
+let mineCd=0,nukeCd=0,nukeFlash=0,fc=0;
+const MINE_CD=60,NUKE_CD=180,MINE_DMG=200,NUKE_R=3;
+
+let audioCtx;
+function beep(f,d,v=.04,t='square'){try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=t;o.connect(g);g.connect(audioCtx.destination);o.frequency.value=f;g.gain.value=v;o.start();g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+d);o.stop(audioCtx.currentTime+d)}catch(e){}}
+function boom(){beep(80,.3,.08,'sawtooth');beep(50,.5,.05,'sine')}
+
+// ═══════════════════════════════════
+//  COMPLEX PROCEDURAL PATH
+// ═══════════════════════════════════
+/*
+  Generates a winding path with multiple direction changes:
+  1. Start on left edge, end on right edge
+  2. Walk right with frequent vertical detours
+  3. Occasionally create S-curves and zigzags
+  4. Ensure path covers a good portion of the map
+*/
+function generateMap(){
+  grid=[];
+  for(let r=0;r<ROWS;r++){grid[r]=[];for(let c=0;c<COLS;c++)grid[r][c]=T.EMPTY;}
+  path=[];pathSet=new Set();
+
+  const startR=randInt(2,ROWS-3);
+  const endR=randInt(2,ROWS-3);
+  let cr=startR,cc=0;
+  ap(cr,cc);
+
+  // Create a more complex path with S-curves
+  // Strategy: divide the map into vertical "sections" and zigzag through them
+  const sections=randInt(3,5); // number of major direction changes
+  const sectionWidth=Math.floor((COLS-2)/sections);
+  let goingDown=Math.random()<0.5;
+
+  for(let s=0;s<sections;s++){
+    const targetC=Math.min(COLS-2, cc+sectionWidth+randInt(-1,2));
+
+    // Vertical zigzag within this section
+    const vertTarget=goingDown?randInt(Math.min(cr+3,ROWS-2),ROWS-2):randInt(1,Math.max(cr-3,1));
+
+    // Move vertically first
+    while(cr!==vertTarget){
+      const dir=cr<vertTarget?1:-1;
+      cr+=dir;
+      if(cr<1)cr=1; if(cr>ROWS-2)cr=ROWS-2;
+      ap(cr,cc);
+      // Occasionally move right during vertical movement for diagonal feel
+      if(Math.random()<0.3&&cc<targetC){cc++;ap(cr,cc);}
+    }
+
+    // Move horizontally
+    while(cc<targetC){
+      cc++;ap(cr,cc);
+      // Small vertical jitter
+      if(Math.random()<0.2){
+        const jit=Math.random()<0.5?1:-1;
+        const nr=cr+jit;
+        if(nr>=1&&nr<=ROWS-2&&!pathSet.has(k(nr,cc))){cr=nr;ap(cr,cc);}
+      }
+    }
+
+    goingDown=!goingDown;
+  }
+
+  // Reach the right edge
+  while(cc<COLS-1){cc++;ap(cr,cc);}
+  // Connect to endR
+  while(cr!==endR){cr+=cr<endR?1:-1;ap(cr,COLS-1);}
+
+  grid[path[0].r][path[0].c]=T.START;
+  grid[path[path.length-1].r][path[path.length-1].c]=T.END;
+
+  function ap(r,c){
+    r=Math.max(0,Math.min(ROWS-1,r));c=Math.max(0,Math.min(COLS-1,c));
+    const key=k(r,c);
+    if(!pathSet.has(key)){grid[r][c]=T.PATH;pathSet.add(key);}
+    if(path.length===0||path[path.length-1].r!==r||path[path.length-1].c!==c)path.push({r,c});
+  }
+}
+function k(r,c){return r*1000+c;}
+
+// ═══════════════════════════════════
+//  TOWER STATS BY LEVEL
+// ═══════════════════════════════════
+function tStats(def,lv){
+  return{
+    damage: Math.round(def.damage * Math.pow(1.4, lv-1)),
+    range:  +(def.range + (lv-1)*0.15).toFixed(2),
+    rate:   +(def.rate * Math.pow(1.1, lv-1)).toFixed(2),
+  };
+}
+function upgCost(def,lv){ return Math.floor(def.cost*0.6*lv); }
+function sellVal(def,lv){
+  let total=def.cost;
+  for(let i=2;i<=lv;i++) total+=upgCost(def,i-1);
+  return Math.floor(total*0.5);
+}
+
+// ═══════════════════════════════════
+//  ENEMY
+// ═══════════════════════════════════
+class Enemy{
+  constructor(h,spd,rew,col,sz,type){
+    this.maxHp=h;this.hp=h;this.speed=spd;this.reward=rew;
+    this.color=col;this.size=sz||.32;this.type=type||'n';
+    this.pi=0;this.x=path[0].c;this.y=path[0].r;
+    this.alive=true;this.reached=false;this.slowT=0;this.hitF=0;
+    this.burnT=0;this.burnDmg=0; // burn from flame
+  }
+  update(dt){
+    if(!this.alive)return;
+    this.hitF=Math.max(0,this.hitF-dt);
+    // Burn DOT
+    if(this.burnT>0){this.burnT-=dt;this.hp-=this.burnDmg*dt;if(this.hp<=0){this.alive=false;gold+=this.reward;spawnP(this.x,this.y,this.color,6);}}
+    let spd=this.speed;
+    if(this.slowT>0){spd*=.5;this.slowT-=dt;}
+    if(!this.alive)return;
+    const tgt=path[this.pi];
+    const dx=tgt.c-this.x,dy=tgt.r-this.y;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    const mv=spd*dt;
+    if(dist<=mv){this.x=tgt.c;this.y=tgt.r;this.pi++;checkMine(this);if(this.pi>=path.length){this.alive=false;this.reached=true;}}
+    else{this.x+=(dx/dist)*mv;this.y+=(dy/dist)*mv;}
+  }
+  draw(){
+    if(!this.alive)return;
+    const px=this.x*CELL+CELL/2,py=this.y*CELL+CELL/2,r=this.size*CELL*.5;
+    ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.ellipse(px+1,py+3,r*1.1,r*.4,0,0,Math.PI*2);ctx.fill();
+    const grd=ctx.createRadialGradient(px,py,r*.2,px,py,r*1.5);grd.addColorStop(0,this.color+'30');grd.addColorStop(1,'transparent');
+    ctx.fillStyle=grd;ctx.beginPath();ctx.arc(px,py,r*1.5,0,Math.PI*2);ctx.fill();
+    let col=this.color;if(this.hitF>.0)col='#fff';else if(this.slowT>0)col='#67e8f9';else if(this.burnT>0)col='#ff6b2b';
+    ctx.fillStyle=col;ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.18)';ctx.beginPath();ctx.arc(px-r*.2,py-r*.3,r*.3,0,Math.PI*2);ctx.fill();
+    if(this.type==='boss'){ctx.fillStyle='#fbbf24';ctx.font=`${cl(CELL*.2,9,14)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText('♛',px,py-r-1);}
+    const bw=CELL*.6,bh=Math.max(2,CELL*.05),bx=px-bw/2,by=py-r-5;
+    ctx.fillStyle='rgba(0,0,0,.5)';rr(bx-1,by-1,bw+2,bh+2,2);ctx.fill();
+    const pct=Math.max(0,this.hp/this.maxHp);
+    ctx.fillStyle=pct>.5?'#22c55e':pct>.25?'#fbbf24':'#ef4444';rr(bx,by,bw*pct,bh,2);ctx.fill();
+  }
+}
+
+// ═══════════════════════════════════
+//  TOWER
+// ═══════════════════════════════════
+class Tower{
+  constructor(r,c,def){
+    this.r=r;this.c=c;this.def=def;this.lv=1;this.cd=0;this.angle=0;
+    this.flameT=0; // flame animation timer
+    this.laserTarget=null; // for laser beam drawing
+  }
+  stats(){return tStats(this.def,this.lv);}
+  update(dt){
+    this.cd-=dt;this.laserTarget=null;this.flameT=Math.max(0,this.flameT-dt);
+    if(this.cd<=0){
+      const s=this.stats();
+      let best=null,bestIdx=-1;
+      for(const e of enemies){
+        if(!e.alive)continue;
+        const dx=e.x-this.c,dy=e.y-this.r;
+        if(Math.sqrt(dx*dx+dy*dy)<=s.range&&e.pi>bestIdx){best=e;bestIdx=e.pi;}
+      }
+      if(best){
+        this.angle=Math.atan2(best.y-this.r,best.x-this.c);
+        this.fire(best,s);
+        this.cd=1/s.rate;
+      }
+    }
+  }
+  fire(enemy,s){
+    const pt=this.def.projType;
+    if(pt==='bullet'){
+      projectiles.push(new Proj(this.c,this.r,enemy,this.def,s,this.lv));
+      beep(500+Math.random()*200,.04,.02);
+    }else if(pt==='rocket'){
+      projectiles.push(new Proj(this.c,this.r,enemy,this.def,s,this.lv));
+      beep(200,.1,.03,'sawtooth');
+    }else if(pt==='flame'){
+      // Flame: damage all enemies in cone
+      this.flameT=0.15;
+      const s2=this.stats();
+      for(const e of enemies){
+        if(!e.alive)continue;
+        const dx=e.x-this.c,dy=e.y-this.r;
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist>s2.range)continue;
+        // Cone check: within ~60 degrees of aim direction
+        const eAngle=Math.atan2(dy,dx);
+        let diff=Math.abs(eAngle-this.angle);
+        if(diff>Math.PI)diff=2*Math.PI-diff;
+        if(diff<0.55){
+          e.hp-=s2.damage;e.hitF=.05;
+          e.burnT=1.5;e.burnDmg=s2.damage*0.3;
+          if(e.hp<=0){e.alive=false;gold+=e.reward;spawnP(e.x,e.y,e.color,5);}
+        }
+      }
+      beep(100,.08,.03,'sawtooth');
+    }else if(pt==='laser'){
+      // Laser: instant beam, can pierce to 2nd target
+      this.laserTarget=enemy;
+      enemy.hp-=s.damage;enemy.hitF=.06;
+      if(this.def.id==='frost'||false)enemy.slowT=1.5;
+      if(enemy.hp<=0){enemy.alive=false;gold+=enemy.reward;spawnP(enemy.x,enemy.y,enemy.color,6);}
+      // Pierce: find a second enemy behind the first
+      const dx=enemy.x-this.c,dy=enemy.y-this.r;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist>0){
+        const dirX=dx/dist,dirY=dy/dist;
+        for(const e2 of enemies){
+          if(!e2.alive||e2===enemy)continue;
+          const d2x=e2.x-this.c,d2y=e2.y-this.r;
+          const d2=Math.sqrt(d2x*d2x+d2y*d2y);
+          if(d2>s.range)continue;
+          // Check if roughly in same direction
+          const dot=(d2x*dirX+d2y*dirY)/d2;
+          if(dot>.85){
+            e2.hp-=Math.round(s.damage*.6);e2.hitF=.06;
+            if(e2.hp<=0){e2.alive=false;gold+=e2.reward;spawnP(e2.x,e2.y,e2.color,5);}
+            break;
+          }
+        }
+      }
+      beep(800,.06,.03,'sine');
+    }
+  }
+  draw(isH,isS){
+    const px=this.c*CELL+CELL/2,py=this.r*CELL+CELL/2;
+    const s=this.stats();
+    if(isH||isS){
+      const rg=ctx.createRadialGradient(px,py,0,px,py,s.range*CELL);
+      rg.addColorStop(0,this.def.color+'12');rg.addColorStop(.8,this.def.color+'06');rg.addColorStop(1,'transparent');
+      ctx.fillStyle=rg;ctx.beginPath();ctx.arc(px,py,s.range*CELL,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=this.def.color+'30';ctx.lineWidth=1;ctx.stroke();
+    }
+    // Base
+    const bs=CELL*.4;
+    ctx.fillStyle='#1a2332';rr(px-bs,py-bs,bs*2,bs*2,4);ctx.fill();
+    ctx.strokeStyle=this.def.color+'40';ctx.lineWidth=1;rr(px-bs,py-bs,bs*2,bs*2,4);ctx.stroke();
+    // Body
+    const bs2=CELL*.27;
+    const grd=ctx.createLinearGradient(px-bs2,py-bs2,px+bs2,py+bs2);
+    grd.addColorStop(0,this.def.color);grd.addColorStop(1,this.def.c2);
+    ctx.fillStyle=grd;rr(px-bs2,py-bs2,bs2*2,bs2*2,3);ctx.fill();
+    // Barrel
+    ctx.save();ctx.translate(px,py);ctx.rotate(this.angle);
+    ctx.fillStyle='#cbd5e1';ctx.fillRect(bs2*.2,-cl(CELL*.04,1.5,3),CELL*.26,cl(CELL*.08,3,6));
+    ctx.restore();
+    // Level pips
+    const pipY=py+bs+3;
+    for(let i=0;i<5;i++){
+      const pipX=px-8+i*4;
+      ctx.fillStyle=i<this.lv?this.def.color:'#1e293b';
+      ctx.fillRect(pipX,pipY,3,2);
+    }
+    // Flame effect
+    if(this.flameT>0){
+      ctx.save();ctx.translate(px,py);ctx.rotate(this.angle);
+      const fl=s.range*CELL;
+      const fg=ctx.createLinearGradient(0,0,fl,0);
+      fg.addColorStop(0,'rgba(255,150,0,0.4)');fg.addColorStop(.5,'rgba(255,80,0,0.2)');fg.addColorStop(1,'transparent');
+      ctx.fillStyle=fg;
+      ctx.beginPath();ctx.moveTo(10,0);ctx.lineTo(fl,-fl*.3);ctx.lineTo(fl,fl*.3);ctx.closePath();ctx.fill();
+      ctx.restore();
+    }
+    // Laser beam
+    if(this.laserTarget&&this.laserTarget.alive!==undefined){
+      const tx=this.laserTarget.x*CELL+CELL/2,ty=this.laserTarget.y*CELL+CELL/2;
+      ctx.strokeStyle=this.def.color;ctx.lineWidth=2;ctx.shadowColor=this.def.color;ctx.shadowBlur=8;
+      ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(tx,ty);ctx.stroke();
+      ctx.shadowBlur=0;
+      ctx.strokeStyle=this.def.color+'60';ctx.lineWidth=4;
+      ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(tx,ty);ctx.stroke();
+    }
+  }
+}
+
+// ═══════════════════════════════════
+//  PROJECTILE
+// ═══════════════════════════════════
+class Proj{
+  constructor(x,y,tgt,def,stats,lv){
+    this.x=x;this.y=y;this.tgt=tgt;this.def=def;this.stats=stats;this.lv=lv;
+    this.speed=def.projType==='rocket'?8:16;this.alive=true;this.trail=[];
+  }
+  update(dt){
+    if(!this.tgt.alive){this.alive=false;return;}
+    this.trail.push({x:this.x,y:this.y,l:.1});if(this.trail.length>5)this.trail.shift();
+    const dx=this.tgt.x-this.x,dy=this.tgt.y-this.y;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<=this.speed*dt){
+      if(this.def.projType==='rocket'){
+        // Splash damage — damages enemies near the target, not friendly towers
+        const splashR=1.2+this.lv*0.15;
+        for(const e of enemies){
+          if(!e.alive)continue;
+          const d2=Math.sqrt((e.x-this.tgt.x)**2+(e.y-this.tgt.y)**2);
+          if(d2<=splashR){
+            const dmg=d2<0.3?this.stats.damage:Math.round(this.stats.damage*(1-d2/splashR));
+            e.hp-=dmg;e.hitF=.1;
+            if(e.hp<=0){e.alive=false;gold+=e.reward;spawnP(e.x,e.y,e.color,6);}
+          }
+        }
+        spawnP(this.tgt.x,this.tgt.y,'#f43f5e',10);spawnP(this.tgt.x,this.tgt.y,'#fbbf24',8);
+        boom();
+      }else{
+        this.tgt.hp-=this.stats.damage;this.tgt.hitF=.06;
+        if(this.def.id==='frost')this.tgt.slowT=2;
+        if(this.tgt.hp<=0){this.tgt.alive=false;gold+=this.tgt.reward;spawnP(this.tgt.x,this.tgt.y,this.tgt.color,7);beep(180,.1,.03,'sawtooth');}
+        spawnP(this.x,this.y,this.def.color,2);
+      }
+      this.alive=false;
+    }else{this.x+=(dx/dist)*this.speed*dt;this.y+=(dy/dist)*this.speed*dt;}
+    for(const t of this.trail)t.l-=dt;this.trail=this.trail.filter(t=>t.l>0);
+  }
+  draw(){
+    for(const t of this.trail){ctx.globalAlpha=Math.max(0,t.l/.1)*.4;ctx.fillStyle=this.def.color;ctx.beginPath();ctx.arc(t.x*CELL+CELL/2,t.y*CELL+CELL/2,2,0,Math.PI*2);ctx.fill();}
+    ctx.globalAlpha=1;
+    const px=this.x*CELL+CELL/2,py=this.y*CELL+CELL/2;
+    ctx.shadowColor=this.def.color;ctx.shadowBlur=6;ctx.fillStyle=this.def.color;
+    const sz=this.def.projType==='rocket'?4:3;
+    ctx.beginPath();ctx.arc(px,py,sz,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+  }
+}
+
+// ═══════════════════════════════════
+//  MINE
+// ═══════════════════════════════════
+class Mine{
+  constructor(r,c){this.r=r;this.c=c;this.alive=true;this.t=0;}
+  draw(){if(!this.alive)return;this.t+=.06;const px=this.c*CELL+CELL/2,py=this.r*CELL+CELL/2,pr=3+Math.sin(this.t)*1.5;ctx.fillStyle='rgba(239,68,68,.1)';ctx.beginPath();ctx.arc(px,py,CELL*.35,0,Math.PI*2);ctx.fill();ctx.fillStyle='#dc2626';ctx.beginPath();ctx.arc(px,py,pr,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fbbf24';ctx.beginPath();ctx.arc(px,py,1.5,0,Math.PI*2);ctx.fill();}
+}
+function checkMine(en){
+  const er=Math.round(en.y),ec=Math.round(en.x);
+  for(const m of mines){if(!m.alive||m.r!==er||m.c!==ec)continue;m.alive=false;
+    en.hp-=MINE_DMG;en.hitF=.15;if(en.hp<=0){en.alive=false;gold+=en.reward;}
+    for(const e2 of enemies){if(!e2.alive||e2===en)continue;if(Math.sqrt((e2.x-m.c)**2+(e2.y-m.r)**2)<=1.5){e2.hp-=MINE_DMG*.5;e2.hitF=.15;if(e2.hp<=0){e2.alive=false;gold+=e2.reward;}}}
+    spawnP(m.c,m.r,'#ef4444',15);spawnP(m.c,m.r,'#fbbf24',10);boom();grid[m.r][m.c]=T.PATH;
+  }
+  mines=mines.filter(m=>m.alive);
+}
+function activateNuke(wx,wy){
+  for(const e of enemies){if(!e.alive)continue;if(Math.sqrt((e.x-wx)**2+(e.y-wy)**2)<=NUKE_R){e.hp-=9999;e.hitF=.2;if(e.hp<=0){e.alive=false;gold+=e.reward;}}}
+  for(let i=0;i<30;i++)spawnP(wx,wy,'#fbbf24',1);for(let i=0;i<20;i++)spawnP(wx,wy,'#ef4444',1);for(let i=0;i<15;i++)spawnP(wx,wy,'#fff',1);
+  nukeFlash=.35;boom();beep(40,.6,.1,'sawtooth');nukeCd=NUKE_CD;activeAb=null;
+}
+function spawnP(wx,wy,col,n){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=40+Math.random()*140;particles.push({x:wx*CELL+CELL/2,y:wy*CELL+CELL/2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:.2+Math.random()*.4,ml:.6,color:col,size:1.5+Math.random()*3});}}
+
+// ═══════════════════════════════════
+//  WAVES
+// ═══════════════════════════════════
+function startWave(){
+  if(waveActive||gameOver)return;wave++;waveActive=true;
+  const cnt=5+wave*2,bHp=30+wave*22,spd=1.2+wave*.05,rew=5+Math.floor(wave*.5);
+  spawnQ=[];
+  for(let i=0;i<cnt;i++){
+    const boss=(wave%5===0)&&(i===cnt-1);
+    spawnQ.push({hp:boss?bHp*5:bHp,speed:boss?spd*.5:spd,reward:boss?rew*5:rew,color:boss?'#f43f5e':wCol(wave),size:boss?.55:.32,type:boss?'boss':'n'});
+  }
+  enemiesLeft=spawnQ.length;spawnTimer=0;updateUI();
+}
+function wCol(w){return['#fb923c','#a3e635','#e879f9','#38bdf8','#fbbf24','#f87171','#34d399','#c084fc'][w%8];}
+
+// ═══════════════════════════════════
+//  GAME LOOP
+// ═══════════════════════════════════
+function initGame(){
+  generateMap();towers=[];enemies=[];projectiles=[];particles=[];mines=[];
+  gold=300;hp=20;wave=0;waveActive=false;gameOver=false;
+  enemiesLeft=0;spawnQ=[];spawnTimer=0;
+  selDef=null;selTower=null;activeAb=null;
+  mineCd=0;nukeCd=0;nukeFlash=0;gameSpeed=1;
+  document.querySelectorAll('.sb').forEach(b=>b.classList.toggle('active',b.dataset.speed==='1'));
+  document.querySelectorAll('.tb').forEach(b=>b.classList.remove('selected'));
+  document.querySelectorAll('.ab').forEach(b=>b.classList.remove('selected'));
+  hideOv();updateUI();updateUpgPanel();
+}
+
+function loop(ts){
+  const raw=Math.min((ts-lastTime)/1e3,.05);lastTime=ts;const dt=raw*gameSpeed;fc++;
+  if(!gameOver){
+    if(mineCd>0)mineCd=Math.max(0,mineCd-raw);
+    if(nukeCd>0)nukeCd=Math.max(0,nukeCd-raw);
+    nukeFlash=Math.max(0,nukeFlash-raw);
+    if(waveActive&&spawnQ.length>0){spawnTimer-=dt;if(spawnTimer<=0){const s=spawnQ.shift();enemies.push(new Enemy(s.hp,s.speed,s.reward,s.color,s.size,s.type));spawnTimer=.45;}}
+    for(const e of enemies){e.update(dt);if(!e.alive&&e.reached){hp--;e.reached=false;beep(150,.2,.06);if(hp<=0){endGame(false);break;}}}
+    enemies=enemies.filter(e=>e.alive);
+    towers.forEach(t=>t.update(dt));
+    projectiles.forEach(p=>p.update(dt));projectiles=projectiles.filter(p=>p.alive);
+    for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;}particles=particles.filter(p=>p.life>0);
+    if(waveActive){enemiesLeft=enemies.length+spawnQ.length;if(enemiesLeft===0){waveActive=false;gold+=15+wave*2;if(wave>=TOTAL_WAVES)endGame(true);}}
+    updateUI();updateAbUI();
+  }
+  render();requestAnimationFrame(loop);
+}
+
+function endGame(won){gameOver=true;showOv(won?'Victory!':'Game Over',won?`All ${TOTAL_WAVES} waves conquered!`:`Survived ${wave} wave${wave!==1?'s':''}.`,won?'#22c55e':'#ef4444');}
+
+// ═══════════════════════════════════
+//  RENDERING
+// ═══════════════════════════════════
+function render(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawGrid();drawPathDashes();
+  mines.forEach(m=>m.draw());drawHover();
+  towers.forEach(t=>{const h=hoverCell&&t.r===hoverCell.r&&t.c===hoverCell.c;t.draw(h,selTower===t);});
+  enemies.forEach(e=>e.draw());
+  projectiles.forEach(p=>p.draw());
+  for(const p of particles){ctx.globalAlpha=Math.max(0,p.life/p.ml);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();}
+  ctx.globalAlpha=1;
+  if(nukeFlash>0){ctx.fillStyle=`rgba(255,200,50,${nukeFlash*.5})`;ctx.fillRect(0,0,canvas.width,canvas.height);}
+  if(activeAb==='nuke'&&hoverCell){const px=hoverCell.c*CELL+CELL/2,py=hoverCell.r*CELL+CELL/2;ctx.strokeStyle='#ef444470';ctx.lineWidth=2;ctx.setLineDash([6,4]);ctx.beginPath();ctx.arc(px,py,NUKE_R*CELL,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='rgba(239,68,68,.05)';ctx.beginPath();ctx.arc(px,py,NUKE_R*CELL,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#ef444450';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px-8,py);ctx.lineTo(px+8,py);ctx.stroke();ctx.beginPath();ctx.moveTo(px,py-8);ctx.lineTo(px,py+8);ctx.stroke();}
+}
+
+function drawGrid(){
+  for(let r=0;r<ROWS;r++){for(let c=0;c<COLS;c++){
+    const x=c*CELL,y=r*CELL,tile=grid[r][c];
+    if(tile===T.PATH||tile===T.MINE){
+      ctx.fillStyle=(r+c)%2===0?'#1e293b':'#1b2537';ctx.fillRect(x,y,CELL,CELL);
+      ctx.fillStyle='rgba(255,255,255,.02)';ctx.fillRect(x,y,CELL,1);ctx.fillRect(x,y,1,CELL);
+      ctx.fillStyle='rgba(0,0,0,.12)';ctx.fillRect(x,y+CELL-1,CELL,1);ctx.fillRect(x+CELL-1,y,1,CELL);
+    }else if(tile===T.START){
+      const sg=ctx.createLinearGradient(x,y,x+CELL,y+CELL);sg.addColorStop(0,'#166534');sg.addColorStop(1,'#14532d');ctx.fillStyle=sg;ctx.fillRect(x,y,CELL,CELL);
+      ctx.strokeStyle=`rgba(34,197,94,${.3+Math.sin(fc*.05)*.2})`;ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,CELL-2,CELL-2);
+      ctx.fillStyle='#4ade80';ctx.font=`bold ${cl(CELL*.4,10,20)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('▶',x+CELL/2,y+CELL/2);
+    }else if(tile===T.END){
+      const eg=ctx.createLinearGradient(x,y,x+CELL,y+CELL);eg.addColorStop(0,'#7f1d1d');eg.addColorStop(1,'#6b1a1a');ctx.fillStyle=eg;ctx.fillRect(x,y,CELL,CELL);
+      ctx.strokeStyle=`rgba(239,68,68,${.3+Math.sin(fc*.05)*.2})`;ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,CELL-2,CELL-2);
+      ctx.fillStyle='#f87171';ctx.font=`bold ${cl(CELL*.35,9,16)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('■',x+CELL/2,y+CELL/2);
+    }else{
+      const h=h53(r*73+c*37),g1=10+((h>>4)&7),g2=24+((h>>8)&7),g3=18+((h>>12)&5);
+      ctx.fillStyle=`rgb(${g1},${g2},${g3})`;ctx.fillRect(x,y,CELL,CELL);
+      if(h%3===0){ctx.fillStyle='rgba(34,80,40,.35)';ctx.fillRect(x+((h>>2)%Math.max(1,CELL-4))+2,y+((h>>6)%Math.max(1,CELL-4))+2,1,2);}
+    }
+    ctx.strokeStyle='rgba(255,255,255,.02)';ctx.lineWidth=.5;ctx.strokeRect(x,y,CELL,CELL);
+  }}
+}
+
+// Dashed path lines (no moving dot)
+function drawPathDashes(){
+  if(path.length<2)return;
+  ctx.save();
+  ctx.strokeStyle='rgba(100,150,200,.3)';
+  ctx.lineWidth=cl(CELL*.08,1.5,3);
+  ctx.setLineDash([cl(CELL*.15,3,6),cl(CELL*.12,2,5)]);
+  ctx.lineDashOffset=-fc*0.3; // slow scroll animation
+  ctx.beginPath();
+  ctx.moveTo(path[0].c*CELL+CELL/2, path[0].r*CELL+CELL/2);
+  for(let i=1;i<path.length;i++) ctx.lineTo(path[i].c*CELL+CELL/2, path[i].r*CELL+CELL/2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Direction arrows at turns
+  ctx.fillStyle='rgba(120,160,200,.3)';
+  for(let i=1;i<path.length-1;i++){
+    const prev=path[i-1],cur=path[i],next=path[i+1];
+    if(prev.r!==next.r&&prev.c!==next.c){
+      const px=cur.c*CELL+CELL/2,py=cur.r*CELL+CELL/2;
+      const ang=Math.atan2(next.r-cur.r,next.c-cur.c);
+      ctx.save();ctx.translate(px,py);ctx.rotate(ang);
+      const sz=cl(CELL*.1,2.5,5);
+      ctx.beginPath();ctx.moveTo(sz,0);ctx.lineTo(-sz*.7,-sz*.7);ctx.lineTo(-sz*.7,sz*.7);ctx.closePath();ctx.fill();
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+
+function drawHover(){
+  if(!hoverCell)return;
+  const{r,c}=hoverCell,x=c*CELL,y=r*CELL,tile=grid[r][c];
+  if(activeAb==='mine'&&tile===T.PATH){ctx.fillStyle='rgba(239,68,68,.18)';ctx.fillRect(x,y,CELL,CELL);ctx.strokeStyle='#ef444450';ctx.lineWidth=1;ctx.strokeRect(x+1,y+1,CELL-2,CELL-2);}
+  else if(selDef&&tile===T.EMPTY){const ok=gold>=selDef.cost;ctx.fillStyle=ok?'rgba(34,197,94,.18)':'rgba(239,68,68,.18)';ctx.fillRect(x,y,CELL,CELL);ctx.strokeStyle=ok?'#22c55e50':'#ef444450';ctx.lineWidth=1;ctx.strokeRect(x+1,y+1,CELL-2,CELL-2);const s=tStats(selDef,1);ctx.strokeStyle=selDef.color+'30';ctx.setLineDash([4,3]);ctx.beginPath();ctx.arc(x+CELL/2,y+CELL/2,s.range*CELL,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
+  else if(tile===T.EMPTY){ctx.fillStyle='rgba(56,189,248,.04)';ctx.fillRect(x,y,CELL,CELL);}
+}
+
+// ═══════════════════════════════════
+//  UI
+// ═══════════════════════════════════
+function updateUI(){
+  document.getElementById('ui-wave').textContent=`${wave}/${TOTAL_WAVES}`;
+  document.getElementById('ui-hp').textContent=hp;
+  document.getElementById('ui-gold').textContent=gold;
+  document.getElementById('ui-en').textContent=enemiesLeft||0;
+  document.getElementById('btn-wave').disabled=waveActive||gameOver;
+  document.querySelectorAll('.tb').forEach(b=>{const d=TDEFS.find(d=>d.id===b.dataset.id);if(d)b.classList.toggle('disabled',gold<d.cost);});
+}
+function updateAbUI(){
+  const m=document.getElementById('ab-mine'),n=document.getElementById('ab-nuke');
+  m.classList.toggle('on-cd',mineCd>0);n.classList.toggle('on-cd',nukeCd>0);
+  m.classList.toggle('selected',activeAb==='mine');n.classList.toggle('selected',activeAb==='nuke');
+  document.getElementById('ab-mine-txt').textContent=mineCd>0?`${Math.ceil(mineCd)}s`:'Ready';
+  document.getElementById('ab-nuke-txt').textContent=nukeCd>0?`${Math.ceil(nukeCd)}s`:'Ready';
+  document.getElementById('ab-mine-cd').style.height=mineCd>0?`${(mineCd/MINE_CD)*100}%`:'0%';
+  document.getElementById('ab-nuke-cd').style.height=nukeCd>0?`${(nukeCd/NUKE_CD)*100}%`:'0%';
+}
+
+function updateUpgPanel(){
+  const p=document.getElementById('upg-panel');
+  if(!selTower){p.style.display='none';return;}
+  p.style.display='block';
+  const t=selTower,d=t.def,s=t.stats();
+  document.getElementById('upg-title').innerHTML=`<span style="color:${d.color}">${d.name}</span> Lv.${t.lv}`;
+  document.getElementById('upg-info').textContent=`DMG ${s.damage} · RNG ${s.range} · Rate ${s.rate}/s`;
+  const lvl=document.getElementById('upg-lvl');lvl.innerHTML='';
+  for(let i=0;i<5;i++){const pip=document.createElement('div');pip.className='upg-pip'+(i<t.lv?' filled':'');lvl.appendChild(pip);}
+  const ub=document.getElementById('btn-upg');
+  if(t.lv>=5){ub.textContent='MAX LEVEL';ub.disabled=true;}
+  else{const cost=upgCost(d,t.lv);ub.textContent=`Upgrade (${cost}g)`;ub.disabled=gold<cost;}
+  document.getElementById('btn-sell').textContent=`Sell (${sellVal(d,t.lv)}g)`;
+}
+
+function buildTowerBtns(){
+  const w=document.getElementById('tower-buttons');w.innerHTML='';
+  TDEFS.forEach(d=>{
+    const b=document.createElement('button');b.className='tb';b.dataset.id=d.id;
+    b.innerHTML=`<div class="ti" style="background:${d.color}18;color:${d.color};border:1px solid ${d.color}40">${d.icon}</div><span class="tn">${d.name}</span><span class="td">${d.desc}</span><span class="tc">${d.cost}g</span>`;
+    b.addEventListener('click',()=>{
+      selTower=null;activeAb=null;
+      selDef=selDef===d?null:d;
+      document.querySelectorAll('.tb').forEach(x=>x.classList.remove('selected'));
+      document.querySelectorAll('.ab').forEach(x=>x.classList.remove('selected'));
+      if(selDef)b.classList.add('selected');
+      updateUI();updateUpgPanel();
+    });
+    w.appendChild(b);
+  });
+}
+
+function showOv(t,m,c){document.getElementById('ov-t').textContent=t;document.getElementById('ov-t').style.color=c||'#e2e8f0';document.getElementById('ov-m').textContent=m;document.getElementById('ov').classList.add('show');}
+function hideOv(){document.getElementById('ov').classList.remove('show');}
+
+const tt=document.getElementById('tt');
+function showTT(tw,mx,my){const d=tw.def,s=tw.stats();tt.innerHTML=`<b style="color:${d.color}">${d.name} Lv.${tw.lv}</b><br>DMG ${s.damage} · RNG ${s.range} · Rate ${s.rate}/s<br>Sell: <span style="color:#fbbf24">${sellVal(d,tw.lv)}g</span> · Click to select`;tt.style.display='block';tt.style.left=Math.min(mx+12,canvas.width-170)+'px';tt.style.top=(my-10)+'px';}
+function hideTT(){tt.style.display='none';}
+
+// ═══════════════════════════════════
+//  INPUT
+// ═══════════════════════════════════
+canvas=document.getElementById('game');ctx=canvas.getContext('2d');
+
+function gc(e){const r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top,c=Math.floor(mx/CELL),rw=Math.floor(my/CELL);if(rw>=0&&rw<ROWS&&c>=0&&c<COLS)return{r:rw,c,mx,my};return null;}
+
+canvas.addEventListener('mousemove',e=>{hoverCell=gc(e);hideTT();if(hoverCell&&!activeAb&&!selDef){const tw=towers.find(t=>t.r===hoverCell.r&&t.c===hoverCell.c);if(tw)showTT(tw,hoverCell.mx,hoverCell.my);}});
+canvas.addEventListener('mouseleave',()=>{hoverCell=null;hideTT();});
+
+canvas.addEventListener('click',e=>{
+  const cell=gc(e);if(!cell||gameOver)return;
+  const{r,c}=cell,tile=grid[r][c];
+  if(activeAb==='nuke'){activateNuke(c,r);return;}
+  if(activeAb==='mine'&&tile===T.PATH){grid[r][c]=T.MINE;mines.push(new Mine(r,c));mineCd=MINE_CD;activeAb=null;beep(300,.1,.03);return;}
+  const ct=towers.find(t=>t.r===r&&t.c===c);
+  if(ct){selTower=selTower===ct?null:ct;selDef=null;activeAb=null;document.querySelectorAll('.tb').forEach(b=>b.classList.remove('selected'));document.querySelectorAll('.ab').forEach(b=>b.classList.remove('selected'));updateUI();updateUpgPanel();return;}
+  if(selDef&&tile===T.EMPTY&&gold>=selDef.cost){gold-=selDef.cost;grid[r][c]=T.TOWER;towers.push(new Tower(r,c,selDef));beep(880,.07,.03);updateUI();updateUpgPanel();return;}
+  selTower=null;selDef=null;activeAb=null;
+  document.querySelectorAll('.tb').forEach(b=>b.classList.remove('selected'));
+  document.querySelectorAll('.ab').forEach(b=>b.classList.remove('selected'));
+  updateUI();updateUpgPanel();
+});
+
+// Abilities
+document.getElementById('ab-mine').addEventListener('click',()=>{if(mineCd>0)return;selDef=null;selTower=null;document.querySelectorAll('.tb').forEach(b=>b.classList.remove('selected'));activeAb=activeAb==='mine'?null:'mine';updateUpgPanel();});
+document.getElementById('ab-nuke').addEventListener('click',()=>{if(nukeCd>0)return;selDef=null;selTower=null;document.querySelectorAll('.tb').forEach(b=>b.classList.remove('selected'));activeAb=activeAb==='nuke'?null:'nuke';updateUpgPanel();});
+
+// Speed
+document.querySelectorAll('.sb').forEach(b=>b.addEventListener('click',()=>{gameSpeed=parseInt(b.dataset.speed);document.querySelectorAll('.sb').forEach(x=>x.classList.remove('active'));b.classList.add('active');}));
+
+// Upgrade
+document.getElementById('btn-upg').addEventListener('click',()=>{
+  if(!selTower||selTower.lv>=5)return;
+  const cost=upgCost(selTower.def,selTower.lv);
+  if(gold<cost)return;
+  gold-=cost;selTower.lv++;
+  beep(660,.1,.04);beep(880,.1,.03);
+  spawnP(selTower.c,selTower.r,selTower.def.color,5);
+  updateUI();updateUpgPanel();
+});
+
+// Sell
+document.getElementById('btn-sell').addEventListener('click',()=>{
+  if(!selTower)return;
+  gold+=sellVal(selTower.def,selTower.lv);
+  grid[selTower.r][selTower.c]=T.EMPTY;
+  towers=towers.filter(t=>t!==selTower);
+  selTower=null;beep(440,.1,.03);updateUI();updateUpgPanel();
+});
+
+document.getElementById('btn-wave').addEventListener('click',startWave);
+document.getElementById('btn-restart').addEventListener('click',initGame);
+document.getElementById('ov-b').addEventListener('click',initGame);
+
+// ═══════════════════════════════════
+//  UTILITY
+// ═══════════════════════════════════
+function resize(){const w=document.getElementById('cw'),mW=w.clientWidth-24,mH=w.clientHeight-24;CELL=Math.floor(Math.min(mW/COLS,mH/ROWS));CELL=Math.max(CELL,18);canvas.width=COLS*CELL;canvas.height=ROWS*CELL;}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
+function randInt(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function cl(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
+function h53(n){n=((n>>16)^n)*0x45d9f3b;n=((n>>16)^n)*0x45d9f3b;return(n>>16)^n;}
+
+window.addEventListener('resize',resize);
+buildTowerBtns();resize();initGame();
+lastTime=performance.now();requestAnimationFrame(loop);
+</script>
+</body>
+</html>

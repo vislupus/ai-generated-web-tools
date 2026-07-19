@@ -1,0 +1,1357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>LiDAR Sensor Simulation</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<style>
+  :root{
+    --bg:#0a0c0e;
+    --panel:#0f1216;
+    --panel-2:#13171c;
+    --line:#1e242b;
+    --line-2:#2a313a;
+    --ink:#e7eaee;
+    --ink-2:#9aa3ad;
+    --ink-3:#5c656f;
+    --accent:oklch(78% 0.13 200);
+    --accent-dim:oklch(50% 0.08 200);
+    --warn:oklch(72% 0.14 50);
+    --grid:#11161c;
+    --mono:'JetBrains Mono', ui-monospace, Menlo, monospace;
+    --sans:'Inter', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;-webkit-font-smoothing:antialiased;overflow:hidden}
+  button,input,select{font:inherit;color:inherit}
+  .app{
+    display:grid;
+    grid-template-columns: 290px 1fr 290px;
+    grid-template-rows: 44px 1fr;
+    grid-template-areas: "top top top" "left stage right";
+    height:100vh; gap:1px;
+    background:var(--line);
+  }
+  .topbar{grid-area:top;background:var(--panel);display:flex;align-items:center;padding:0 14px;gap:14px;border-bottom:1px solid var(--line)}
+  .left{grid-area:left;background:var(--panel);overflow-y:auto;border-right:1px solid var(--line)}
+  .right{grid-area:right;background:var(--panel);overflow-y:auto;border-left:1px solid var(--line)}
+  .stage{grid-area:stage;background:#000;position:relative;overflow:hidden}
+
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;letter-spacing:.04em}
+  .brand .dot{width:8px;height:8px;background:var(--accent);border-radius:50%;animation:pulse 1.6s infinite}
+  .brand b{font-weight:500}
+  .brand span{color:var(--ink-3)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  .modes{display:flex;gap:1px;background:var(--line);padding:1px;border-radius:5px;margin-left:18px}
+  .mode{
+    background:var(--panel-2);padding:6px 14px;font-family:var(--mono);font-size:11px;
+    letter-spacing:.08em;cursor:pointer;color:var(--ink-2);border-radius:4px;
+  }
+  .mode.on{background:rgba(0,180,210,.1);color:var(--accent)}
+  .mode:hover:not(.on){color:var(--ink)}
+
+  .top-meta{margin-left:auto;display:flex;gap:18px;font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+  .top-meta b{color:var(--ink);font-weight:500}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--ink-2);padding:3px 8px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:3px}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.4s infinite}
+
+  .section{border-bottom:1px solid var(--line)}
+  .section h3{
+    margin:0;padding:10px 14px;font-size:10px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--ink-3);font-weight:500;font-family:var(--mono);
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--panel-2);border-bottom:1px solid var(--line);
+  }
+  .section h3 .num{color:var(--ink-3)}
+  .section .body{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+
+  .ctl{display:flex;flex-direction:column;gap:6px}
+  .ctl .lbl{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .ctl .lbl .name{font-size:12px}
+  .ctl .lbl .val{font-family:var(--mono);font-size:11px;color:var(--accent)}
+  .help{font-family:var(--mono);font-size:10px;color:var(--ink-3);line-height:1.5}
+
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;background:transparent;height:18px}
+  input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--line-2);border-radius:2px}
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:12px;height:12px;border-radius:50%;
+    background:var(--accent);border:0;margin-top:-5px;cursor:pointer;
+    box-shadow:0 0 0 3px rgba(0,180,210,.12);
+  }
+
+  .seg{display:grid;gap:1px;background:var(--line);padding:1px;border-radius:4px;border:1px solid var(--line)}
+  .seg.cols-2{grid-template-columns:1fr 1fr}
+  .seg.cols-3{grid-template-columns:1fr 1fr 1fr}
+  .seg.cols-4{grid-template-columns:1fr 1fr 1fr 1fr}
+  .seg .opt{
+    background:var(--panel-2);padding:6px 8px;text-align:center;cursor:pointer;
+    font-family:var(--mono);font-size:11px;color:var(--ink-2);letter-spacing:.04em;
+  }
+  .seg .opt:hover{color:var(--ink)}
+  .seg .opt.on{background:rgba(0,180,210,.1);color:var(--accent)}
+
+  .toggle{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+  .toggle .sw{width:26px;height:14px;border-radius:8px;background:var(--line-2);position:relative;transition:.15s}
+  .toggle .sw::after{content:'';position:absolute;left:2px;top:2px;width:10px;height:10px;border-radius:50%;background:var(--ink-2);transition:.15s}
+  .toggle.on .sw{background:var(--accent-dim)}
+  .toggle.on .sw::after{left:14px;background:var(--accent)}
+
+  .btn{background:transparent;border:1px solid var(--line-2);color:var(--ink);padding:6px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-family:var(--mono);letter-spacing:.04em}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{border-color:var(--accent-dim);color:var(--accent)}
+
+  .row{display:flex;gap:8px}
+  .row > *{flex:1}
+  .stat{display:flex;flex-direction:column;gap:2px}
+  .stat .k{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ink-3);text-transform:uppercase}
+  .stat .v{font-family:var(--mono);font-size:11px;color:var(--ink)}
+
+  /* stage canvases */
+  canvas.stage-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;outline:none}
+  .stage .label{position:absolute;font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-2);background:rgba(0,0,0,.55);padding:5px 9px;border:1px solid var(--line-2)}
+  .stage .label.tl{top:12px;left:12px}
+  .stage .label.tr{top:12px;right:12px;color:var(--accent);border-color:var(--accent-dim)}
+  .stage .label.bl{bottom:12px;left:12px}
+  .stage .label.br{bottom:12px;right:12px}
+
+  .gauge{
+    position:absolute;bottom:12px;right:12px;width:130px;height:130px;
+    background:rgba(0,0,0,.55);border:1px solid var(--line-2);border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .gauge svg{width:100%;height:100%}
+
+  .colorbar{
+    position:absolute;left:12px;bottom:12px;width:180px;
+    background:rgba(0,0,0,.55);border:1px solid var(--line-2);padding:8px 10px;
+    font-family:var(--mono);font-size:10px;color:var(--ink-2);
+  }
+  .colorbar .strip{height:8px;border-radius:2px;margin:6px 0}
+  .colorbar .axis{display:flex;justify-content:space-between;font-size:9px;color:var(--ink-3)}
+
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:4px}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  .legend{font-family:var(--mono);font-size:10px;color:var(--ink-3);line-height:1.6}
+  .legend .k{color:var(--accent)}
+
+  .preset{
+    border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink-2);
+    font-family:var(--mono);font-size:10px;text-align:left;
+    padding:8px 10px;cursor:pointer;border-radius:4px;width:100%;
+  }
+  .preset:hover{border-color:var(--accent-dim);color:var(--ink)}
+  .preset b{color:var(--accent);font-weight:500;display:block;margin-bottom:2px}
+  .stack{display:flex;flex-direction:column;gap:6px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="brand"><div class="dot"></div><b>SCANLINE</b><span>/ lidar sensor sim</span></div>
+    <div class="modes">
+      <div class="mode on" data-mode="2d">2D · TOP-DOWN</div>
+      <div class="mode" data-mode="3d">3D · VOLUME</div>
+    </div>
+    <div class="top-meta">
+      <span><b id="hzTxt">—</b> Hz</span>
+      <span><b id="raysTxt">—</b> rays/s</span>
+      <span><b id="ptsTxt">—</b> pts</span>
+      <span><b id="rangeTxt">—</b> m max</span>
+      <span class="pill"><span class="dot"></span><span id="modeTxt">2D</span></span>
+    </div>
+  </div>
+
+  <div class="left">
+    <div class="section">
+      <h3><span>Sensor</span><span class="num">01</span></h3>
+      <div class="body">
+        <div class="ctl">
+          <div class="lbl"><span class="name">Scan frequency</span><span class="val" data-val="hz">10 Hz</span></div>
+          <input type="range" min="1" max="40" step="0.5" value="10" data-knob="hz" />
+        </div>
+        <div class="ctl">
+          <div class="lbl"><span class="name">Angular resolution</span><span class="val" data-val="ares">1.00°</span></div>
+          <input type="range" min="0.1" max="5" step="0.05" value="1" data-knob="ares" />
+        </div>
+        <div class="ctl">
+          <div class="lbl"><span class="name">Max range</span><span class="val" data-val="maxR">25.0 m</span></div>
+          <input type="range" min="3" max="60" step="0.5" value="25" data-knob="maxR" />
+        </div>
+        <div class="ctl">
+          <div class="lbl"><span class="name">Range noise σ</span><span class="val" data-val="noise">0.030 m</span></div>
+          <input type="range" min="0" max="0.5" step="0.001" value="0.03" data-knob="noise" />
+        </div>
+        <div class="ctl">
+          <div class="lbl"><span class="name">Dropout rate</span><span class="val" data-val="drop">0.5%</span></div>
+          <input type="range" min="0" max="20" step="0.1" value="0.5" data-knob="drop" />
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="lidar3dSec">
+      <h3><span>Vertical FOV (3D)</span><span class="num">02</span></h3>
+      <div class="body">
+        <div class="ctl">
+          <div class="lbl"><span class="name">V-channels</span><span class="val" data-val="vch">32</span></div>
+          <input type="range" min="4" max="128" step="1" value="32" data-knob="vch" />
+        </div>
+        <div class="ctl">
+          <div class="lbl"><span class="name">FOV up / down</span><span class="val" data-val="vfov">+15° / −15°</span></div>
+          <input type="range" min="5" max="45" step="1" value="15" data-knob="vfov" />
+        </div>
+        <div class="ctl">
+          <div class="lbl"><span class="name">Cloud lifetime</span><span class="val" data-val="life">2.5 s</span></div>
+          <input type="range" min="0.2" max="20" step="0.1" value="2.5" data-knob="life" />
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3><span>Scene</span><span class="num">03</span></h3>
+      <div class="body">
+        <div class="help">Click in 2D scene to drag the sensor. Use presets to swap environments.</div>
+        <div class="stack">
+          <button class="preset" data-preset="warehouse"><b>Warehouse</b>aisles + walking person</button>
+          <button class="preset" data-preset="parking"><b>Parking lot</b>cars driving past</button>
+          <button class="preset" data-preset="forest"><b>Forest</b>scattered tree trunks</button>
+          <button class="preset" data-preset="corridor"><b>Corridor</b>narrow hallway w/ doors</button>
+        </div>
+        <div class="ctl">
+          <label class="toggle on" data-toggle="motion"><span class="sw"></span><span class="name">Animate moving objects</span></label>
+        </div>
+        <div class="ctl">
+          <label class="toggle on" data-toggle="rays"><span class="sw"></span><span class="name">Show ray lines</span></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3><span>Color</span><span class="num">04</span></h3>
+      <div class="body">
+        <div class="ctl">
+          <div class="lbl"><span class="name">Map by</span></div>
+          <div class="seg cols-3" data-radio="colorBy">
+            <div class="opt on" data-v="dist">DIST</div>
+            <div class="opt" data-v="height">HEIGHT</div>
+            <div class="opt" data-v="intens">INT</div>
+          </div>
+        </div>
+        <div class="ctl">
+          <div class="lbl"><span class="name">Point size</span><span class="val" data-val="psize">2.0 px</span></div>
+          <input type="range" min="0.5" max="6" step="0.1" value="2" data-knob="psize" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- stage -->
+  <div class="stage" id="stage">
+    <canvas id="canvas2d" class="stage-canvas"></canvas>
+    <canvas id="canvas3d" class="stage-canvas" style="display:none"></canvas>
+    <div class="label tl" id="lblScene">SCENE · warehouse</div>
+    <div class="label tr" id="lblHits">0 hits / sweep</div>
+    <div class="label bl" id="lblMode">MODE · 2D · TOP-DOWN</div>
+    <div class="label br" id="lblRot">θ = 0.0°</div>
+
+    <div class="gauge" id="gaugeWrap">
+      <svg viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="44" fill="none" stroke="#1e242b" stroke-width="1"/>
+        <circle cx="50" cy="50" r="36" fill="none" stroke="#1e242b" stroke-width="1"/>
+        <circle cx="50" cy="50" r="28" fill="none" stroke="#1e242b" stroke-width="1"/>
+        <line x1="50" y1="6" x2="50" y2="14" stroke="#5c656f" stroke-width="1"/>
+        <line x1="94" y1="50" x2="86" y2="50" stroke="#5c656f" stroke-width="1"/>
+        <line x1="50" y1="94" x2="50" y2="86" stroke="#5c656f" stroke-width="1"/>
+        <line x1="6" y1="50" x2="14" y2="50" stroke="#5c656f" stroke-width="1"/>
+        <text x="50" y="3" fill="#5c656f" font-size="4" font-family="JetBrains Mono" text-anchor="middle">0°</text>
+        <text x="98" y="51" fill="#5c656f" font-size="4" font-family="JetBrains Mono" text-anchor="end">90°</text>
+        <line id="gaugeNeedle" x1="50" y1="50" x2="50" y2="10" stroke="oklch(78% 0.13 200)" stroke-width="1.5"/>
+        <circle cx="50" cy="50" r="3" fill="oklch(78% 0.13 200)"/>
+        <text x="50" y="62" fill="oklch(78% 0.13 200)" font-size="6" font-family="JetBrains Mono" text-anchor="middle" id="gaugeText">0°</text>
+      </svg>
+    </div>
+
+    <div class="colorbar">
+      <div id="cbLabel">DIST · 0 → 25 m</div>
+      <div class="strip" id="cbStrip"></div>
+      <div class="axis"><span>0</span><span>¼</span><span>½</span><span>¾</span><span id="cbMax">max</span></div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="section">
+      <h3><span>Live readout</span><span class="num">rd</span></h3>
+      <div class="body">
+        <div class="row">
+          <div class="stat"><span class="k">fps</span><span class="v" id="fpsTxt">—</span></div>
+          <div class="stat"><span class="k">cloud size</span><span class="v" id="cloudTxt">—</span></div>
+          <div class="stat"><span class="k">RPM</span><span class="v" id="rpmTxt">—</span></div>
+        </div>
+        <div class="row">
+          <div class="stat"><span class="k">mean range</span><span class="v" id="meanRTxt">—</span></div>
+          <div class="stat"><span class="k">min range</span><span class="v" id="minRTxt">—</span></div>
+          <div class="stat"><span class="k">drop</span><span class="v" id="dropRTxt">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3><span>Range histogram</span><span class="num">hg</span></h3>
+      <div class="body">
+        <canvas id="histCanvas" style="width:100%;height:96px;display:block;background:#0a0c10;border:1px solid var(--line)"></canvas>
+        <div class="legend">distance bins · normalized count</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3><span>Polar scope</span><span class="num">ps</span></h3>
+      <div class="body">
+        <canvas id="polarCanvas" style="width:100%;aspect-ratio:1;display:block;background:#0a0c10;border:1px solid var(--line)"></canvas>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3><span>Legend</span><span class="num">lg</span></h3>
+      <div class="body">
+        <div class="legend">
+          <div><span class="k">cyan ring</span> · sensor body</div>
+          <div><span class="k">white dots</span> · ray hits this sweep</div>
+          <div><span class="k">faded dots</span> · accumulated cloud</div>
+          <div><span class="k">grey lines</span> · live ray bundle</div>
+          <div style="margin-top:6px;color:var(--ink-3)">·  click 2D scene to drag sensor</div>
+          <div style="color:var(--ink-3)">·  3D: drag to orbit, scroll to zoom</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ============ shared state ============
+  const S = {
+    mode:'2d',
+    hz:10, ares:1.0, maxR:25, noise:0.03, drop:0.5,
+    vch:32, vfov:15, life:2.5,
+    motion:true, rays:true,
+    colorBy:'dist', psize:2.0,
+    preset:'warehouse',
+    sensor:{x:0, y:0, theta:0},
+    cloud:[], // {x,y,z,r,t,intens}
+    fpsAcc:0, fpsN:0, fpsLast:0, fps:60,
+    sweepHits:0,
+    lastSweepStats:{mean:0, min:0, drop:0},
+    histBins:new Float32Array(48),
+    polarBins:new Float32Array(180),  // 2° bins, range
+  };
+
+  // ============ helpers ============
+  const $ = s => document.querySelector(s);
+  const $$ = s => document.querySelectorAll(s);
+  function turbo(t){
+    // turbo-like LUT (clamped)
+    t = Math.max(0, Math.min(1,t));
+    const r = Math.round(255*(0.13572 + 4.61539*t - 42.66032*t*t + 132.13108*t*t*t - 152.94239*t*t*t*t + 59.28637*t*t*t*t*t));
+    const g = Math.round(255*(0.09140 + 2.19418*t + 4.84296*t*t - 14.18503*t*t*t + 4.27729*t*t*t*t + 2.82956*t*t*t*t*t));
+    const b = Math.round(255*(0.10667 + 12.64194*t - 60.58204*t*t + 110.36276*t*t*t - 89.90310*t*t*t*t + 27.34824*t*t*t*t*t));
+    return [Math.max(0,Math.min(255,r)), Math.max(0,Math.min(255,g)), Math.max(0,Math.min(255,b))];
+  }
+  function fmt(name, v){
+    const f = ({
+      hz: v=>v.toFixed(1)+' Hz',
+      ares: v=>v.toFixed(2)+'°',
+      maxR: v=>v.toFixed(1)+' m',
+      noise: v=>v.toFixed(3)+' m',
+      drop: v=>v.toFixed(1)+'%',
+      vch: v=>String(v|0),
+      vfov: v=>'+'+(v|0)+'° / −'+(v|0)+'°',
+      life: v=>v.toFixed(1)+' s',
+      psize: v=>v.toFixed(1)+' px'
+    })[name];
+    return f ? f(v) : v;
+  }
+
+  // ============ knobs / toggles / radios / modes ============
+  $$('input[type=range][data-knob]').forEach(inp=>{
+    const name = inp.getAttribute('data-knob');
+    const valEl = $(`[data-val="${name}"]`);
+    const update = ()=>{
+      S[name] = parseFloat(inp.value);
+      if(valEl) valEl.textContent = fmt(name, S[name]);
+    };
+    inp.addEventListener('input', update);
+    update();
+  });
+  $$('[data-toggle]').forEach(t=>{
+    const k = t.getAttribute('data-toggle');
+    t.addEventListener('click', ()=>{
+      S[k] = !S[k];
+      t.classList.toggle('on', S[k]);
+    });
+  });
+  $$('[data-radio]').forEach(group=>{
+    const key = group.getAttribute('data-radio');
+    group.querySelectorAll('.opt').forEach(o=>{
+      o.addEventListener('click', ()=>{
+        group.querySelectorAll('.opt').forEach(x=>x.classList.remove('on'));
+        o.classList.add('on');
+        S[key] = o.getAttribute('data-v');
+      });
+    });
+  });
+  $$('.mode').forEach(m=>{
+    m.addEventListener('click', ()=>{
+      $$('.mode').forEach(x=>x.classList.remove('on'));
+      m.classList.add('on');
+      S.mode = m.getAttribute('data-mode');
+      $('#canvas2d').style.display = S.mode==='2d' ? 'block':'none';
+      $('#canvas3d').style.display = S.mode==='3d' ? 'block':'none';
+      $('#lidar3dSec').style.opacity = S.mode==='3d'?1:0.5;
+      $('#lblMode').textContent = 'MODE · ' + (S.mode==='2d' ? '2D · TOP-DOWN' : '3D · VOLUME');
+      $('#modeTxt').textContent = S.mode.toUpperCase();
+      S.cloud.length = 0;
+      if(S.mode==='3d') start3D(); else stop3D();
+    });
+  });
+  $$('.preset').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      S.preset = b.getAttribute('data-preset');
+      buildScene2D(S.preset);
+      $('#lblScene').textContent = 'SCENE · '+S.preset;
+      S.cloud.length = 0;
+    });
+  });
+
+  // build colorbar strip (gradient)
+  function paintColorbar(){
+    const strip = $('#cbStrip');
+    let stops = '';
+    for(let i=0;i<=10;i++){
+      const [r,g,b] = turbo(i/10);
+      stops += `rgb(${r},${g},${b}) ${i*10}%${i<10?',':''}`;
+    }
+    strip.style.background = `linear-gradient(90deg, ${stops})`;
+  }
+  paintColorbar();
+
+  function updateColorbarLabel(){
+    const cb = S.colorBy;
+    const lab = cb==='dist' ? `DIST · 0 → ${S.maxR.toFixed(0)} m`
+              : cb==='height' ? `HEIGHT · −2 → +3 m`
+              : `INTENSITY · 0 → 1`;
+    $('#cbLabel').textContent = lab;
+    $('#cbMax').textContent = cb==='dist' ? S.maxR.toFixed(0)+'m' : (cb==='height'?'3m':'1');
+  }
+
+  // ============ 2D mode ============
+  const cv2 = $('#canvas2d');
+  const ctx2 = cv2.getContext('2d');
+  const stageEl = $('#stage');
+
+  // world is in meters; we map to canvas px via scale factor
+  let WORLD = { walls:[], obstacles:[], movers:[], bounds:{w:30,h:20} };
+  function buildScene2D(name){
+    WORLD = { walls:[], obstacles:[], movers:[], bounds:{w:30,h:20} };
+    if(name==='warehouse'){
+      WORLD.bounds = {w:36, h:24};
+      // outer
+      addRect(-18,-12, 36, 24, true);
+      // shelving aisles
+      for(let i=0;i<4;i++){
+        const x = -12 + i*8;
+        addRect(x, -8, 1.2, 12, true);
+        addRect(x, 4, 1.2, 4, true);
+      }
+      // a couple of pallets
+      addRect(-15, 9, 2, 1.5, true);
+      addRect(13, -10, 1.5, 1.5, true);
+      // person walking up an aisle
+      WORLD.movers.push({type:'person', cx:-8, cy:-6, r:0.35, vx:0, vy:1.2, range:[-9,9], axis:'y'});
+      WORLD.movers.push({type:'person', cx:0, cy:5, r:0.35, vx:0.9, vy:0, range:[-15,15], axis:'x'});
+      // forklift
+      WORLD.movers.push({type:'box', cx:6, cy:-4, w:1.6, h:1.0, vx:1.6, vy:0, range:[-6,12], axis:'x'});
+      S.sensor.x = 0; S.sensor.y = 0;
+    }
+    else if(name==='parking'){
+      WORLD.bounds = {w:40, h:24};
+      addRect(-20,-12, 40, 24, true);
+      // parked cars rows
+      for(let i=0;i<8;i++){
+        const x = -16 + i*4;
+        addRect(x, -10, 3, 2, true);
+        addRect(x, 8, 3, 2, true);
+      }
+      // moving cars
+      WORLD.movers.push({type:'box', cx:-15, cy:-1, w:3, h:1.8, vx:3.0, vy:0, range:[-18,18], axis:'x'});
+      WORLD.movers.push({type:'box', cx:18, cy:1.5, w:3, h:1.8, vx:-2.4, vy:0, range:[-18,18], axis:'x'});
+      WORLD.movers.push({type:'person', cx:0, cy:6, r:0.35, vx:1.0, vy:0, range:[-10,10], axis:'x'});
+      S.sensor.x = -2; S.sensor.y = 1;
+    }
+    else if(name==='forest'){
+      WORLD.bounds = {w:50, h:34};
+      addRect(-25,-17, 50, 34, true);
+      // random tree trunks
+      const seed = mulberry32(42);
+      for(let i=0;i<40;i++){
+        const x = (seed()*2-1)*22, y=(seed()*2-1)*15;
+        if(Math.hypot(x,y) < 2.5) continue;
+        WORLD.obstacles.push({type:'circle', cx:x, cy:y, r:0.3+seed()*0.5});
+      }
+      // wandering deer
+      WORLD.movers.push({type:'circle', cx:5, cy:0, r:0.6, vx:1.4, vy:0.6, range:[-15,15], axis:'x', wobble:true});
+      WORLD.movers.push({type:'circle', cx:-8, cy:5, r:0.5, vx:0.8, vy:-0.4, range:[-15,15], axis:'x', wobble:true});
+      S.sensor.x = 0; S.sensor.y = 0;
+    }
+    else if(name==='corridor'){
+      WORLD.bounds = {w:40, h:8};
+      addRect(-20, -4, 40, 8, true);
+      // door alcoves
+      for(let x=-16; x<=14; x+=6){
+        WORLD.walls.push({x1:x, y1:-4, x2:x, y2:-3});
+        WORLD.walls.push({x1:x+2, y1:-4, x2:x+2, y2:-3});
+        WORLD.walls.push({x1:x, y1:-3, x2:x+2, y2:-3});
+        WORLD.walls.push({x1:x, y1:4, x2:x, y2:3});
+        WORLD.walls.push({x1:x+2, y1:4, x2:x+2, y2:3});
+        WORLD.walls.push({x1:x, y1:3, x2:x+2, y2:3});
+      }
+      WORLD.movers.push({type:'person', cx:0, cy:0, r:0.35, vx:1.6, vy:0, range:[-18,18], axis:'x'});
+      S.sensor.x = -10; S.sensor.y = 0;
+    }
+  }
+  function addRect(x,y,w,h, hollow){
+    if(hollow){
+      WORLD.walls.push({x1:x,   y1:y,   x2:x+w, y2:y});
+      WORLD.walls.push({x1:x+w, y1:y,   x2:x+w, y2:y+h});
+      WORLD.walls.push({x1:x+w, y1:y+h, x2:x,   y2:y+h});
+      WORLD.walls.push({x1:x,   y1:y+h, x2:x,   y2:y});
+    } else {
+      WORLD.obstacles.push({type:'rect', x, y, w, h});
+    }
+  }
+  function mulberry32(a){
+    return function(){
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  // ray-segment intersection (t along ray; returns hit dist or Infinity)
+  function raySeg(ox,oy,dx,dy, x1,y1,x2,y2){
+    const sx = x2-x1, sy = y2-y1;
+    const denom = dx*sy - dy*sx;
+    if(Math.abs(denom) < 1e-9) return Infinity;
+    const t = ((x1-ox)*sy - (y1-oy)*sx)/denom;
+    const u = ((x1-ox)*dy - (y1-oy)*dx)/denom;
+    if(t >= 0 && u >= 0 && u <= 1) return t;
+    return Infinity;
+  }
+  function rayCircle(ox,oy,dx,dy, cx,cy,r){
+    const fx = ox-cx, fy = oy-cy;
+    const a = dx*dx+dy*dy;
+    const b = 2*(fx*dx+fy*dy);
+    const c = fx*fx+fy*fy - r*r;
+    const disc = b*b - 4*a*c;
+    if(disc < 0) return Infinity;
+    const sq = Math.sqrt(disc);
+    const t1 = (-b - sq)/(2*a), t2 = (-b + sq)/(2*a);
+    if(t1>=0) return t1; if(t2>=0) return t2; return Infinity;
+  }
+  function rayRect(ox,oy,dx,dy, x,y,w,h){
+    let tmin = -Infinity, tmax = Infinity;
+    if(Math.abs(dx)<1e-9){ if(ox<x||ox>x+w) return Infinity; }
+    else { const tx1=(x-ox)/dx, tx2=(x+w-ox)/dx; tmin=Math.max(tmin, Math.min(tx1,tx2)); tmax=Math.min(tmax, Math.max(tx1,tx2)); }
+    if(Math.abs(dy)<1e-9){ if(oy<y||oy>y+h) return Infinity; }
+    else { const ty1=(y-oy)/dy, ty2=(y+h-oy)/dy; tmin=Math.max(tmin, Math.min(ty1,ty2)); tmax=Math.min(tmax, Math.max(ty1,ty2)); }
+    if(tmax<0||tmin>tmax) return Infinity;
+    return tmin>=0 ? tmin : tmax;
+  }
+
+  function castRay(ox,oy,ang){
+    const dx = Math.cos(ang), dy = Math.sin(ang);
+    let tmin = S.maxR;
+    let hitInt = 0.5; // intensity heuristic (1 for closer / glossy)
+    for(const w of WORLD.walls){
+      const t = raySeg(ox,oy,dx,dy, w.x1,w.y1,w.x2,w.y2);
+      if(t<tmin){ tmin = t; hitInt = 0.7; }
+    }
+    for(const o of WORLD.obstacles){
+      let t = Infinity;
+      if(o.type==='rect') t = rayRect(ox,oy,dx,dy, o.x,o.y,o.w,o.h);
+      else if(o.type==='circle') t = rayCircle(ox,oy,dx,dy, o.cx,o.cy,o.r);
+      if(t<tmin){ tmin = t; hitInt = 0.6; }
+    }
+    for(const m of WORLD.movers){
+      let t = Infinity;
+      if(m.type==='circle' || m.type==='person') t = rayCircle(ox,oy,dx,dy, m.cx,m.cy,m.r);
+      else if(m.type==='box') t = rayRect(ox,oy,dx,dy, m.cx-m.w/2, m.cy-m.h/2, m.w, m.h);
+      if(t<tmin){ tmin = t; hitInt = 0.9; }
+    }
+    if(tmin >= S.maxR) return null;
+    // noise
+    tmin += (Math.random()*2-1)*S.noise;
+    if(Math.random()*100 < S.drop) return null;
+    return {t:tmin, intens:hitInt};
+  }
+
+  // canvas resize w/ DPR
+  function resizeCanvas(c){
+    const r = c.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio||1);
+    c.width = Math.max(2, Math.floor(r.width*dpr));
+    c.height = Math.max(2, Math.floor(r.height*dpr));
+    return dpr;
+  }
+  let DPR = 1;
+  // 3D state declared early to avoid TDZ in fitAll
+  var engine3d = null, scene3d = null, ptMesh = null, ptVerts = null, ptCols = null, ptTimes = null, ptCount = 0;
+  var head3d = null, raysMesh3d = null;
+  var theta3d = 0;
+  var raf3d = null;
+  var movers3d = [];
+  function fitAll(){
+    DPR = resizeCanvas(cv2);
+    if(engine3d) engine3d.resize();
+    resizeCanvas($('#histCanvas'));
+    resizeCanvas($('#polarCanvas'));
+  }
+  // lazy re-fit inside render loop in case ResizeObserver missed the initial layout
+  function ensureSized(){
+    const r = cv2.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio||1);
+    const want_w = Math.max(2, Math.floor(r.width*dpr));
+    const want_h = Math.max(2, Math.floor(r.height*dpr));
+    if(cv2.width !== want_w || cv2.height !== want_h){
+      fitAll();
+    }
+  }
+  new ResizeObserver(fitAll).observe(stageEl);
+  fitAll();
+
+  // world↔canvas mapping
+  function worldToCanvas(){
+    const w = cv2.width, h = cv2.height;
+    const bw = WORLD.bounds.w, bh = WORLD.bounds.h;
+    const sx = w / bw, sy = h / bh;
+    const sc = Math.min(sx, sy) * 0.92;
+    return { sc, ox:w/2, oy:h/2 };
+  }
+
+  // 2D animation state
+  let last2 = performance.now();
+  let lastTheta = 0;
+  // pointer drag of sensor
+  let dragSensor = false;
+  cv2.addEventListener('pointerdown', e=>{
+    const {sc, ox, oy} = worldToCanvas();
+    const cx = (e.offsetX*DPR - ox)/sc;
+    const cy = (e.offsetY*DPR - oy)/sc;
+    if(Math.hypot(cx-S.sensor.x, cy-S.sensor.y) < 1.5){
+      dragSensor = true;
+      cv2.setPointerCapture(e.pointerId);
+    }
+  });
+  cv2.addEventListener('pointermove', e=>{
+    if(!dragSensor) return;
+    const {sc, ox, oy} = worldToCanvas();
+    S.sensor.x = (e.offsetX*DPR - ox)/sc;
+    S.sensor.y = (e.offsetY*DPR - oy)/sc;
+  });
+  cv2.addEventListener('pointerup', ()=>{ dragSensor = false; });
+
+  // animate movers
+  function tickMovers(dt){
+    if(!S.motion) return;
+    for(const m of WORLD.movers){
+      if(m.axis==='x'){
+        m.cx += m.vx*dt;
+        if(m.cx < m.range[0]||m.cx > m.range[1]) m.vx *= -1;
+        if(m.wobble) m.cy += Math.sin(performance.now()*0.001)*dt*0.4;
+      } else {
+        m.cy += m.vy*dt;
+        if(m.cy < m.range[0]||m.cy > m.range[1]) m.vy *= -1;
+      }
+    }
+  }
+
+  function render2D(now){
+    ensureSized();
+    const dt = Math.min(0.05, (now-last2)/1000); last2 = now;
+    tickMovers(dt);
+
+    // sensor rotates: theta wraps full revolution at hz; angular speed = 2π·hz rad/s
+    const omega = 2*Math.PI*S.hz;
+    let nextTheta = S.sensor.theta + omega*dt;
+    let dTheta = nextTheta - S.sensor.theta;
+    S.sensor.theta = nextTheta;
+
+    // emit rays at angular resolution; this many during this dt
+    const aresRad = S.ares * Math.PI/180;
+    const nRays = Math.max(1, Math.floor(Math.abs(dTheta)/aresRad));
+    const stepTheta = dTheta / nRays;
+
+    // background
+    ctx2.fillStyle = '#06080b';
+    ctx2.fillRect(0,0,cv2.width,cv2.height);
+    drawGrid();
+
+    // draw scene
+    const M = worldToCanvas();
+    drawScene(M);
+
+    // cast rays this frame
+    let hitsThisFrame = 0;
+    let sumR = 0, minR = Infinity, dropCount = 0;
+    const newPoints = [];
+    for(let i=0;i<nRays;i++){
+      const ang = lastTheta + stepTheta*i;
+      const hit = castRay(S.sensor.x, S.sensor.y, ang);
+      const ox = M.ox + S.sensor.x*M.sc;
+      const oy = M.oy + S.sensor.y*M.sc;
+      if(S.rays){
+        const tEnd = hit ? hit.t : S.maxR;
+        const ex = M.ox + (S.sensor.x + Math.cos(ang)*tEnd)*M.sc;
+        const ey = M.oy + (S.sensor.y + Math.sin(ang)*tEnd)*M.sc;
+        ctx2.strokeStyle = hit ? 'rgba(0,200,230,0.07)' : 'rgba(255,255,255,0.025)';
+        ctx2.lineWidth = 1;
+        ctx2.beginPath(); ctx2.moveTo(ox,oy); ctx2.lineTo(ex,ey); ctx2.stroke();
+      }
+      if(hit){
+        hitsThisFrame++;
+        sumR += hit.t; if(hit.t<minR) minR = hit.t;
+        const px = S.sensor.x + Math.cos(ang)*hit.t;
+        const py = S.sensor.y + Math.sin(ang)*hit.t;
+        newPoints.push({x:px, y:py, z:0, r:hit.t, intens:hit.intens, t:now});
+      } else dropCount++;
+    }
+
+    // accumulate cloud, decay by life
+    const lifeMs = S.life*1000;
+    const cutoff = now - lifeMs;
+    // expire
+    let writeIdx = 0;
+    for(let i=0;i<S.cloud.length;i++){
+      if(S.cloud[i].t > cutoff) S.cloud[writeIdx++] = S.cloud[i];
+    }
+    S.cloud.length = writeIdx;
+    // append, capped
+    const MAX_CLOUD = 50000;
+    for(const p of newPoints) S.cloud.push(p);
+    if(S.cloud.length > MAX_CLOUD){
+      S.cloud.splice(0, S.cloud.length - MAX_CLOUD);
+    }
+
+    // draw cloud (faded)
+    ctx2.save();
+    for(let i=0;i<S.cloud.length;i++){
+      const p = S.cloud[i];
+      const age = (now - p.t)/lifeMs; // 0..1
+      const alpha = Math.max(0.05, 1 - age);
+      const x = M.ox + p.x*M.sc, y = M.oy + p.y*M.sc;
+      let t;
+      if(S.colorBy==='dist') t = p.r/S.maxR;
+      else if(S.colorBy==='intens') t = p.intens;
+      else t = 0.5; // height same in 2D
+      const [r,g,b] = turbo(t);
+      ctx2.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+      const ps = S.psize * (S.psize<2.5?DPR*0.6:DPR*0.8);
+      ctx2.fillRect(x - ps/2, y - ps/2, ps, ps);
+    }
+    ctx2.restore();
+
+    // sensor body
+    drawSensor(M);
+
+    // current sweep arc indicator
+    drawSweepArc(M, S.sensor.theta);
+
+    // gauge
+    const deg = ((S.sensor.theta*180/Math.PI)%360+360)%360;
+    $('#gaugeNeedle').setAttribute('transform', `rotate(${deg} 50 50)`);
+    $('#gaugeText').textContent = deg.toFixed(0)+'°';
+    $('#lblRot').textContent = 'θ = ' + deg.toFixed(1)+'°';
+
+    // stats per sweep window
+    if(hitsThisFrame>0){
+      S.lastSweepStats.mean = sumR/hitsThisFrame;
+      S.lastSweepStats.min = minR;
+    }
+    S.lastSweepStats.drop = dropCount/Math.max(1, nRays);
+    S.sweepHits = hitsThisFrame;
+    $('#lblHits').textContent = (S.cloud.length|0)+' pts · '+ hitsThisFrame +' hits';
+    $('#meanRTxt').textContent = S.lastSweepStats.mean ? S.lastSweepStats.mean.toFixed(2)+' m' : '—';
+    $('#minRTxt').textContent = isFinite(S.lastSweepStats.min) ? S.lastSweepStats.min.toFixed(2)+' m' : '—';
+    $('#dropRTxt').textContent = (S.lastSweepStats.drop*100).toFixed(1)+'%';
+
+    lastTheta = S.sensor.theta;
+    updateTopMeta();
+    updateHistogramAndPolar(now);
+    updateColorbarLabel();
+
+    if(S.mode==='2d') scheduleNext();
+  }
+
+  function drawGrid(){
+    const M = worldToCanvas();
+    ctx2.strokeStyle = '#11161c';
+    ctx2.lineWidth = 1;
+    for(let x=Math.ceil(-WORLD.bounds.w/2); x<=Math.floor(WORLD.bounds.w/2); x++){
+      const sx = M.ox + x*M.sc;
+      ctx2.beginPath(); ctx2.moveTo(sx, 0); ctx2.lineTo(sx, cv2.height); ctx2.stroke();
+    }
+    for(let y=Math.ceil(-WORLD.bounds.h/2); y<=Math.floor(WORLD.bounds.h/2); y++){
+      const sy = M.oy + y*M.sc;
+      ctx2.beginPath(); ctx2.moveTo(0, sy); ctx2.lineTo(cv2.width, sy); ctx2.stroke();
+    }
+    // origin axes
+    ctx2.strokeStyle = '#1e242b';
+    ctx2.beginPath(); ctx2.moveTo(M.ox, 0); ctx2.lineTo(M.ox, cv2.height); ctx2.stroke();
+    ctx2.beginPath(); ctx2.moveTo(0, M.oy); ctx2.lineTo(cv2.width, M.oy); ctx2.stroke();
+  }
+
+  function drawScene(M){
+    ctx2.lineWidth = 2*DPR;
+    ctx2.strokeStyle = '#3a4048';
+    for(const w of WORLD.walls){
+      ctx2.beginPath();
+      ctx2.moveTo(M.ox + w.x1*M.sc, M.oy + w.y1*M.sc);
+      ctx2.lineTo(M.ox + w.x2*M.sc, M.oy + w.y2*M.sc);
+      ctx2.stroke();
+    }
+    ctx2.fillStyle = '#22272d';
+    ctx2.strokeStyle = '#3a4048';
+    for(const o of WORLD.obstacles){
+      if(o.type==='rect'){
+        ctx2.fillRect(M.ox + o.x*M.sc, M.oy + o.y*M.sc, o.w*M.sc, o.h*M.sc);
+        ctx2.strokeRect(M.ox + o.x*M.sc, M.oy + o.y*M.sc, o.w*M.sc, o.h*M.sc);
+      } else if(o.type==='circle'){
+        ctx2.beginPath(); ctx2.arc(M.ox + o.cx*M.sc, M.oy + o.cy*M.sc, o.r*M.sc, 0, Math.PI*2);
+        ctx2.fill(); ctx2.stroke();
+      }
+    }
+    // movers w/ accent
+    ctx2.fillStyle = 'rgba(255,160,80,0.2)';
+    ctx2.strokeStyle = 'rgba(255,160,80,0.7)';
+    for(const m of WORLD.movers){
+      if(m.type==='circle'||m.type==='person'){
+        ctx2.beginPath(); ctx2.arc(M.ox + m.cx*M.sc, M.oy + m.cy*M.sc, m.r*M.sc, 0, Math.PI*2);
+        ctx2.fill(); ctx2.stroke();
+      } else if(m.type==='box'){
+        ctx2.fillRect(M.ox + (m.cx-m.w/2)*M.sc, M.oy + (m.cy-m.h/2)*M.sc, m.w*M.sc, m.h*M.sc);
+        ctx2.strokeRect(M.ox + (m.cx-m.w/2)*M.sc, M.oy + (m.cy-m.h/2)*M.sc, m.w*M.sc, m.h*M.sc);
+      }
+    }
+  }
+
+  function drawSensor(M){
+    const x = M.ox + S.sensor.x*M.sc;
+    const y = M.oy + S.sensor.y*M.sc;
+    // range ring
+    ctx2.strokeStyle = 'rgba(0,180,210,0.18)';
+    ctx2.lineWidth = 1;
+    ctx2.beginPath(); ctx2.arc(x,y, S.maxR*M.sc, 0, Math.PI*2); ctx2.stroke();
+    // halo
+    ctx2.strokeStyle = 'rgba(0,180,210,0.5)';
+    ctx2.lineWidth = 1.5*DPR;
+    ctx2.beginPath(); ctx2.arc(x,y, 0.45*M.sc, 0, Math.PI*2); ctx2.stroke();
+    // body
+    ctx2.fillStyle = '#0a0c0e';
+    ctx2.beginPath(); ctx2.arc(x,y, 0.30*M.sc, 0, Math.PI*2); ctx2.fill();
+    ctx2.strokeStyle = 'oklch(78% 0.13 200)';
+    ctx2.beginPath(); ctx2.arc(x,y, 0.30*M.sc, 0, Math.PI*2); ctx2.stroke();
+    // dot
+    ctx2.fillStyle = 'oklch(78% 0.13 200)';
+    ctx2.beginPath(); ctx2.arc(x,y, 0.07*M.sc, 0, Math.PI*2); ctx2.fill();
+  }
+  function drawSweepArc(M, theta){
+    const x = M.ox + S.sensor.x*M.sc;
+    const y = M.oy + S.sensor.y*M.sc;
+    ctx2.strokeStyle = 'oklch(78% 0.13 200 / 0.9)';
+    ctx2.lineWidth = 2*DPR;
+    ctx2.beginPath();
+    ctx2.moveTo(x,y);
+    ctx2.lineTo(x + Math.cos(theta)*S.maxR*M.sc, y + Math.sin(theta)*S.maxR*M.sc);
+    ctx2.stroke();
+  }
+
+  // ============ histograms / polar ============
+  function updateHistogramAndPolar(now){
+    // populate histogram from cloud
+    S.histBins.fill(0);
+    S.polarBins.fill(Infinity);
+    let mxBin = 0;
+    for(let i=0;i<S.cloud.length;i++){
+      const p = S.cloud[i];
+      const b = Math.min(S.histBins.length-1, Math.floor(p.r/S.maxR*S.histBins.length));
+      S.histBins[b]++;
+      // polar (relative to sensor)
+      const dx = p.x - S.sensor.x, dy = p.y - S.sensor.y;
+      const ang = Math.atan2(dy,dx);
+      const pb = Math.floor(((ang+Math.PI)/(2*Math.PI))*S.polarBins.length) % S.polarBins.length;
+      const r = Math.hypot(dx,dy);
+      if(r < S.polarBins[pb]) S.polarBins[pb] = r;
+    }
+    for(let i=0;i<S.histBins.length;i++) if(S.histBins[i]>mxBin) mxBin = S.histBins[i];
+
+    // hist
+    const hc = $('#histCanvas'), hctx = hc.getContext('2d');
+    hctx.clearRect(0,0,hc.width,hc.height);
+    const pad = 4;
+    const bw = (hc.width-2*pad)/S.histBins.length;
+    for(let i=0;i<S.histBins.length;i++){
+      const v = S.histBins[i]/Math.max(1,mxBin);
+      const h = v*(hc.height-2*pad);
+      const [r,g,b] = turbo(i/S.histBins.length);
+      hctx.fillStyle = `rgb(${r},${g},${b})`;
+      hctx.fillRect(pad+i*bw, hc.height-pad-h, bw-1, h);
+    }
+
+    // polar
+    const pc = $('#polarCanvas'), pctx = pc.getContext('2d');
+    pctx.clearRect(0,0,pc.width,pc.height);
+    const cx = pc.width/2, cy = pc.height/2;
+    const R = Math.min(cx,cy)-6;
+    pctx.strokeStyle = '#1e242b';
+    for(let i=1;i<=4;i++){ pctx.beginPath(); pctx.arc(cx,cy, R*i/4, 0, Math.PI*2); pctx.stroke(); }
+    pctx.beginPath(); pctx.moveTo(cx-R, cy); pctx.lineTo(cx+R,cy); pctx.moveTo(cx,cy-R); pctx.lineTo(cx, cy+R); pctx.stroke();
+    pctx.fillStyle = 'oklch(78% 0.13 200)';
+    for(let i=0;i<S.polarBins.length;i++){
+      const v = S.polarBins[i];
+      if(!isFinite(v)) continue;
+      const ang = (i/S.polarBins.length)*2*Math.PI - Math.PI;
+      const rr = (v/S.maxR)*R;
+      const px = cx + Math.cos(ang)*rr, py = cy + Math.sin(ang)*rr;
+      pctx.fillRect(px-1, py-1, 2, 2);
+    }
+    // sensor dot
+    pctx.fillStyle = '#fff';
+    pctx.beginPath(); pctx.arc(cx,cy, 2, 0, Math.PI*2); pctx.fill();
+  }
+
+  // ============ top meta ============
+  function updateTopMeta(){
+    $('#hzTxt').textContent = S.hz.toFixed(1);
+    const raysPerSweep = 360/S.ares * (S.mode==='3d' ? S.vch : 1);
+    const raysPerSec = raysPerSweep * S.hz;
+    $('#raysTxt').textContent = (raysPerSec).toLocaleString(undefined,{maximumFractionDigits:0});
+    $('#ptsTxt').textContent = S.cloud.length.toLocaleString();
+    $('#rangeTxt').textContent = S.maxR.toFixed(1);
+    // FPS
+    const now = performance.now();
+    if(!S.fpsLast) S.fpsLast = now;
+    S.fpsAcc += 1; 
+    if(now - S.fpsLast > 500){
+      S.fps = S.fpsAcc / ((now-S.fpsLast)/1000);
+      S.fpsAcc = 0; S.fpsLast = now;
+      $('#fpsTxt').textContent = S.fps.toFixed(0);
+      $('#cloudTxt').textContent = S.cloud.length.toLocaleString();
+      $('#rpmTxt').textContent = (S.hz*60).toFixed(0);
+    }
+  }
+
+  // ============ 3D mode (Babylon.js) ============
+  function start3D(){
+    const cv = $('#canvas3d');
+    if(!engine3d){
+      engine3d = new BABYLON.Engine(cv, true, {preserveDrawingBuffer:false, stencil:false}, false);
+      scene3d = new BABYLON.Scene(engine3d);
+      scene3d.clearColor = new BABYLON.Color4(0.024, 0.031, 0.043, 1);
+      scene3d.ambientColor = new BABYLON.Color3(0.05,0.05,0.06);
+
+      const cam = new BABYLON.ArcRotateCamera('cam', -Math.PI/2.2, 1.05, 30, new BABYLON.Vector3(0,2,0), scene3d);
+      cam.attachControl(cv, true);
+      cam.lowerRadiusLimit = 6; cam.upperRadiusLimit = 80;
+      cam.minZ = 0.1; cam.maxZ = 200;
+      cam.wheelPrecision = 8;
+
+      const dl = new BABYLON.HemisphericLight('h', new BABYLON.Vector3(0,1,0), scene3d);
+      dl.intensity = 0.5;
+
+      // ground grid
+      const ground = BABYLON.MeshBuilder.CreateGround('ground', {width:80, height:80, subdivisions:1}, scene3d);
+      const gMat = new BABYLON.StandardMaterial('g', scene3d);
+      gMat.diffuseColor = new BABYLON.Color3(0.04,0.05,0.06);
+      gMat.specularColor = new BABYLON.Color3(0,0,0);
+      gMat.wireframe = false;
+      ground.material = gMat;
+      // grid lines
+      const lines = [];
+      for(let i=-20;i<=20;i+=2){
+        lines.push([new BABYLON.Vector3(i,0.01,-20), new BABYLON.Vector3(i,0.01,20)]);
+        lines.push([new BABYLON.Vector3(-20,0.01,i), new BABYLON.Vector3(20,0.01,i)]);
+      }
+      const grid = BABYLON.MeshBuilder.CreateLineSystem('grid', {lines}, scene3d);
+      grid.color = new BABYLON.Color3(0.07,0.09,0.11);
+
+      // build the volumetric scene
+      build3DScene(scene3d);
+
+      // sensor head: cylinder with a horizontal stripe
+      head3d = new BABYLON.TransformNode('head', scene3d);
+      head3d.position.y = 1.2;
+      const base = BABYLON.MeshBuilder.CreateCylinder('base', {diameter:0.8, height:0.5}, scene3d);
+      base.position.y = 1.2;
+      const baseMat = new BABYLON.StandardMaterial('bm', scene3d);
+      baseMat.diffuseColor = new BABYLON.Color3(0.08,0.09,0.11);
+      baseMat.emissiveColor = new BABYLON.Color3(0.03,0.04,0.05);
+      base.material = baseMat;
+
+      const drum = BABYLON.MeshBuilder.CreateCylinder('drum', {diameter:0.7, height:0.6}, scene3d);
+      drum.position.y = 1.7;
+      const dm = new BABYLON.StandardMaterial('dm', scene3d);
+      dm.diffuseColor = new BABYLON.Color3(0.10,0.12,0.15);
+      dm.emissiveColor = new BABYLON.Color3(0.0,0.4,0.5);
+      drum.material = dm;
+      drum.parent = head3d;
+
+      const ring = BABYLON.MeshBuilder.CreateTorus('ring', {diameter:0.71, thickness:0.04, tessellation:32}, scene3d);
+      ring.position.y = 1.7;
+      const rm = new BABYLON.StandardMaterial('rm', scene3d);
+      rm.diffuseColor = new BABYLON.Color3(0,0,0);
+      rm.emissiveColor = new BABYLON.Color3(0, 0.85, 0.95);
+      ring.material = rm;
+      ring.parent = head3d;
+
+      // points mesh: PointsCloudSystem-like via custom mesh
+      const MAX_PTS = 200000;
+      ptVerts = new Float32Array(MAX_PTS*3);
+      ptCols = new Float32Array(MAX_PTS*4);
+      ptTimes = new Float32Array(MAX_PTS);
+      ptCount = 0;
+
+      ptMesh = new BABYLON.Mesh('points', scene3d);
+      const vd = new BABYLON.VertexData();
+      vd.positions = ptVerts;
+      vd.colors = ptCols;
+      vd.indices = new Uint32Array(0);
+      vd.applyToMesh(ptMesh, true);
+      ptMesh.material = new BABYLON.StandardMaterial('pm', scene3d);
+      ptMesh.material.emissiveColor = new BABYLON.Color3(1,1,1);
+      ptMesh.material.disableLighting = true;
+      ptMesh.material.pointsCloud = true;
+      ptMesh.material.pointSize = 2;
+      ptMesh.useVertexColors = true;
+      ptMesh.alwaysSelectAsActiveMesh = true;
+      ptMesh.material.backFaceCulling = false;
+
+      // ray bundle visual
+      raysMesh3d = new BABYLON.Mesh('rays', scene3d);
+
+      window.addEventListener('resize', ()=>engine3d.resize());
+    }
+
+    // start render
+    if(!raf3d){
+      let lastT = performance.now();
+      const tick = () => {
+        if(S.mode!=='3d'){ raf3d = null; return; }
+        const now = performance.now();
+        const dt = Math.min(0.1, (now-lastT)/1000); lastT = now;
+
+        // tick movers in 3D scene
+        tick3DScene(dt);
+
+        // spin head
+        const omega = 2*Math.PI*S.hz;
+        const dtheta = omega*dt;
+        theta3d = (theta3d + dtheta) % (Math.PI*2);
+        head3d.rotation.y = theta3d;
+
+        // shoot rays this frame
+        const aresRad = S.ares * Math.PI/180;
+        const nAng = Math.max(1, Math.floor(Math.abs(dtheta)/aresRad));
+        const vch = Math.max(1, S.vch|0);
+        const fovUp = S.vfov*Math.PI/180;
+        const sensorPos = new BABYLON.Vector3(0, 1.7, 0);
+        const lifeMs = S.life*1000;
+        const cutoff = now - lifeMs;
+
+        let drawnLines = []; let lineMax = 240;
+        let hitsThis = 0;
+
+        for(let i=0;i<nAng;i++){
+          const ang = theta3d - dtheta + (dtheta*(i/nAng));
+          for(let v=0; v<vch; v++){
+            const phi = -fovUp + (2*fovUp)*(v/(vch-1||1));
+            const dirX = Math.cos(phi)*Math.cos(ang);
+            const dirY = Math.sin(phi);
+            const dirZ = Math.cos(phi)*Math.sin(ang);
+            const ray = new BABYLON.Ray(sensorPos, new BABYLON.Vector3(dirX,dirY,dirZ), S.maxR);
+            const pick = scene3d.pickWithRay(ray, m => m.metadata && m.metadata.lidarTarget);
+            if(pick && pick.hit){
+              if(Math.random()*100 < S.drop) continue;
+              const px = pick.pickedPoint.x + (Math.random()*2-1)*S.noise;
+              const py = pick.pickedPoint.y + (Math.random()*2-1)*S.noise;
+              const pz = pick.pickedPoint.z + (Math.random()*2-1)*S.noise;
+              const r = Math.hypot(px - sensorPos.x, py - sensorPos.y, pz - sensorPos.z);
+              addPoint3D(px,py,pz, r, py, pick.pickedMesh.metadata.intensity||0.6, now);
+              hitsThis++;
+              if(drawnLines.length < lineMax && S.rays && Math.random()<0.04){
+                drawnLines.push([sensorPos.clone(), new BABYLON.Vector3(px,py,pz)]);
+              }
+            } else if(S.rays && drawnLines.length < lineMax && Math.random()<0.005){
+              drawnLines.push([sensorPos.clone(), sensorPos.add(new BABYLON.Vector3(dirX,dirY,dirZ).scale(S.maxR))]);
+            }
+          }
+        }
+
+        // expire old points
+        expirePoints3D(cutoff);
+        rebuildPointsMesh();
+
+        // ray lines
+        if(raysMesh3d) raysMesh3d.dispose();
+        if(drawnLines.length){
+          raysMesh3d = BABYLON.MeshBuilder.CreateLineSystem('rays', {lines:drawnLines}, scene3d);
+          raysMesh3d.color = new BABYLON.Color3(0,0.7,0.85);
+          raysMesh3d.alpha = 0.18;
+        }
+
+        // stats
+        const deg = (theta3d*180/Math.PI)%360;
+        $('#gaugeNeedle').setAttribute('transform', `rotate(${deg} 50 50)`);
+        $('#gaugeText').textContent = deg.toFixed(0)+'°';
+        $('#lblRot').textContent = 'θ = ' + deg.toFixed(1)+'°';
+        $('#lblHits').textContent = ptCount.toLocaleString()+ ' pts · '+ hitsThis +' hits';
+
+        // mirror cloud size into S.cloud-ish for top meta
+        S.cloud.length = ptCount;
+
+        scene3d.render();
+        updateTopMeta();
+        update3DSidebars(now);
+        raf3d = requestAnimationFrame(tick);
+      };
+      raf3d = requestAnimationFrame(tick);
+    }
+  }
+
+  function stop3D(){
+    if(raf3d){ cancelAnimationFrame(raf3d); raf3d = null; }
+  }
+
+  // 3D scene contents
+  function build3DScene(scene){
+    movers3d = [];
+    // ground tagged
+    scene.getMeshByName('ground').metadata = {lidarTarget:true, intensity:0.4};
+
+    // outer walls (a building)
+    const wallMat = new BABYLON.StandardMaterial('wm', scene);
+    wallMat.diffuseColor = new BABYLON.Color3(0.18,0.20,0.23);
+    wallMat.specularColor = new BABYLON.Color3(0,0,0);
+    function wall(x,z,w,h,d){
+      const m = BABYLON.MeshBuilder.CreateBox('w',{width:w, height:h, depth:d}, scene);
+      m.position = new BABYLON.Vector3(x, h/2, z);
+      m.material = wallMat;
+      m.metadata = {lidarTarget:true, intensity:0.65};
+      return m;
+    }
+    wall(0, 12, 30, 4, 0.4);
+    wall(0,-12, 30, 4, 0.4);
+    wall(15, 0, 0.4, 4, 24);
+    wall(-15,0, 0.4, 4, 24);
+    // shelf rows
+    for(let i=-10; i<=10; i+=5){
+      wall(i, 4, 4, 2.5, 0.5);
+      wall(i,-4, 4, 2.5, 0.5);
+    }
+    // pillars
+    for(const [x,z] of [[-8,0],[8,0],[0,8],[0,-8]]){
+      const p = BABYLON.MeshBuilder.CreateCylinder('p', {diameter:0.6, height:3.6}, scene);
+      p.position = new BABYLON.Vector3(x, 1.8, z);
+      p.material = wallMat;
+      p.metadata = {lidarTarget:true, intensity:0.5};
+    }
+
+    // moving objects: a couple of "people" (capsules) and a "vehicle" (box)
+    const pMat = new BABYLON.StandardMaterial('pm', scene);
+    pMat.diffuseColor = new BABYLON.Color3(0.6, 0.4, 0.25);
+    pMat.specularColor = new BABYLON.Color3(0,0,0);
+    function person(x,z){
+      const m = BABYLON.MeshBuilder.CreateCapsule('person', {radius:0.3, height:1.7}, scene);
+      m.position = new BABYLON.Vector3(x, 0.85, z);
+      m.material = pMat;
+      m.metadata = {lidarTarget:true, intensity:0.85};
+      return m;
+    }
+    const p1 = person(-6, 0);
+    const p2 = person(6, -3);
+
+    const vMat = new BABYLON.StandardMaterial('vm', scene);
+    vMat.diffuseColor = new BABYLON.Color3(0.5,0.4,0.2);
+    vMat.specularColor = new BABYLON.Color3(0,0,0);
+    const veh = BABYLON.MeshBuilder.CreateBox('veh', {width:2.2, height:1.2, depth:4.0}, scene);
+    veh.position = new BABYLON.Vector3(-10, 0.6, 6);
+    veh.material = vMat;
+    veh.metadata = {lidarTarget:true, intensity:0.7};
+
+    movers3d.push({m:p1, axis:'z', range:[-9,9], v:1.5});
+    movers3d.push({m:p2, axis:'x', range:[-9,9], v:1.0, dir:-1});
+    movers3d.push({m:veh, axis:'x', range:[-12,12], v:2.5});
+  }
+  function tick3DScene(dt){
+    if(!S.motion) return;
+    for(const o of movers3d){
+      const m = o.m;
+      const ax = o.axis;
+      const v = o.v * (o.dir||1);
+      if(ax==='x') m.position.x += v*dt;
+      else if(ax==='z') m.position.z += v*dt;
+      const cur = ax==='x'? m.position.x : m.position.z;
+      if(cur < o.range[0] || cur > o.range[1]) o.dir = -(o.dir||1);
+    }
+  }
+
+  function addPoint3D(x,y,z, r, h, intens, t){
+    if(ptCount >= ptVerts.length/3){
+      // shift drop oldest 25%
+      const drop = (ptVerts.length/3)>>2;
+      ptVerts.copyWithin(0, drop*3);
+      ptCols.copyWithin(0, drop*4);
+      ptTimes.copyWithin(0, drop);
+      ptCount -= drop;
+    }
+    const i = ptCount;
+    ptVerts[i*3]   = x;
+    ptVerts[i*3+1] = y;
+    ptVerts[i*3+2] = z;
+    let tCol;
+    if(S.colorBy==='dist') tCol = r/S.maxR;
+    else if(S.colorBy==='height') tCol = (h+2)/5;
+    else tCol = intens;
+    const [R,G,B] = turbo(Math.max(0,Math.min(1, tCol)));
+    ptCols[i*4]   = R/255;
+    ptCols[i*4+1] = G/255;
+    ptCols[i*4+2] = B/255;
+    ptCols[i*4+3] = 1;
+    ptTimes[i] = t;
+    ptCount++;
+  }
+  function expirePoints3D(cutoff){
+    let w = 0;
+    for(let r=0; r<ptCount; r++){
+      if(ptTimes[r] >= cutoff){
+        if(w !== r){
+          ptVerts[w*3]   = ptVerts[r*3];
+          ptVerts[w*3+1] = ptVerts[r*3+1];
+          ptVerts[w*3+2] = ptVerts[r*3+2];
+          ptCols[w*4]   = ptCols[r*4];
+          ptCols[w*4+1] = ptCols[r*4+1];
+          ptCols[w*4+2] = ptCols[r*4+2];
+          ptCols[w*4+3] = ptCols[r*4+3];
+          ptTimes[w]    = ptTimes[r];
+        }
+        w++;
+      }
+    }
+    ptCount = w;
+  }
+  function rebuildPointsMesh(){
+    if(!ptMesh) return;
+    // Update VBO with first ptCount points
+    const subVerts = ptVerts.subarray(0, ptCount*3);
+    const subCols  = ptCols.subarray(0, ptCount*4);
+    // index list (each point its own index)
+    const idx = new Uint32Array(ptCount);
+    for(let i=0;i<ptCount;i++) idx[i] = i;
+    ptMesh.setVerticesData(BABYLON.VertexBuffer.PositionKind, subVerts, true);
+    ptMesh.setVerticesData(BABYLON.VertexBuffer.ColorKind, subCols, true);
+    ptMesh.setIndices(idx);
+    ptMesh.material.pointsCloud = true;
+    ptMesh.material.pointSize = Math.max(1, S.psize|0);
+  }
+
+  // 3D sidebar update reusing histogram/polar by sampling first few thousand pts
+  function update3DSidebars(now){
+    S.histBins.fill(0);
+    S.polarBins.fill(Infinity);
+    let mx = 0;
+    let sumR=0, n=0, minR=Infinity;
+    const samp = Math.min(ptCount, 6000);
+    const stride = Math.max(1, Math.floor(ptCount/samp));
+    for(let i=0;i<ptCount;i+=stride){
+      const x = ptVerts[i*3], y = ptVerts[i*3+1], z = ptVerts[i*3+2];
+      const r = Math.hypot(x, y-1.7, z);
+      const b = Math.min(S.histBins.length-1, Math.floor(r/S.maxR*S.histBins.length));
+      S.histBins[b]++;
+      sumR += r; n++;
+      if(r<minR) minR=r;
+      const ang = Math.atan2(z, x);
+      const pb = Math.floor(((ang+Math.PI)/(2*Math.PI))*S.polarBins.length) % S.polarBins.length;
+      if(r < S.polarBins[pb]) S.polarBins[pb] = r;
+    }
+    for(let i=0;i<S.histBins.length;i++) if(S.histBins[i]>mx) mx = S.histBins[i];
+
+    const hc = $('#histCanvas'), hctx = hc.getContext('2d');
+    hctx.clearRect(0,0,hc.width,hc.height);
+    const pad = 4;
+    const bw = (hc.width-2*pad)/S.histBins.length;
+    for(let i=0;i<S.histBins.length;i++){
+      const v = S.histBins[i]/Math.max(1,mx);
+      const h = v*(hc.height-2*pad);
+      const [R,G,B] = turbo(i/S.histBins.length);
+      hctx.fillStyle = `rgb(${R},${G},${B})`;
+      hctx.fillRect(pad+i*bw, hc.height-pad-h, bw-1, h);
+    }
+    const pc = $('#polarCanvas'), pctx = pc.getContext('2d');
+    pctx.clearRect(0,0,pc.width,pc.height);
+    const cx = pc.width/2, cy = pc.height/2;
+    const R = Math.min(cx,cy)-6;
+    pctx.strokeStyle = '#1e242b';
+    for(let i=1;i<=4;i++){ pctx.beginPath(); pctx.arc(cx,cy, R*i/4, 0, Math.PI*2); pctx.stroke(); }
+    pctx.beginPath(); pctx.moveTo(cx-R,cy); pctx.lineTo(cx+R,cy); pctx.moveTo(cx,cy-R); pctx.lineTo(cx,cy+R); pctx.stroke();
+    pctx.fillStyle = 'oklch(78% 0.13 200)';
+    for(let i=0;i<S.polarBins.length;i++){
+      const v = S.polarBins[i];
+      if(!isFinite(v)) continue;
+      const ang = (i/S.polarBins.length)*2*Math.PI - Math.PI;
+      const rr = (v/S.maxR)*R;
+      pctx.fillRect(cx + Math.cos(ang)*rr - 1, cy + Math.sin(ang)*rr - 1, 2, 2);
+    }
+    $('#meanRTxt').textContent = n? (sumR/n).toFixed(2)+' m' : '—';
+    $('#minRTxt').textContent = isFinite(minR)? minR.toFixed(2)+' m' : '—';
+    $('#dropRTxt').textContent = S.drop.toFixed(1)+'%';
+    $('#cloudTxt').textContent = ptCount.toLocaleString();
+    $('#rpmTxt').textContent = (S.hz*60).toFixed(0);
+  }
+
+  // ============ start ============
+  try {
+    buildScene2D('warehouse');
+    $('#lblScene').textContent = 'SCENE · warehouse';
+  } catch(e) { console.error('init error:', e); }
+  // safety wrapper around render2D so a runtime error doesn't kill the chain silently
+  const _render2D = render2D;
+  let _rafSchedule = null;
+  function scheduleNext(){
+    // RAF + setTimeout fallback so the loop runs even when the tab is backgrounded
+    let called = false;
+    const fire = (ts)=>{ if(called) return; called = true; render2DSafe(ts||performance.now()); };
+    requestAnimationFrame(fire);
+    setTimeout(()=>fire(), 100);
+  }
+  function render2DSafe(now){
+    try { _render2D(now); }
+    catch(e){
+      console.error('render2D error:', e);
+      if(S.mode==='2d') scheduleNext();
+    }
+  }
+  scheduleNext();
+
+})();
+</script>
+</body>
+</html>

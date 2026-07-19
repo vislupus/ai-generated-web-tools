@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>Mountain Routes · BGMountains planner</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Archivo:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{
+  --paper:#f4eee1;
+  --paper-2:#e9e0cc;
+  --panel-a:#fcf9f1;
+  --panel-b:#f0e8d7;
+  --ink:#23291d;
+  --ink-soft:#5c6450;
+  --muted:#8c917f;
+  --accent:#cf5a2b;
+  --accent-deep:#a8431d;
+  --accent-soft:#f3ddd0;
+  --green:#3f6b43;
+  --gold:#a9772a;
+  --line:rgba(35,41,29,.13);
+  --line-strong:rgba(35,41,29,.24);
+  --shadow:0 10px 30px rgba(70,55,30,.16);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{font-family:'Archivo',system-ui,sans-serif;background:var(--paper);color:var(--ink);overflow:hidden}
+#app{display:flex;height:100vh;width:100vw}
+
+/* ---------- Sidebar ---------- */
+#sidebar{
+  width:344px;flex:0 0 344px;height:100%;
+  background:linear-gradient(180deg,var(--panel-a),var(--panel-b));
+  border-right:1px solid var(--line-strong);
+  display:flex;flex-direction:column;position:relative;z-index:1200;
+  transition:margin-left .28s cubic-bezier(.4,0,.2,1);
+}
+#sidebar.collapsed{margin-left:-344px}
+.brand{padding:18px 20px 14px;border-bottom:1px solid var(--line);position:relative;overflow:hidden}
+.brand .contour{position:absolute;inset:0;opacity:.35;pointer-events:none;color:var(--gold)}
+.brand h1{font-family:'Fraunces',serif;font-weight:600;font-size:23px;margin:0;letter-spacing:.2px;line-height:1.05;position:relative}
+.brand h1 b{color:var(--accent);font-weight:600}
+.brand p{margin:5px 0 0;font-size:11px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;position:relative}
+
+.scroll{overflow-y:auto;flex:1;padding:14px 16px 40px}
+.scroll::-webkit-scrollbar{width:9px}
+.scroll::-webkit-scrollbar-thumb{background:rgba(35,41,29,.18);border-radius:9px}
+
+.section{margin-bottom:18px}
+.section>.label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);font-weight:700;margin:0 2px 9px;display:flex;align-items:center;gap:8px}
+.section>.label::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tool{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;border:1px solid var(--line-strong);border-radius:12px;background:rgba(255,255,255,.45);color:var(--ink);cursor:pointer;font-size:12px;font-weight:600;transition:.16s;text-align:center}
+.tool svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7}
+.tool:hover{background:#fff;border-color:var(--muted)}
+.tool.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 6px 16px rgba(207,90,43,.32)}
+.tool.active svg{stroke:#fff}
+
+.hint{font-size:11.5px;color:var(--accent-deep);background:var(--accent-soft);border:1px solid rgba(207,90,43,.3);border-radius:10px;padding:9px 11px;margin-top:10px;line-height:1.45;display:none}
+.hint.show{display:block}
+
+.switch-row{display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:500;color:var(--ink-soft);margin-top:11px;cursor:pointer}
+.switch-row input{width:16px;height:16px;accent-color:var(--accent)}
+
+.search-wrap{position:relative}
+.search-wrap input{width:100%;padding:11px 12px 11px 36px;border-radius:11px;border:1px solid var(--line-strong);background:#fff;color:var(--ink);font-family:inherit;font-size:13.5px;outline:none}
+.search-wrap input::placeholder{color:var(--muted)}
+.search-wrap input:focus{border-color:var(--gold)}
+.search-wrap svg{position:absolute;left:11px;top:11px;width:17px;height:17px;stroke:var(--muted);fill:none;stroke-width:2}
+.search-results{margin-top:7px;display:flex;flex-direction:column;gap:4px}
+.search-results .res{padding:8px 10px;border-radius:9px;background:rgba(255,255,255,.55);border:1px solid var(--line);cursor:pointer;font-size:12.5px;line-height:1.3}
+.search-results .res:hover{background:#fff}
+.search-results .res small{color:var(--muted);display:block;font-size:11px}
+
+.layers{display:flex;flex-direction:column;gap:6px}
+.layer{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:10px;border:1px solid var(--line-strong);background:rgba(255,255,255,.45);cursor:pointer;font-size:13px;font-weight:500;transition:.15s}
+.layer:hover{background:#fff}
+.layer.active{border-color:var(--gold);background:rgba(169,119,42,.13)}
+.layer .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:0 0 9px}
+.layer.active .dot{background:var(--gold);box-shadow:0 0 0 3px rgba(169,119,42,.25)}
+.layer .nm{flex:1}
+.opacity-row{display:flex;align-items:center;gap:9px;margin-top:10px;font-size:11.5px;color:var(--ink-soft)}
+.opacity-row input[type=range]{flex:1;accent-color:var(--accent)}
+.opacity-row span{font-family:'Space Mono',monospace;min-width:34px;text-align:right}
+
+.route-list{display:flex;flex-direction:column;gap:8px}
+.route-item{border:1px solid var(--line-strong);border-radius:12px;padding:10px 11px;background:rgba(255,255,255,.5);transition:.15s}
+.route-item.active{border-color:var(--accent);background:var(--accent-soft)}
+.route-head{display:flex;align-items:center;gap:8px}
+.route-check{width:15px;height:15px;accent-color:var(--green);flex:0 0 15px;cursor:pointer}
+.route-swatch{width:14px;height:14px;border-radius:4px;flex:0 0 14px;cursor:pointer;border:2px solid rgba(255,255,255,.7);box-shadow:0 0 0 1px var(--line-strong)}
+.route-name{flex:1;font-weight:600;font-size:13.5px;background:none;border:none;color:var(--ink);font-family:inherit;outline:none;padding:2px;border-radius:5px;min-width:0}
+.route-name:focus{background:#fff}
+.route-eye{cursor:pointer;color:var(--muted);width:18px;height:18px;flex:0 0 18px}
+.route-eye:hover{color:var(--ink)}
+.route-stats{display:flex;gap:12px;margin-top:7px;font-family:'Space Mono',monospace;font-size:11px;color:var(--ink-soft)}
+.route-stats b{color:var(--ink);font-weight:700}
+.route-actions{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+.mini{font-size:11px;font-weight:600;padding:5px 9px;border-radius:8px;cursor:pointer;border:1px solid var(--line-strong);background:rgba(255,255,255,.6);color:var(--ink);transition:.15s}
+.mini:hover{background:#fff}
+.mini.danger{color:var(--accent-deep);border-color:rgba(207,90,43,.4)}
+.mini.danger:hover{background:var(--accent-soft)}
+.empty{font-size:12px;color:var(--muted);text-align:center;padding:14px 6px;line-height:1.5}
+.mini-note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.45}
+.field{display:flex;flex-direction:column;gap:4px;margin-top:9px}
+.field label{font-size:11px;color:var(--ink-soft);font-weight:600}
+.field select{width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--line-strong);background:#fff;color:var(--ink);font-family:inherit;font-size:12.5px;cursor:pointer}
+.subgroup{display:flex;gap:6px}.subgroup>.btn{flex:1}
+
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px;border-radius:11px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;transition:.15s}
+.btn svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.9}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-deep)}
+.btn-ghost{background:rgba(255,255,255,.6);color:var(--ink);border:1px solid var(--line-strong)}
+.btn-ghost:hover{background:#fff}
+.btn-danger{background:rgba(207,90,43,.1);color:var(--accent-deep);border:1px solid rgba(207,90,43,.4)}
+.btn-danger:hover{background:rgba(207,90,43,.18)}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+#map-wrap{flex:1;position:relative;height:100%}
+#map{position:absolute;inset:0;background:#dfe3d4}
+.leaflet-container{font-family:'Archivo',sans-serif}
+
+#toggle{position:absolute;top:14px;left:14px;z-index:1100;width:42px;height:42px;border-radius:11px;border:1px solid var(--line-strong);background:var(--panel-a);color:var(--ink);cursor:pointer;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;transition:.18s}
+#toggle:hover{background:#fff}
+#toggle svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2}
+
+.fab-col{position:absolute;top:14px;right:14px;z-index:1100;display:flex;flex-direction:column;gap:8px}
+.fab{width:42px;height:42px;border-radius:11px;border:1px solid var(--line-strong);background:var(--panel-a);color:var(--ink);cursor:pointer;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;transition:.18s}
+.fab:hover{background:#fff;color:var(--accent)}
+.fab svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.9}
+
+#coords{position:absolute;left:14px;bottom:14px;z-index:1100;background:rgba(252,249,241,.92);backdrop-filter:blur(8px);border:1px solid var(--line-strong);border-radius:10px;padding:7px 12px;font-family:'Space Mono',monospace;font-size:11px;color:var(--ink-soft);display:flex;gap:14px;box-shadow:var(--shadow);pointer-events:none}
+#coords span b{color:var(--accent-deep)}
+@media(max-width:600px){#coords{font-size:10px;gap:8px;flex-wrap:wrap;max-width:60vw}}
+
+.mode-draw .leaflet-container,.mode-marker .leaflet-container,.mode-measure .leaflet-container{cursor:crosshair}
+
+.vtx{border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.45)}
+.poi-pin{}
+.poi-pin svg{filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}
+
+/* tooltips for distances + ruler — now reliably visible */
+.leaflet-tooltip.seg-tip{background:var(--accent);color:#fff;border:none;box-shadow:0 1px 4px rgba(0,0,0,.35);font-family:'Space Mono',monospace;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:5px;white-space:nowrap}
+.leaflet-tooltip.seg-tip::before{display:none}
+.leaflet-tooltip.measure-tip{background:#23291d;color:#fff;border:none;box-shadow:0 2px 6px rgba(0,0,0,.4);font-family:'Space Mono',monospace;font-size:12px;font-weight:700;padding:3px 9px;border-radius:7px;white-space:nowrap}
+.leaflet-tooltip.measure-tip::before{border-top-color:#23291d}
+
+#elev{position:absolute;left:50%;bottom:0;transform:translateX(-50%) translateY(105%);width:min(720px,calc(100% - 28px));z-index:1150;background:rgba(252,249,241,.97);backdrop-filter:blur(10px);border:1px solid var(--line-strong);border-bottom:none;border-radius:14px 14px 0 0;box-shadow:0 -10px 40px rgba(70,55,30,.22);transition:transform .3s cubic-bezier(.4,0,.2,1);padding:14px 16px 16px}
+#elev.show{transform:translateX(-50%) translateY(0)}
+.elev-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.elev-head h3{margin:0;font-family:'Fraunces',serif;font-weight:600;font-size:16px}
+.elev-close{cursor:pointer;color:var(--muted);background:none;border:none;font-size:22px;line-height:1}
+.elev-close:hover{color:var(--ink)}
+.elev-stats{display:flex;gap:18px;flex-wrap:wrap;font-family:'Space Mono',monospace;font-size:11.5px;color:var(--ink-soft);margin-bottom:6px}
+.elev-stats b{color:var(--ink);font-size:14px}
+.elev-stats .up b{color:var(--green)}.elev-stats .down b{color:var(--accent-deep)}
+#elevSvg{width:100%;height:150px;display:block}
+.elev-loading{font-size:12.5px;color:var(--muted);padding:30px;text-align:center}
+
+#toast{position:absolute;left:50%;top:16px;transform:translateX(-50%) translateY(-80px);z-index:2000;background:var(--panel-a);border:1px solid var(--accent);color:var(--ink);padding:10px 18px;border-radius:11px;font-size:13px;font-weight:600;box-shadow:var(--shadow);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none;max-width:80vw;text-align:center}
+#toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+.leaflet-popup-content{font-family:'Archivo',sans-serif;font-size:13px}
+.poi-popup input{width:160px;padding:6px 8px;border-radius:7px;border:1px solid #bbb;font-family:inherit;font-size:13px}
+.poi-popup button{margin-top:7px;padding:5px 10px;border-radius:7px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-weight:600;font-family:inherit}
+
+@media(max-width:600px){
+  #sidebar{position:absolute;width:300px;flex-basis:300px;box-shadow:var(--shadow)}
+  #sidebar.collapsed{margin-left:-300px}
+}
+</style>
+</head>
+<body class="mode-pan">
+<div id="app">
+  <aside id="sidebar">
+    <div class="brand">
+      <svg class="contour" viewBox="0 0 344 80" preserveAspectRatio="none">
+        <path d="M0 60 Q60 30 120 50 T240 40 T344 55" stroke="currentColor" fill="none" stroke-width="1.2"/>
+        <path d="M0 72 Q70 45 130 62 T250 52 T344 66" stroke="currentColor" fill="none" stroke-width="1.2"/>
+        <path d="M0 46 Q50 18 110 36 T230 26 T344 42" stroke="currentColor" fill="none" stroke-width="1.2"/>
+      </svg>
+      <h1>Mountain <b>Routes</b></h1>
+      <p>BGMountains · your trail planner</p>
+    </div>
+
+    <div class="scroll">
+      <div class="section">
+        <div class="label">Find a place</div>
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="search" type="text" placeholder="peak, hut, village..." autocomplete="off">
+        </div>
+        <div class="search-results" id="searchResults"></div>
+      </div>
+
+      <div class="section">
+        <div class="label">Tools</div>
+        <div class="tools">
+          <div class="tool active" data-mode="pan">
+            <svg viewBox="0 0 24 24"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>Pan
+          </div>
+          <div class="tool" data-mode="draw">
+            <svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 4 8-9"/><circle cx="3" cy="17" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="12" cy="16" r="1.6"/><circle cx="20" cy="7" r="1.6"/></svg>Route
+          </div>
+          <div class="tool" data-mode="marker">
+            <svg viewBox="0 0 24 24"><path d="M12 21s-7-6.4-7-11a7 7 0 0 1 14 0c0 4.6-7 11-7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>Marker
+          </div>
+          <div class="tool" data-mode="measure">
+            <svg viewBox="0 0 24 24"><path d="M3 16 16 3l5 5L8 21z"/><path d="M7 12l2 2M11 8l2 2M15 6l1.5 1.5"/></svg>Ruler
+          </div>
+        </div>
+        <div class="hint" id="hint"></div>
+        <label class="switch-row"><input type="checkbox" id="showPts" checked> Show &amp; edit points of the active route</label>
+      </div>
+
+      <div class="section">
+        <div class="label">Base map</div>
+        <div class="layers" id="layers"></div>
+        <div class="opacity-row">
+          Opacity
+          <input id="opacity" type="range" min="20" max="100" value="100">
+          <span id="opacityVal">100%</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="label">My routes</div>
+        <div class="route-list" id="routeList"></div>
+      </div>
+
+      <div class="section">
+        <div class="label">Route tools (GPX)</div>
+
+        <div class="field">
+          <label>De-noise method (active route)</label>
+          <select id="smoothMethod">
+            <option value="sg">Savitzky–Golay (keeps shape)</option>
+            <option value="gauss">Gaussian kernel (stronger)</option>
+            <option value="median">Moving median (robust to spikes)</option>
+          </select>
+        </div>
+        <div class="opacity-row">
+          Strength
+          <input id="strength" type="range" min="1" max="10" value="4">
+          <span id="strengthVal">4</span>
+        </div>
+        <label class="switch-row" style="margin-top:6px"><input type="checkbox" id="alsoSimplify"> also simplify points (RDP)</label>
+        <button class="btn btn-ghost" id="optimizeBtn" style="margin-top:9px">
+          <svg viewBox="0 0 24 24"><path d="M3 12c4 0 4-6 8-6s4 6 8 6"/><path d="M3 18c4 0 4-3 8-3s4 3 8 3"/></svg>
+          De-noise active route
+        </button>
+        <button class="btn btn-ghost" id="matchBtn" style="margin-top:8px">
+          <svg viewBox="0 0 24 24"><path d="M9 20l-5-2V4l5 2 6-2 5 2v14l-5-2-6 2z"/><path d="M9 6v14M15 4v14"/></svg>
+          Map-match active to OSM trails (HMM)
+        </button>
+
+        <div class="field" style="margin-top:14px">
+          <label>Merge method (combine ticked routes)</label>
+          <select id="avgMethod">
+            <option value="dba">DTW barycenter — robust centerline</option>
+            <option value="frechet">Fréchet-aligned average</option>
+            <option value="robust">Robust best-fit (geometric median)</option>
+            <option value="resample">GPS trajectory averaging (resample)</option>
+            <option value="kde">KDE density ridge (map inference)</option>
+            <option value="skel">Skeletonization (medial axis)</option>
+          </select>
+        </div>
+        <button class="btn btn-ghost" id="avgBtn" style="margin-top:9px">
+          <svg viewBox="0 0 24 24"><path d="M3 8c6 0 6 8 12 8M3 16c6 0 6-8 12-8"/><path d="M15 8h6M15 16h6" opacity=".5"/><path d="M18 5l3 3-3 3" opacity=".5"/></svg>
+          Merge ticked routes → 1 track
+        </button>
+        <div class="mini-note">
+          Tick 2+ routes (checkbox on the left), then merge. Available centerline methods:<br>
+          • <b>DTW barycenter</b> / <b>Fréchet</b> — align tracks point-by-point, average each station.<br>
+          • <b>Robust best-fit</b> — geometric median per station (ignores a stray track).<br>
+          • <b>GPS averaging</b> — fast resample-and-average.<br>
+          • <b>KDE density ridge</b> / <b>Skeletonization</b> — build a density field of all points, then follow its spine / thin it to a medial axis (map inference).<br>
+          <b>HMM map-match</b> snaps one track onto real OSM trails (needs internet). All edits are non-destructive — use <b>undo</b> / <b>revert</b>.
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="label">Save / Load</div>
+        <div class="btn-row" style="margin-bottom:8px">
+          <button class="btn btn-ghost" id="expGpx"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>GPX</button>
+          <button class="btn btn-ghost" id="expJson"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>Project</button>
+        </div>
+        <button class="btn btn-ghost" id="impBtn" style="margin-bottom:8px">
+          <svg viewBox="0 0 24 24"><path d="M12 21V9m0 0 4 4m-4-4-4 4M5 3h14"/></svg>Load file (GPX / Project)
+        </button>
+        <input type="file" id="fileInput" accept=".gpx,.json,.geojson" multiple style="display:none">
+        <button class="btn btn-danger" id="clearAll">
+          <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/></svg>
+          Clear everything
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <div id="map-wrap">
+    <button id="toggle" title="Toggle panel"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+    <div class="fab-col">
+      <button class="fab" id="locate" title="My location"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg></button>
+      <button class="fab" id="zoomIn" title="Zoom in"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="fab" id="zoomOut" title="Zoom out"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+    </div>
+    <div id="map"></div>
+    <div id="coords">
+      <span>Lat <b id="cLat">—</b></span>
+      <span>Lon <b id="cLon">—</b></span>
+      <span>Z <b id="cZoom">—</b></span>
+    </div>
+    <div id="elev">
+      <div class="elev-head"><h3>Elevation profile</h3><button class="elev-close" id="elevClose">×</button></div>
+      <div class="elev-stats" id="elevStats"></div>
+      <div id="elevBody"></div>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ====================================================================
+   Mountain Routes — interactive planner on BGMountains tiles
+   ==================================================================== */
+const $ = s => document.querySelector(s);
+const R_EARTH = 6371000, R_MERC = 6378137;
+const PALETTE = ['#cf5a2b','#2f6fe2','#0f9b8e','#b5179e','#7a9c1f','#6a4c93','#1d7a36','#c0392b'];
+let colorIdx = 0;
+
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
+function haversine(a,b){
+  const dLat=(b.lat-a.lat)*Math.PI/180,dLon=(b.lng-a.lng)*Math.PI/180;
+  const la1=a.lat*Math.PI/180,la2=b.lat*Math.PI/180;
+  const h=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
+  return 2*R_EARTH*Math.asin(Math.sqrt(h));
+}
+function pathLength(pts){let d=0;for(let i=1;i<pts.length;i++)d+=haversine(pts[i-1],pts[i]);return d;}
+function fmtKm(m){return m<1000?Math.round(m)+' m':(m/1000).toFixed(m<10000?2:1)+' km';}
+function mercFromLatLng(lat,lon){return[R_MERC*lon*Math.PI/180,R_MERC*Math.log(Math.tan(Math.PI/4+(lat*Math.PI/180)/2))];}
+function latLngFromMerc(x,y){return[(2*Math.atan(Math.exp(y/R_MERC))-Math.PI/2)*180/Math.PI,(x/R_MERC)*180/Math.PI];}
+
+/* ---------- base layers ---------- */
+const baseDefs=[
+  {id:'bgm',name:'BGMountains (topo)',url:'https://bgmtile.kade.si/{z}/{x}/{y}.png',
+   opts:{maxZoom:19,maxNativeZoom:17,attribution:'Tiles © CART Lab, BGM team — CC BY-SA 4.0'}},
+  {id:'windy',name:'Windy Outdoor',url:'https://tiles.windy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}',
+   opts:{maxZoom:18,maxNativeZoom:17,attribution:'© Windy.com, © OpenStreetMap contributors'}},
+  {id:'topo',name:'OpenTopoMap',url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+   opts:{maxZoom:17,attribution:'© OpenTopoMap (CC-BY-SA), © OSM'}},
+  {id:'osm',name:'OpenStreetMap',url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+   opts:{maxZoom:19,subdomains:'abc',attribution:'© OpenStreetMap contributors'}},
+  {id:'sat',name:'Satellite (Esri)',url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+   opts:{maxZoom:19,attribution:'Imagery © Esri, Maxar, Earthstar Geographics'}},
+];
+
+const map=L.map('map',{zoomControl:false,attributionControl:true,doubleClickZoom:false}).setView([42.66,25.24],8);
+map.attributionControl.setPrefix('Mountain Routes');
+let baseLayer=null,baseId='bgm';
+function setBase(id){
+  const def=baseDefs.find(d=>d.id===id);if(!def)return;
+  if(baseLayer)map.removeLayer(baseLayer);
+  baseLayer=L.tileLayer(def.url,def.opts).addTo(map);
+  baseLayer.setOpacity($('#opacity')?$('#opacity').value/100:1);
+  baseLayer.bringToBack();baseId=id;
+  document.querySelectorAll('.layer').forEach(el=>el.classList.toggle('active',el.dataset.id===id));
+  persist();
+}
+(function(){
+  const wrap=$('#layers');
+  baseDefs.forEach(d=>{
+    const el=document.createElement('div');el.className='layer';el.dataset.id=d.id;
+    el.innerHTML=`<span class="dot"></span><span class="nm">${d.name}</span>`;
+    el.onclick=()=>setBase(d.id);wrap.appendChild(el);
+  });
+})();
+$('#opacity').oninput=e=>{$('#opacityVal').textContent=e.target.value+'%';if(baseLayer)baseLayer.setOpacity(e.target.value/100);};
+
+/* ---------- URL hash (#map=z/x/y/rot) ---------- */
+let hashLock=false;
+function writeHash(){const c=map.getCenter();const[x,y]=mercFromLatLng(c.lat,c.lng);hashLock=true;location.hash=`map=${map.getZoom()}/${Math.round(x)}/${Math.round(y)}/0`;setTimeout(()=>hashLock=false,30);}
+function readHash(){const m=location.hash.match(/map=(\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)/);if(m){const z=+m[1];const[lat,lng]=latLngFromMerc(+m[2],+m[3]);if(isFinite(lat)&&isFinite(lng)){map.setView([lat,lng],z);return true;}}return false;}
+window.addEventListener('hashchange',()=>{if(!hashLock)readHash();});
+map.on('moveend zoomend',writeHash);
+map.on('zoomend',()=>$('#cZoom').textContent=map.getZoom());
+map.on('mousemove',e=>{$('#cLat').textContent=e.latlng.lat.toFixed(5);$('#cLon').textContent=e.latlng.lng.toFixed(5);});
+
+/* ====================================================================
+   STATE
+   ==================================================================== */
+let routes=[];                 // {id,name,color,pts:[{lat,lng}],visible}
+let pois=[];                   // {id,name,lat,lng,color}
+const layerStore={};           // id -> {line,verts:[],tips:[]}
+let activeId=null;
+let mode='pan';
+const markedAvg=new Set();
+let showPoints=true;
+const VTX_LIMIT=400;           // don't render draggable points above this (keeps it light)
+let measurePts=[],measureLayer=L.layerGroup().addTo(map);
+let uid=1;const newId=()=>'id'+(uid++)+'_'+Date.now().toString(36);
+
+/* ---------- mode switching ---------- */
+const HINTS={
+  pan:'',
+  draw:'Click on the map to add points. Drag a point to move it. Shift+click / right-click removes a point. Double-click finishes.',
+  marker:'Click anywhere to drop a marker with a name/note.',
+  measure:'Click to measure distance. Tap „Ruler" again to clear.'
+};
+function setMode(m){
+  mode=m;
+  document.querySelectorAll('.tool').forEach(t=>t.classList.toggle('active',t.dataset.mode===m));
+  document.body.className='mode-'+m;
+  const h=$('#hint');h.textContent=HINTS[m];h.classList.toggle('show',!!HINTS[m]);
+  if(m==='draw'&&!activeId)addRoute();
+  if(m==='measure')clearMeasure();
+}
+document.querySelectorAll('.tool').forEach(t=>t.onclick=()=>{
+  if(t.dataset.mode==='measure'&&mode==='measure'){clearMeasure();setMode('pan');return;}
+  setMode(t.dataset.mode);
+});
+$('#showPts').onchange=e=>{showPoints=e.target.checked;renderRoutes();};
+
+/* ====================================================================
+   ROUTES
+   ==================================================================== */
+function addRoute(){
+  const id=newId();const color=PALETTE[colorIdx++%PALETTE.length];
+  routes.push({id,name:'Route '+(routes.length+1),color,pts:[],visible:true,original:null,history:[]});
+  layerStore[id]={line:null,hit:null,verts:[],tips:[]};activeId=id;renderRoutes();return id;
+}
+function activeRoute(){return routes.find(r=>r.id===activeId);}
+function vtxIcon(color,big){const sz=big?13:9;return L.divIcon({className:'',html:`<div class="vtx" style="width:${sz}px;height:${sz}px;background:${color}"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]});}
+
+function redrawRoute(r){
+  const st=layerStore[r.id];
+  if(st.line){map.removeLayer(st.line);st.line=null;}
+  if(st.hit){map.removeLayer(st.hit);st.hit=null;}
+  st.verts.forEach(v=>map.removeLayer(v));st.verts=[];
+  st.tips.forEach(t=>map.removeLayer(t));st.tips=[];
+  if(!r.visible||r.pts.length===0)return;
+  const latlngs=r.pts.map(p=>[p.lat,p.lng]);
+  // wide transparent line = generous click target; click selects the route
+  st.hit=L.polyline(latlngs,{color:'#000',opacity:0,weight:16,interactive:true}).addTo(map);
+  const select=ev=>{ if(mode==='pan'){ L.DomEvent.stop(ev); activeId=r.id; renderRoutes(); } };
+  st.hit.on('click',select);
+  st.line=L.polyline(latlngs,{color:r.color,weight:r.id===activeId?5:3.5,opacity:.92}).addTo(map);
+  st.line.on('click',select);
+
+  const isActive=r.id===activeId;
+  // Points + segment labels only for the ACTIVE route → light with many routes
+  if(isActive && showPoints && r.pts.length<=VTX_LIMIT){
+    if(r.pts.length<=40){
+      for(let i=1;i<r.pts.length;i++){
+        const a=r.pts[i-1],b=r.pts[i],d=haversine(a,b);
+        if(d>120){
+          const tp=L.tooltip({permanent:true,direction:'center',className:'seg-tip'})
+            .setLatLng([(a.lat+b.lat)/2,(a.lng+b.lng)/2]).setContent(fmtKm(d)).addTo(map);
+          st.tips.push(tp);
+        }
+      }
+    }
+    r.pts.forEach((p,i)=>{
+      const big=(i===0||i===r.pts.length-1);
+      const mk=L.marker([p.lat,p.lng],{icon:vtxIcon(r.color,big),draggable:true,zIndexOffset:600}).addTo(map);
+      mk.on('drag',ev=>{const ll=ev.target.getLatLng();r.pts[i]={lat:ll.lat,lng:ll.lng};const ll2=r.pts.map(q=>[q.lat,q.lng]);st.line.setLatLngs(ll2);if(st.hit)st.hit.setLatLngs(ll2);});
+      mk.on('dragend',()=>{redrawRoute(r);updateListStats();persist();});
+      mk.on('click',ev=>{L.DomEvent.stopPropagation(ev);
+        if(ev.originalEvent.shiftKey||ev.originalEvent.altKey){r.pts.splice(i,1);redrawRoute(r);updateListStats();persist();}
+        else{activeId=r.id;renderRoutes();}});
+      mk.on('contextmenu',ev=>{L.DomEvent.stop(ev);r.pts.splice(i,1);redrawRoute(r);updateListStats();persist();});
+      st.verts.push(mk);
+    });
+  } else if(isActive && showPoints && r.pts.length>VTX_LIMIT){
+    // too many points to edit individually — show just endpoints
+    [0,r.pts.length-1].forEach(i=>{const p=r.pts[i];
+      st.verts.push(L.marker([p.lat,p.lng],{icon:vtxIcon(r.color,true),interactive:false}).addTo(map));});
+  }
+}
+function redrawAll(){routes.forEach(redrawRoute);}
+
+function updateListStats(){
+  routes.forEach(r=>{
+    const item=document.querySelector(`.route-item[data-id="${r.id}"]`);if(!item)return;
+    const s=item.querySelectorAll('.route-stats b');
+    if(s[0])s[0].textContent=fmtKm(pathLength(r.pts));
+    if(s[1])s[1].textContent=r.pts.length;
+  });
+}
+function renderRoutes(){
+  redrawAll();
+  const wrap=$('#routeList');wrap.innerHTML='';
+  if(routes.length===0){wrap.innerHTML='<div class="empty">No routes yet.<br>Pick „Route" and click on the map.</div>';persist();return;}
+  routes.forEach(r=>{
+    const dist=fmtKm(pathLength(r.pts));
+    const el=document.createElement('div');el.className='route-item'+(r.id===activeId?' active':'');el.dataset.id=r.id;
+    el.innerHTML=`
+      <div class="route-head">
+        <input class="route-check" type="checkbox" title="Tick to average" ${markedAvg.has(r.id)?'checked':''}>
+        <span class="route-swatch" style="background:${r.color}" title="Change colour"></span>
+        <input class="route-name" value="${r.name.replace(/"/g,'&quot;')}">
+        <svg class="route-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          ${r.visible?'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>':'<path d="M3 3l18 18M10.6 6.1A9.7 9.7 0 0 1 22 12s-1.5 3-4.6 5M6.6 6.6C3.7 8.2 2 12 2 12s3.5 7 10 7c1.5 0 2.9-.3 4.1-.8"/>'}
+        </svg>
+      </div>
+      <div class="route-stats"><span>length <b>${dist}</b></span><span>points <b>${r.pts.length}</b></span></div>
+      <div class="route-actions">
+        <button class="mini" data-act="select">${r.id===activeId?'● active':'edit'}</button>
+        <button class="mini" data-act="elev">profile ▲</button>
+        <button class="mini" data-act="undopt">undo pt</button>
+        <button class="mini" data-act="reverse">reverse</button>
+        <button class="mini" data-act="undo"${r.history&&r.history.length?'':' disabled style="opacity:.4"'}>undo edit</button>
+        <button class="mini" data-act="revert"${r.original?'':' disabled style="opacity:.4"'}>revert</button>
+        <button class="mini danger" data-act="del">delete</button>
+      </div>`;
+    const chk=el.querySelector('.route-check');
+    chk.onclick=e=>{e.stopPropagation();if(chk.checked)markedAvg.add(r.id);else markedAvg.delete(r.id);};
+    const nameInp=el.querySelector('.route-name');
+    nameInp.onchange=()=>{r.name=nameInp.value||r.name;persist();};
+    nameInp.onclick=e=>e.stopPropagation();
+    el.querySelector('.route-swatch').onclick=()=>{const i=PALETTE.indexOf(r.color);r.color=PALETTE[(i+1)%PALETTE.length];renderRoutes();persist();};
+    el.querySelector('.route-eye').onclick=()=>{r.visible=!r.visible;renderRoutes();persist();};
+    el.querySelectorAll('.mini').forEach(b=>b.onclick=()=>{
+      const a=b.dataset.act;
+      if(a==='select'){activeId=r.id;setMode('draw');renderRoutes();}
+      else if(a==='del'){if(confirm('Delete „'+r.name+'"?'))removeRoute(r.id);}
+      else if(a==='undopt'){r.pts.pop();redrawRoute(r);updateListStats();persist();}
+      else if(a==='undo'){undoChange(r);}
+      else if(a==='revert'){revertOriginal(r);}
+      else if(a==='reverse'){snapshot(r);r.pts.reverse();redrawRoute(r);renderRoutes();persist();}
+      else if(a==='elev'){showElevation(r);}
+    });
+    wrap.appendChild(el);
+  });
+  persist();
+}
+function removeRoute(id){
+  const st=layerStore[id];
+  if(st){if(st.line)map.removeLayer(st.line);if(st.hit)map.removeLayer(st.hit);st.verts.forEach(v=>map.removeLayer(v));st.tips.forEach(t=>map.removeLayer(t));}
+  delete layerStore[id];markedAvg.delete(id);
+  routes=routes.filter(r=>r.id!==id);
+  if(activeId===id)activeId=routes.length?routes[routes.length-1].id:null;
+  renderRoutes();
+}
+
+/* ====================================================================
+   GPX OPTIMIZATION — de-noise (smooth + simplify) and average tracks
+   ==================================================================== */
+function movingAverage(pts,win){
+  if(win<1||pts.length<3)return pts.map(p=>({lat:p.lat,lng:p.lng}));
+  const out=[];
+  for(let i=0;i<pts.length;i++){
+    if(i===0||i===pts.length-1){out.push({lat:pts[i].lat,lng:pts[i].lng});continue;}
+    let la=0,ln=0,c=0;
+    for(let j=Math.max(0,i-win);j<=Math.min(pts.length-1,i+win);j++){la+=pts[j].lat;ln+=pts[j].lng;c++;}
+    out.push({lat:la/c,lng:ln/c});
+  }
+  return out;
+}
+function segDist(p,a,b){ // metres, point→segment
+  const latRef=a.lat*Math.PI/180,k=Math.cos(latRef);
+  const mx=v=>R_EARTH*k*(v.lng*Math.PI/180),my=v=>R_EARTH*(v.lat*Math.PI/180);
+  const px=mx(p),py=my(p),ax=mx(a),ay=my(a),bx=mx(b),by=my(b);
+  const dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy;
+  if(len2===0)return Math.hypot(px-ax,py-ay);
+  let t=((px-ax)*dx+(py-ay)*dy)/len2;t=Math.max(0,Math.min(1,t));
+  return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
+}
+function rdp(pts,eps){
+  if(pts.length<3)return pts.slice();
+  const keep=new Array(pts.length).fill(false);keep[0]=keep[pts.length-1]=true;
+  const stack=[[0,pts.length-1]];
+  while(stack.length){
+    const seg=stack.pop(),a=seg[0],b=seg[1];let idx=-1,dmax=0;
+    for(let i=a+1;i<b;i++){const d=segDist(pts[i],pts[a],pts[b]);if(d>dmax){dmax=d;idx=i;}}
+    if(dmax>eps&&idx!==-1){keep[idx]=true;stack.push([a,idx],[idx,b]);}
+  }
+  return pts.filter((_,i)=>keep[i]);
+}
+/* ---- non-destructive history ---- */
+function clonePts(p){return p.map(q=>({lat:q.lat,lng:q.lng}));}
+function snapshot(r){if(!r.history)r.history=[];if(!r.original)r.original=clonePts(r.pts);r.history.push(clonePts(r.pts));if(r.history.length>25)r.history.shift();}
+function undoChange(r){if(r.history&&r.history.length){r.pts=r.history.pop();redrawRoute(r);renderRoutes();persist();toast('Undid last change');}else toast('Nothing to undo');}
+function revertOriginal(r){if(r.original){r.history.push(clonePts(r.pts));r.pts=clonePts(r.original);redrawRoute(r);renderRoutes();persist();toast('Reverted to original');}else toast('No saved original');}
+
+/* ---- local equirectangular projector (metres) ---- */
+function projector(latRef){const k=Math.cos(latRef*Math.PI/180);return{
+  to:p=>[R_EARTH*k*(p.lng*Math.PI/180),R_EARTH*(p.lat*Math.PI/180)],
+  from:(x,y)=>({lat:(y/R_EARTH)*180/Math.PI,lng:(x/(R_EARTH*k))*180/Math.PI})};}
+function median(a){const s=a.slice().sort((x,y)=>x-y);return s[Math.floor(s.length/2)];}
+function allFinite(pts){return pts.every(p=>isFinite(p.lat)&&isFinite(p.lng));}
+
+/* ---- Savitzky–Golay (quadratic) — preserves peaks/turns ---- */
+function solveA0(S0,S1,S2,S3,S4,y0,y1,y2){
+  const det=S0*(S2*S4-S3*S3)-S1*(S1*S4-S3*S2)+S2*(S1*S3-S2*S2);
+  if(Math.abs(det)<1e-9)return y0/(S0||1);
+  return (y0*(S2*S4-S3*S3)-S1*(y1*S4-S3*y2)+S2*(y1*S3-S2*y2))/det;
+}
+function savitzkyGolay(pts,h){
+  if(h<1||pts.length<2*h+1)return clonePts(pts);
+  const out=[];
+  for(let i=0;i<pts.length;i++){
+    if(i===0||i===pts.length-1){out.push({lat:pts[i].lat,lng:pts[i].lng});continue;}
+    const lo=Math.max(0,i-h),hi=Math.min(pts.length-1,i+h);
+    let S0=0,S1=0,S2=0,S3=0,S4=0,la0=0,la1=0,la2=0,ln0=0,ln1=0,ln2=0;
+    for(let j=lo;j<=hi;j++){const t=j-i,t2=t*t;S0++;S1+=t;S2+=t2;S3+=t2*t;S4+=t2*t2;
+      la0+=pts[j].lat;la1+=pts[j].lat*t;la2+=pts[j].lat*t2;ln0+=pts[j].lng;ln1+=pts[j].lng*t;ln2+=pts[j].lng*t2;}
+    out.push({lat:solveA0(S0,S1,S2,S3,S4,la0,la1,la2),lng:solveA0(S0,S1,S2,S3,S4,ln0,ln1,ln2)});
+  }
+  return out;
+}
+/* ---- Gaussian kernel smoothing ---- */
+function gaussianSmooth(pts,sigma){
+  if(sigma<=0||pts.length<3)return clonePts(pts);
+  const h=Math.max(1,Math.ceil(sigma*3)),out=[];
+  for(let i=0;i<pts.length;i++){
+    if(i===0||i===pts.length-1){out.push({lat:pts[i].lat,lng:pts[i].lng});continue;}
+    let w=0,la=0,ln=0;
+    for(let j=Math.max(0,i-h);j<=Math.min(pts.length-1,i+h);j++){const e=Math.exp(-((j-i)*(j-i))/(2*sigma*sigma));w+=e;la+=pts[j].lat*e;ln+=pts[j].lng*e;}
+    out.push({lat:la/w,lng:ln/w});
+  }
+  return out;
+}
+/* ---- Moving median (robust to spikes/outliers) ---- */
+function movingMedian(pts,h){
+  if(h<1||pts.length<3)return clonePts(pts);
+  const med=a=>{const s=a.slice().sort((x,y)=>x-y),n=s.length;return n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2;};
+  const out=[];
+  for(let i=0;i<pts.length;i++){
+    if(i===0||i===pts.length-1){out.push({lat:pts[i].lat,lng:pts[i].lng});continue;}
+    const la=[],ln=[];
+    for(let j=Math.max(0,i-h);j<=Math.min(pts.length-1,i+h);j++){la.push(pts[j].lat);ln.push(pts[j].lng);}
+    out.push({lat:med(la),lng:med(ln)});
+  }
+  return out;
+}
+/* ---- Dynamic Time Warping path between two projected sequences ---- */
+function dtwPath(Cxy,Sxy){
+  const L=Cxy.length,m=Sxy.length,INF=1e18,W=m+1;
+  const D=new Float64Array((L+1)*W).fill(INF);D[0]=0;
+  for(let i=1;i<=L;i++)for(let j=1;j<=m;j++){
+    const dx=Cxy[i-1][0]-Sxy[j-1][0],dy=Cxy[i-1][1]-Sxy[j-1][1],cost=dx*dx+dy*dy;
+    const a=D[(i-1)*W+j],b=D[i*W+j-1],c=D[(i-1)*W+j-1];
+    D[i*W+j]=cost+(a<b?(a<c?a:c):(b<c?b:c));
+  }
+  const path=[];let i=L,j=m;
+  while(i>0&&j>0){path.push([i-1,j-1]);
+    const a=D[(i-1)*W+j],b=D[i*W+j-1],c=D[(i-1)*W+j-1];
+    if(c<=a&&c<=b){i--;j--;}else if(a<=b)i--;else j--;}
+  return path.reverse();
+}
+/* ---- Discrete Fréchet coupling between two projected sequences ---- */
+function frechetPath(Cxy,Sxy){
+  const L=Cxy.length,m=Sxy.length,INF=1e18,W=m+1;
+  const D=new Float64Array((L+1)*W).fill(INF);D[0]=0;
+  const d2=(i,j)=>{const dx=Cxy[i][0]-Sxy[j][0],dy=Cxy[i][1]-Sxy[j][1];return dx*dx+dy*dy;};
+  for(let i=1;i<=L;i++)for(let j=1;j<=m;j++){
+    const a=D[(i-1)*W+j],b=D[i*W+j-1],c=D[(i-1)*W+j-1];
+    const prev=a<b?(a<c?a:c):(b<c?b:c);          // min predecessor
+    D[i*W+j]=Math.max(d2(i-1,j-1),prev);          // Fréchet = minimise the MAX coupling cost
+  }
+  const path=[];let i=L,j=m;
+  while(i>0&&j>0){path.push([i-1,j-1]);
+    const a=D[(i-1)*W+j],b=D[i*W+j-1],c=D[(i-1)*W+j-1];
+    if(c<=a&&c<=b){i--;j--;}else if(a<=b)i--;else j--;}
+  return path.reverse();
+}
+/* ---- Generic barycenter averaging (robust centerline) using a coupling fn ---- */
+function barycenterAverage(list,pathFn){
+  const bs=list[0].pts[0],be=list[0].pts[list[0].pts.length-1];
+  const seqs=list.map(r=>{let p=r.pts;const s=p[0],e=p[p.length-1];
+    if(haversine(e,bs)+haversine(s,be)<haversine(s,bs)+haversine(e,be))p=p.slice().reverse();
+    return samplePath(p,Math.min(p.length,400));});
+  let latSum=0,cnt=0;seqs.forEach(s=>s.forEach(p=>{latSum+=p.lat;cnt++;}));
+  const pr=projector(latSum/cnt);
+  const seqXY=seqs.map(s=>s.map(p=>pr.to(p)));
+  const L=Math.max(40,Math.min(200,median(seqs.map(s=>s.length))));
+  let longest=seqs[0];seqs.forEach(s=>{if(s.length>longest.length)longest=s;});
+  let C=samplePath(longest,L);
+  for(let it=0;it<8;it++){
+    const Cxy=C.map(p=>pr.to(p));
+    const acc=C.map(()=>({x:0,y:0,n:0}));
+    seqXY.forEach(sxy=>{pathFn(Cxy,sxy).forEach(pr2=>{const ci=pr2[0],sj=pr2[1];acc[ci].x+=sxy[sj][0];acc[ci].y+=sxy[sj][1];acc[ci].n++;});});
+    C=acc.map((a,i)=>a.n?pr.from(a.x/a.n,a.y/a.n):C[i]);
+  }
+  return gaussianSmooth(C,1.2);
+}
+function dbaAverage(list){return barycenterAverage(list,dtwPath);}
+function frechetAverage(list){return barycenterAverage(list,frechetPath);}
+
+/* ---- KDE density field + mean-shift to ridge (map inference) ----
+   Start from a resample-average skeleton, then pull each vertex sideways
+   onto the local maximum of the kernel-density field. Anchored → no drift. */
+function kdeRidge(list){
+  const bs=list[0].pts[0],be=list[0].pts[list[0].pts.length-1];
+  const seqs=list.map(r=>{let p=r.pts;const s=p[0],e=p[p.length-1];
+    if(haversine(e,bs)+haversine(s,be)<haversine(s,bs)+haversine(e,be))p=p.slice().reverse();
+    const n=Math.min(4000,Math.max(p.length,Math.ceil(pathLength(p)/20)));return samplePath(p,n);});
+  const all=[].concat(...seqs);
+  const pr=projector(all.reduce((s,p)=>s+p.lat,0)/all.length);
+  const xy=all.map(p=>pr.to(p));
+  let minx=1e18,miny=1e18,maxx=-1e18,maxy=-1e18;
+  xy.forEach(p=>{if(p[0]<minx)minx=p[0];if(p[0]>maxx)maxx=p[0];if(p[1]<miny)miny=p[1];if(p[1]>maxy)maxy=p[1];});
+  const sigma=30,cell=10,pad=sigma*3;minx-=pad;miny-=pad;maxx+=pad;maxy+=pad;
+  const Wg=Math.max(2,Math.ceil((maxx-minx)/cell)),Hg=Math.max(2,Math.ceil((maxy-miny)/cell));
+  if(Wg*Hg>6000000)return null;
+  const grid=new Float64Array(Wg*Hg),rad=Math.ceil(3*sigma/cell);
+  xy.forEach(p=>{const cx=Math.round((p[0]-minx)/cell),cy=Math.round((p[1]-miny)/cell);
+    for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const x=cx+dx,y=cy+dy;if(x<0||y<0||x>=Wg||y>=Hg)continue;
+      const mx=x*cell+minx,my=y*cell+miny,dd=(mx-p[0])**2+(my-p[1])**2;grid[y*Wg+x]+=Math.exp(-dd/(2*sigma*sigma));}});
+  const dens=(x,y)=>{const cx=Math.round((x-minx)/cell),cy=Math.round((y-miny)/cell);if(cx<0||cy<0||cx>=Wg||cy>=Hg)return 0;return grid[cy*Wg+cx];};
+  // skeleton = resample average (anchored, monotonic)
+  const N=Math.max(40,Math.min(200,median(seqs.map(s=>s.length))));
+  const rs=seqs.map(s=>samplePath(s,N));
+  let C=[];for(let i=0;i<N;i++){let la=0,ln=0;rs.forEach(x=>{la+=x[i].lat;ln+=x[i].lng;});C.push(pr.to({lat:la/rs.length,lng:ln/rs.length}));}
+  // mean-shift each vertex sideways onto the density ridge
+  for(let it=0;it<5;it++){
+    const next=C.map((p,i)=>{
+      if(i===0||i===N-1)return p;
+      let tx=C[i+1][0]-C[i-1][0],ty=C[i+1][1]-C[i-1][1];const tn=Math.hypot(tx,ty)||1;tx/=tn;ty/=tn;
+      const px=-ty,py=tx;let sw=0,so=0;
+      for(let off=-2.5*sigma;off<=2.5*sigma;off+=cell){const w=dens(p[0]+px*off,p[1]+py*off);sw+=w;so+=w*off;}
+      if(sw<=0)return p;
+      let shift=so/sw;shift=Math.max(-2*sigma,Math.min(2*sigma,shift));
+      return[p[0]+px*shift*0.7,p[1]+py*shift*0.7];
+    });
+    C=next;
+  }
+  return gaussianSmooth(C.map(p=>pr.from(p[0],p[1])),1.0);
+}
+
+/* ---- Geometric median (Weiszfeld) — robust centre of a point cloud ---- */
+function geoMedian(P){
+  if(P.length===1)return [P[0][0],P[0][1]];
+  let x=0,y=0;P.forEach(p=>{x+=p[0];y+=p[1];});x/=P.length;y/=P.length;
+  for(let it=0;it<30;it++){let sw=0,sx=0,sy=0;
+    for(const p of P){const d=Math.hypot(p[0]-x,p[1]-y)||1e-9,w=1/d;sw+=w;sx+=w*p[0];sy+=w*p[1];}
+    const nx=sx/sw,ny=sy/sw;if(Math.hypot(nx-x,ny-y)<1e-6){x=nx;y=ny;break;}x=nx;y=ny;}
+  return [x,y];
+}
+/* ---- Robust best-fit centerline: DTW-align to a reference, then take the
+        geometric median per station (resistant to a stray/outlier track) ---- */
+function robustBestFit(list){
+  const ref=dbaAverage(list);if(!ref)return null;
+  const bs=list[0].pts[0],be=list[0].pts[list[0].pts.length-1];
+  const seqs=list.map(r=>{let p=r.pts;const s=p[0],e=p[p.length-1];
+    if(haversine(e,bs)+haversine(s,be)<haversine(s,bs)+haversine(e,be))p=p.slice().reverse();
+    return samplePath(p,Math.min(p.length,400));});
+  const pr=projector(ref.reduce((s,p)=>s+p.lat,0)/ref.length);
+  const Cxy=ref.map(p=>pr.to(p));
+  const buckets=Cxy.map(()=>[]);
+  seqs.forEach(seq=>{const sxy=seq.map(p=>pr.to(p));dtwPath(Cxy,sxy).forEach(pr2=>buckets[pr2[0]].push(sxy[pr2[1]]));});
+  const out=buckets.map((b,i)=>{const g=b.length?geoMedian(b):Cxy[i];return pr.from(g[0],g[1]);});
+  return gaussianSmooth(out,1.2);
+}
+
+/* ---- Skeletonization (medial axis): KDE mask → Zhang-Suen thinning → trace ---- */
+function zhangSuen(g,W,H){
+  const id=(x,y)=>y*W+x,get=(x,y)=>(x<0||y<0||x>=W||y>=H)?0:g[id(x,y)];
+  let changed=true,guard=0;
+  while(changed&&guard++<200){changed=false;
+    for(let step=0;step<2;step++){const del=[];
+      for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){
+        if(!g[id(x,y)])continue;
+        const p2=get(x,y-1),p3=get(x+1,y-1),p4=get(x+1,y),p5=get(x+1,y+1),p6=get(x,y+1),p7=get(x-1,y+1),p8=get(x-1,y),p9=get(x-1,y-1);
+        const nb=[p2,p3,p4,p5,p6,p7,p8,p9],B=nb.reduce((a,b)=>a+b,0);
+        if(B<2||B>6)continue;
+        let A=0;for(let k=0;k<8;k++)if(nb[k]===0&&nb[(k+1)%8]===1)A++;
+        if(A!==1)continue;
+        if(step===0){if(p2*p4*p6)continue;if(p4*p6*p8)continue;}
+        else{if(p2*p4*p8)continue;if(p2*p6*p8)continue;}
+        del.push(id(x,y));
+      }
+      if(del.length){changed=true;del.forEach(i=>g[i]=0);}
+    }
+  }
+  return g;
+}
+function skeletonAverage(list){
+  const bs=list[0].pts[0],be=list[0].pts[list[0].pts.length-1];
+  const seqs=list.map(r=>{let p=r.pts;const s=p[0],e=p[p.length-1];
+    if(haversine(e,bs)+haversine(s,be)<haversine(s,bs)+haversine(e,be))p=p.slice().reverse();
+    const n=Math.min(4000,Math.max(p.length,Math.ceil(pathLength(p)/20)));return samplePath(p,n);});
+  const all=[].concat(...seqs);
+  const pr=projector(all.reduce((s,p)=>s+p.lat,0)/all.length);
+  const xy=all.map(p=>pr.to(p));
+  let minx=1e18,miny=1e18,maxx=-1e18,maxy=-1e18;
+  xy.forEach(p=>{if(p[0]<minx)minx=p[0];if(p[0]>maxx)maxx=p[0];if(p[1]<miny)miny=p[1];if(p[1]>maxy)maxy=p[1];});
+  const sigma=35,cell=20,pad=sigma*3;minx-=pad;miny-=pad;maxx+=pad;maxy+=pad;
+  const W=Math.max(3,Math.ceil((maxx-minx)/cell)),H=Math.max(3,Math.ceil((maxy-miny)/cell));
+  if(W*H>1800000)return null;                                  // too large — caller falls back
+  const grid=new Float64Array(W*H),rad=Math.ceil(3*sigma/cell);
+  xy.forEach(p=>{const cx=Math.round((p[0]-minx)/cell),cy=Math.round((p[1]-miny)/cell);
+    for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const x=cx+dx,y=cy+dy;if(x<0||y<0||x>=W||y>=H)continue;
+      const mx=x*cell+minx,my=y*cell+miny,dd=(mx-p[0])**2+(my-p[1])**2;grid[y*W+x]+=Math.exp(-dd/(2*sigma*sigma));}});
+  const dvals=xy.map(p=>{const cx=Math.round((p[0]-minx)/cell),cy=Math.round((p[1]-miny)/cell);return grid[cy*W+cx]||0;});
+  const thr=0.25*median(dvals),mask=new Uint8Array(W*H);for(let i=0;i<grid.length;i++)mask[i]=grid[i]>=thr?1:0;
+  const sk=zhangSuen(mask,W,H);
+  const skp=[];for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(sk[y*W+x])skp.push([x,y]);
+  if(skp.length<2)return null;
+  const startXY=pr.to({lat:seqs.reduce((a,s)=>a+s[0].lat,0)/seqs.length,lng:seqs.reduce((a,s)=>a+s[0].lng,0)/seqs.length});
+  const endXY=pr.to({lat:seqs.reduce((a,s)=>a+s[s.length-1].lat,0)/seqs.length,lng:seqs.reduce((a,s)=>a+s[s.length-1].lng,0)/seqs.length});
+  const toCell=p=>[Math.round((p[0]-minx)/cell),Math.round((p[1]-miny)/cell)];
+  const NK=skp.length,cellMap=new Map();skp.forEach((p,i)=>cellMap.set(p[0]+','+p[1],i));
+  const nearestNode=c=>{let bi=0,bd=1e18;for(let i=0;i<NK;i++){const d=(skp[i][0]-c[0])**2+(skp[i][1]-c[1])**2;if(d<bd){bd=d;bi=i;}}return bi;};
+  const sN=nearestNode(toCell(startXY)),eN=nearestNode(toCell(endXY));
+  // Dijkstra over skeleton pixels, bridging gaps up to GAP cells (heals fragmentation)
+  const GAP=5,dist=new Float64Array(NK).fill(1e18),prevN=new Int32Array(NK).fill(-1),done=new Uint8Array(NK);
+  dist[sN]=0;
+  for(let it=0;it<NK;it++){
+    let u=-1,bd=1e18;for(let i=0;i<NK;i++)if(!done[i]&&dist[i]<bd){bd=dist[i];u=i;}
+    if(u<0||u===eN)break;done[u]=1;const ux=skp[u][0],uy=skp[u][1];
+    for(let dy=-GAP;dy<=GAP;dy++)for(let dx=-GAP;dx<=GAP;dx++){if(!dx&&!dy)continue;const v=cellMap.get((ux+dx)+','+(uy+dy));if(v===undefined)continue;const w=Math.hypot(dx,dy);if(dist[u]+w<dist[v]){dist[v]=dist[u]+w;prevN[v]=u;}}
+  }
+  if(dist[eN]>=1e18)return null;
+  const path=[];let k=eN;while(k!==-1){path.push(pr.from(skp[k][0]*cell+minx,skp[k][1]*cell+miny));k=prevN[k];}
+  path.reverse();
+  if(path.length<2)return null;
+  return gaussianSmooth(samplePath(path,Math.max(40,Math.min(200,median(seqs.map(s=>s.length))))),1.0);
+}
+
+function optimizeActive(){
+  const r=activeRoute();
+  if(!r){toast('Select a route first (click it on the map)');return;}
+  if(r.pts.length<5){toast('Route too short to de-noise');return;}
+  const s=+$('#strength').value,method=$('#smoothMethod').value,before=r.pts.length;
+  let pts;
+  if(method==='sg')pts=savitzkyGolay(r.pts,Math.max(2,Math.round(1+s*0.9)));
+  else if(method==='median')pts=movingMedian(r.pts,Math.max(1,Math.round(s/2)));
+  else pts=gaussianSmooth(r.pts,0.6+s*0.7);
+  if(!pts||pts.length<2||!allFinite(pts)){pts=gaussianSmooth(r.pts,0.6+s*0.7);}
+  if($('#alsoSimplify').checked){const simp=rdp(pts,2+s*2.5);if(simp.length>=2)pts=simp;}
+  snapshot(r);
+  r.pts=pts;redrawRoute(r);renderRoutes();persist();
+  toast(`De-noised (${method.toUpperCase()}): ${before} → ${pts.length} pts · undo/revert available`);
+}
+function samplePath(pts,n){
+  if(pts.length<2)return pts.map(p=>({lat:p.lat,lng:p.lng,d:0}));
+  const cum=[0];for(let i=1;i<pts.length;i++)cum.push(cum[i-1]+haversine(pts[i-1],pts[i]));
+  const total=cum[cum.length-1];if(total===0)return pts.slice(0,n).map(p=>({lat:p.lat,lng:p.lng,d:0}));
+  const out=[];
+  for(let k=0;k<n;k++){
+    const target=total*k/(n-1);let i=1;while(i<cum.length&&cum[i]<target)i++;
+    if(i>=pts.length)i=pts.length-1;
+    const t=(target-cum[i-1])/((cum[i]-cum[i-1])||1);
+    out.push({lat:pts[i-1].lat+(pts[i].lat-pts[i-1].lat)*t,lng:pts[i-1].lng+(pts[i].lng-pts[i-1].lng)*t,d:target});
+  }
+  return out;
+}
+function averageMarked(){
+  const list=routes.filter(r=>markedAvg.has(r.id)&&r.pts.length>1);
+  if(list.length<2){toast('Tick at least 2 routes (checkbox on the left)');return;}
+  const method=$('#avgMethod').value;
+  let out=null;
+  try{
+    if(method==='dba')out=dbaAverage(list);
+    else if(method==='frechet')out=frechetAverage(list);
+    else if(method==='robust')out=robustBestFit(list);
+    else if(method==='kde')out=kdeRidge(list);
+    else if(method==='skel')out=skeletonAverage(list);
+    else{
+      const N=Math.max(20,Math.min(400,Math.round(list.reduce((s,r)=>s+r.pts.length,0)/list.length)));
+      const bs=list[0].pts[0],be=list[0].pts[list[0].pts.length-1];
+      const rs=list.map(r=>{let p=r.pts;const s=p[0],e=p[p.length-1];if(haversine(e,bs)+haversine(s,be)<haversine(s,bs)+haversine(e,be))p=p.slice().reverse();return samplePath(p,N);});
+      out=[];for(let i=0;i<N;i++){let la=0,ln=0;rs.forEach(x=>{la+=x[i].lat;ln+=x[i].lng;});out.push({lat:la/rs.length,lng:ln/rs.length});}
+      out=gaussianSmooth(out,1.2);
+    }
+  }catch(e){out=null;}
+  if((!out||out.length<2||!allFinite(out))&&(method==='kde'||method==='skel')){toast(method.toUpperCase()+' failed — falling back to DTW');out=dbaAverage(list);}
+  if(!out||out.length<2||!allFinite(out)){toast('Merge failed — try another method');return;}
+  const labels={dba:'DTW centerline',frechet:'Fréchet centerline',robust:'Robust best-fit',resample:'GPS average',kde:'KDE ridge',skel:'Skeleton'};
+  const id=newId();const color=PALETTE[colorIdx++%PALETTE.length];
+  routes.push({id,name:(labels[method]||'Merged')+' ('+list.length+')',color,pts:out,visible:true,original:clonePts(out),history:[]});
+  layerStore[id]={line:null,hit:null,verts:[],tips:[]};activeId=id;
+  markedAvg.clear();renderRoutes();persist();
+  toast(`Merged ${list.length} tracks → ${out.length}-pt ${labels[method]||'route'}`);
+}
+$('#strength').oninput=e=>$('#strengthVal').textContent=e.target.value;
+$('#optimizeBtn').onclick=optimizeActive;
+$('#avgBtn').onclick=averageMarked;
+
+/* ====================================================================
+   HMM MAP MATCHING — snap a track onto an OSM trail network (Viterbi)
+   ==================================================================== */
+function hmmMatch(samples,net,sigmaZ,beta){
+  sigmaZ=sigmaZ||25;beta=beta||30;
+  // grid index over network points for fast nearest lookup
+  const cs=0.0006,idx=new Map(),key=(la,ln)=>Math.round(la/cs)+'_'+Math.round(ln/cs);
+  net.forEach((p,i)=>{const k=key(p.lat,p.lng);(idx.get(k)||idx.set(k,[]).get(k)).push(i);});
+  const near=(p,radM)=>{const out=[],cla=Math.round(p.lat/cs),cln=Math.round(p.lng/cs),span=Math.ceil(radM/(cs*111000))+1;
+    for(let dy=-span;dy<=span;dy++)for(let dx=-span;dx<=span;dx++){const a=idx.get((cla+dy)+'_'+(cln+dx));if(a)for(const i of a)out.push(i);}return out;};
+  const K=6;
+  const cand=samples.map(s=>{
+    let scored=[...new Set(near(s,60))].map(i=>({i,d:haversine(s,net[i])})).filter(o=>o.d<=80).sort((a,b)=>a.d-b.d).slice(0,K);
+    if(!scored.length)scored=[...new Set(near(s,160))].map(i=>({i,d:haversine(s,net[i])})).sort((a,b)=>a.d-b.d).slice(0,K);
+    if(!scored.length)scored=[{i:-1,d:40,gps:s}];           // virtual candidate = keep GPS point
+    return scored;
+  });
+  const n=samples.length,V=[],BP=[];
+  V[0]=cand[0].map(c=>(c.d*c.d)/(2*sigmaZ*sigmaZ));BP[0]=cand[0].map(()=>-1);
+  const pos=c=>c.i>=0?net[c.i]:c.gps;
+  for(let t=1;t<n;t++){
+    const dgps=haversine(samples[t-1],samples[t]);V[t]=[];BP[t]=[];
+    cand[t].forEach((cj,j)=>{
+      const emit=(cj.d*cj.d)/(2*sigmaZ*sigmaZ),pj=pos(cj);let bestC=1e18,bestK=0;
+      cand[t-1].forEach((ci,k)=>{const c=V[t-1][k]+Math.abs(haversine(pos(ci),pj)-dgps)/beta;if(c<bestC){bestC=c;bestK=k;}});
+      V[t][j]=bestC+emit;BP[t][j]=bestK;
+    });
+  }
+  let bj=0,bv=1e18;V[n-1].forEach((v,j)=>{if(v<bv){bv=v;bj=j;}});
+  const seq=new Array(n);for(let t=n-1;t>=0;t--){seq[t]=bj;bj=BP[t][bj];}
+  const matched=samples.map((s,t)=>{const c=cand[t][seq[t]],p=c.i>=0?net[c.i]:s;return{lat:p.lat,lng:p.lng};});
+  return matched.filter((p,i)=>i===0||haversine(p,matched[i-1])>0.5);
+}
+async function mapMatchActive(){
+  const r=activeRoute();
+  if(!r){toast('Select a route first (click it on the map)');return;}
+  if(r.pts.length<2){toast('Route too short');return;}
+  let minLat=1e9,maxLat=-1e9,minLng=1e9,maxLng=-1e9;
+  r.pts.forEach(p=>{minLat=Math.min(minLat,p.lat);maxLat=Math.max(maxLat,p.lat);minLng=Math.min(minLng,p.lng);maxLng=Math.max(maxLng,p.lng);});
+  const mg=0.0025,S=minLat-mg,Wb=minLng-mg,Nb=maxLat+mg,Eb=maxLng+mg;
+  if((Nb-S)*(Eb-Wb)>0.25){toast('Area too large to map-match — split the route');return;}
+  const q=`[out:json][timeout:25];(way["highway"~"^(path|footway|track|steps|bridleway|cycleway|pedestrian|service|unclassified|residential|tertiary|secondary)$"](${S},${Wb},${Nb},${Eb}););(._;>;);out qt;`;
+  toast('Fetching OSM trails…');
+  let data;
+  try{
+    const res=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q)});
+    if(!res.ok)throw 0;data=await res.json();
+  }catch(e){toast('Could not reach OSM (Overpass). Try again later.');return;}
+  const nodes={},ways=[];
+  data.elements.forEach(el=>{if(el.type==='node')nodes[el.id]=[el.lat,el.lon];});
+  data.elements.forEach(el=>{if(el.type==='way'&&el.nodes){const line=el.nodes.map(id=>nodes[id]).filter(Boolean);if(line.length>=2)ways.push(line);}});
+  if(!ways.length){toast('No trails found near this route');return;}
+  const net=[],spacing=15;
+  ways.forEach((line,wi)=>{for(let i=1;i<line.length;i++){const a={lat:line[i-1][0],lng:line[i-1][1]},b={lat:line[i][0],lng:line[i][1]};
+    const d=haversine(a,b),steps=Math.max(1,Math.round(d/spacing));
+    for(let k=0;k<steps;k++){const t=k/steps;net.push({lat:a.lat+(b.lat-a.lat)*t,lng:a.lng+(b.lng-a.lng)*t});}}
+    const L=line[line.length-1];net.push({lat:L[0],lng:L[1]});});
+  if(net.length>140000){toast('Trail network too dense here');return;}
+  const samples=samplePath(r.pts,Math.min(140,Math.max(20,Math.round(pathLength(r.pts)/40))));
+  let out;try{out=hmmMatch(samples,net);}catch(e){out=null;}
+  if(!out||out.length<2||!allFinite(out)){toast('Map matching failed');return;}
+  snapshot(r);r.pts=out;redrawRoute(r);renderRoutes();persist();
+  toast(`Map-matched to OSM trails (HMM): ${out.length} pts · undo/revert available`);
+}
+$('#matchBtn').onclick=()=>mapMatchActive();
+
+/* ====================================================================
+   POI MARKERS
+   ==================================================================== */
+const poiStore={};
+function poiIcon(color){return L.divIcon({className:'poi-pin',iconSize:[26,34],iconAnchor:[13,34],html:`<svg width="26" height="34" viewBox="0 0 26 34"><path d="M13 0C6 0 .5 5.4.5 12.2.5 21 13 34 13 34s12.5-13 12.5-21.8C25.5 5.4 20 0 13 0Z" fill="${color}" stroke="#fff" stroke-width="2"/><circle cx="13" cy="12" r="4.6" fill="#fff"/></svg>`});}
+function addPOI(latlng,name){const id=newId();const p={id,name:name||'Point',lat:latlng.lat,lng:latlng.lng,color:'#cf5a2b'};pois.push(p);drawPOI(p);persist();return p;}
+function drawPOI(p){
+  if(poiStore[p.id])map.removeLayer(poiStore[p.id]);
+  const mk=L.marker([p.lat,p.lng],{icon:poiIcon(p.color),draggable:true,zIndexOffset:800}).addTo(map);
+  mk.bindPopup(`<div class="poi-popup"><input value="${(p.name||'').replace(/"/g,'&quot;')}" placeholder="point name"><br><button data-save>Save</button> <button data-del style="background:#888">Delete</button></div>`);
+  mk.on('dragend',()=>{const ll=mk.getLatLng();p.lat=ll.lat;p.lng=ll.lng;persist();});
+  mk.on('popupopen',()=>{const root=mk.getPopup().getElement();if(!root)return;const inp=root.querySelector('input');
+    root.querySelector('[data-save]').onclick=()=>{p.name=inp.value;persist();mk.closePopup();toast('Saved');};
+    root.querySelector('[data-del]').onclick=()=>{map.removeLayer(mk);delete poiStore[p.id];pois=pois.filter(x=>x.id!==p.id);persist();};});
+  poiStore[p.id]=mk;
+}
+
+/* ====================================================================
+   MEASURE (ruler) — labels now use tooltips, always visible
+   ==================================================================== */
+function clearMeasure(){measureLayer.clearLayers();measurePts=[];}
+function addMeasure(latlng){measurePts.push(latlng);renderMeasure();}
+function renderMeasure(){
+  measureLayer.clearLayers();
+  if(measurePts.length>1){
+    L.polyline(measurePts,{color:'#23291d',weight:4,opacity:.85}).addTo(measureLayer);
+    L.polyline(measurePts,{color:'#fff',weight:2,dashArray:'5 6'}).addTo(measureLayer);
+  }
+  measurePts.forEach(pt=>L.circleMarker(pt,{radius:4,color:'#23291d',fillColor:'#fff',fillOpacity:1,weight:2}).addTo(measureLayer));
+  if(measurePts.length>1){
+    const total=pathLength(measurePts.map(p=>({lat:p.lat,lng:p.lng})));
+    L.tooltip({permanent:true,direction:'top',className:'measure-tip',offset:[0,-6]})
+      .setLatLng(measurePts[measurePts.length-1]).setContent('Total '+fmtKm(total)).addTo(measureLayer);
+  }
+}
+
+/* ====================================================================
+   MAP CLICK dispatcher
+   ==================================================================== */
+map.on('click',e=>{
+  if(mode==='draw'){
+    let r=activeRoute();if(!r){addRoute();r=activeRoute();}
+    r.pts.push({lat:e.latlng.lat,lng:e.latlng.lng});
+    redrawRoute(r);updateListStats();persist();
+  }else if(mode==='marker'){const p=addPOI(e.latlng);poiStore[p.id].openPopup();}
+  else if(mode==='measure'){addMeasure(e.latlng);}
+});
+map.on('dblclick',()=>{if(mode==='draw'){setMode('pan');toast('Route finished');}});
+
+/* ====================================================================
+   ELEVATION (Open-Meteo, no key)
+   ==================================================================== */
+async function showElevation(r){
+  if(r.pts.length<2){toast('Need at least 2 points');return;}
+  const panel=$('#elev');panel.classList.add('show');
+  $('#elevStats').innerHTML='';$('#elevBody').innerHTML='<div class="elev-loading">Loading elevation data…</div>';
+  const n=Math.min(100,Math.max(20,r.pts.length*3));
+  const samples=samplePath(r.pts,n);
+  const lat=samples.map(s=>s.lat.toFixed(5)).join(','),lon=samples.map(s=>s.lng.toFixed(5)).join(',');
+  try{
+    const res=await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`);
+    if(!res.ok)throw 0;const data=await res.json();const el=data.elevation;
+    if(!el||!el.length)throw 0;
+    drawProfile($('#elevBody'),samples.map(s=>s.d),el,r.color);
+    let gain=0,loss=0;for(let i=1;i<el.length;i++){const dd=el[i]-el[i-1];if(dd>1.5)gain+=dd;else if(dd<-1.5)loss+=-dd;}
+    const mn=Math.min(...el),mx=Math.max(...el);
+    $('#elevStats').innerHTML=
+      `<span>length <b>${fmtKm(samples[samples.length-1].d)}</b></span>
+       <span class="up">↑ ascent <b>${Math.round(gain)} m</b></span>
+       <span class="down">↓ descent <b>${Math.round(loss)} m</b></span>
+       <span>min <b>${Math.round(mn)} m</b></span>
+       <span>max <b>${Math.round(mx)} m</b></span>`;
+  }catch(err){$('#elevBody').innerHTML='<div class="elev-loading">Could not load elevation. Try again shortly (needs internet).</div>';}
+}
+function drawProfile(c,dists,elev,color){
+  const W=680,H=150,pad={l:42,r:10,t:12,b:22};
+  const mn=Math.min(...elev),mx=Math.max(...elev),total=dists[dists.length-1]||1,span=(mx-mn)||1;
+  const X=d=>pad.l+(d/total)*(W-pad.l-pad.r),Y=v=>pad.t+(1-(v-mn)/span)*(H-pad.t-pad.b);
+  let line=`M ${X(dists[0])} ${Y(elev[0])}`;for(let i=1;i<elev.length;i++)line+=` L ${X(dists[i])} ${Y(elev[i])}`;
+  let area=line+` L ${X(dists[dists.length-1])} ${H-pad.b} L ${X(0)} ${H-pad.b} Z`;
+  let grid='';
+  for(let g=0;g<=4;g++){const v=mn+span*g/4,y=Y(v);grid+=`<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="rgba(35,41,29,.1)"/><text x="${pad.l-6}" y="${y+3}" fill="#8c917f" font-size="9" text-anchor="end" font-family="Space Mono">${Math.round(v)}</text>`;}
+  for(let g=0;g<=4;g++){const d=total*g/4;grid+=`<text x="${X(d)}" y="${H-6}" fill="#8c917f" font-size="9" text-anchor="middle" font-family="Space Mono">${(d/1000).toFixed(1)}</text>`;}
+  c.innerHTML=`<svg id="elevSvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grid}<path d="${area}" fill="${color}" opacity="0.2"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2"/></svg>`;
+}
+$('#elevClose').onclick=()=>$('#elev').classList.remove('show');
+
+/* ====================================================================
+   SEARCH (Nominatim)
+   ==================================================================== */
+let searchTimer=null;
+$('#search').addEventListener('input',e=>{clearTimeout(searchTimer);const q=e.target.value.trim();if(q.length<3){$('#searchResults').innerHTML='';return;}searchTimer=setTimeout(()=>doSearch(q),400);});
+async function doSearch(q){
+  try{
+    const url=`https://nominatim.openstreetmap.org/search?format=json&limit=6&accept-language=en&viewbox=20,45,29,40&q=${encodeURIComponent(q)}`;
+    const res=await fetch(url,{headers:{'Accept':'application/json'}});const arr=await res.json();
+    const box=$('#searchResults');box.innerHTML='';
+    if(!arr.length){box.innerHTML='<div class="empty">Nothing found.</div>';return;}
+    arr.forEach(it=>{const d=document.createElement('div');d.className='res';const name=it.display_name.split(',')[0];
+      d.innerHTML=`<b>${name}</b><small>${it.display_name}</small>`;
+      d.onclick=()=>{map.setView([+it.lat,+it.lon],14);L.circleMarker([+it.lat,+it.lon],{radius:8,color:'#cf5a2b',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(map).bindPopup(name).openPopup();box.innerHTML='';$('#search').value=name;};
+      box.appendChild(d);});
+  }catch(err){$('#searchResults').innerHTML='<div class="empty">Search error.</div>';}
+}
+
+/* ====================================================================
+   LOCATE / ZOOM
+   ==================================================================== */
+let locCircle=null,locDot=null;
+$('#locate').onclick=()=>{
+  if(!navigator.geolocation){toast('No GPS access');return;}
+  toast('Locating…');
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const{latitude,longitude,accuracy}=pos.coords;
+    if(locCircle)map.removeLayer(locCircle);if(locDot)map.removeLayer(locDot);
+    locCircle=L.circle([latitude,longitude],{radius:accuracy,color:'#2f6fe2',fillColor:'#2f6fe2',fillOpacity:.12,weight:1}).addTo(map);
+    locDot=L.circleMarker([latitude,longitude],{radius:6,color:'#fff',weight:2,fillColor:'#2f6fe2',fillOpacity:1}).addTo(map);
+    map.setView([latitude,longitude],15);
+  },()=>toast('Location denied'),{enableHighAccuracy:true,timeout:8000});
+};
+$('#zoomIn').onclick=()=>map.zoomIn();
+$('#zoomOut').onclick=()=>map.zoomOut();
+
+/* ====================================================================
+   EXPORT / IMPORT
+   ==================================================================== */
+function download(name,text,type){const blob=new Blob([text],{type:type||'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
+function buildGPX(){
+  const esc=s=>(s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+  let s=`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Mountain Routes" xmlns="http://www.topografix.com/GPX/1/1">\n`;
+  pois.forEach(p=>{s+=`  <wpt lat="${p.lat}" lon="${p.lng}"><name>${esc(p.name)}</name></wpt>\n`;});
+  routes.forEach(r=>{s+=`  <trk><name>${esc(r.name)}</name><trkseg>\n`;r.pts.forEach(pt=>{s+=`    <trkpt lat="${pt.lat}" lon="${pt.lng}"></trkpt>\n`;});s+=`  </trkseg></trk>\n`;});
+  return s+`</gpx>\n`;
+}
+$('#expGpx').onclick=()=>{if(!routes.length&&!pois.length){toast('Nothing to export');return;}download('routes.gpx',buildGPX(),'application/gpx+xml');toast('GPX downloaded');};
+$('#expJson').onclick=()=>{download('project.json',JSON.stringify({routes:routes.map(r=>({name:r.name,color:r.color,pts:r.pts,visible:r.visible})),pois:pois.map(p=>({name:p.name,lat:p.lat,lng:p.lng,color:p.color})),base:baseId},null,1),'application/json');toast('Project downloaded');};
+$('#impBtn').onclick=()=>$('#fileInput').click();
+$('#fileInput').onchange=e=>{const files=[...e.target.files];files.forEach(f=>{const rd=new FileReader();rd.onload=()=>{try{importText(f.name,rd.result);}catch(err){toast('Import failed: '+f.name);}};rd.readAsText(f);});e.target.value='';};
+/* drag & drop several files anywhere on the map */
+const wrapEl=$('#map-wrap');
+['dragenter','dragover'].forEach(ev=>wrapEl.addEventListener(ev,e=>{e.preventDefault();e.dataTransfer.dropEffect='copy';}));
+wrapEl.addEventListener('drop',e=>{e.preventDefault();const files=[...(e.dataTransfer.files||[])].filter(f=>/\.(gpx|json|geojson)$/i.test(f.name));if(!files.length){toast('Drop .gpx / .json files');return;}toast('Loading '+files.length+' file(s)…');files.forEach(f=>{const rd=new FileReader();rd.onload=()=>{try{importText(f.name,rd.result);}catch(err){toast('Import failed: '+f.name);}};rd.readAsText(f);});});
+function importText(name,text){
+  if(/\.json$|\.geojson$/i.test(name)||text.trim().startsWith('{')){
+    const obj=JSON.parse(text);
+    (obj.routes||[]).forEach(r=>{const id=newId();const pts=r.pts||[];routes.push({id,name:r.name||'Route',color:r.color||PALETTE[colorIdx++%PALETTE.length],pts,visible:r.visible!==false,original:r.original?r.original:clonePts(pts),history:[]});layerStore[id]={line:null,hit:null,verts:[],tips:[]};});
+    (obj.pois||[]).forEach(p=>{const np=addPOI({lat:p.lat,lng:p.lng},p.name);np.color=p.color||np.color;drawPOI(np);});
+    if(obj.base)setBase(obj.base);
+    toast('Project loaded');
+  }else{
+    const xml=new DOMParser().parseFromString(text,'application/xml');let count=0;
+    const grab=(sel,ptSel)=>xml.querySelectorAll(sel).forEach(node=>{
+      const nm=node.querySelector('name')?node.querySelector('name').textContent:'Import';
+      const pts=[...node.querySelectorAll(ptSel)].map(p=>({lat:+p.getAttribute('lat'),lng:+p.getAttribute('lon')}));
+      if(pts.length){const id=newId();routes.push({id,name:nm,color:PALETTE[colorIdx++%PALETTE.length],pts,visible:true,original:clonePts(pts),history:[]});layerStore[id]={line:null,hit:null,verts:[],tips:[]};count++;}});
+    grab('trk','trkpt');grab('rte','rtept');
+    xml.querySelectorAll('wpt').forEach(w=>addPOI({lat:+w.getAttribute('lat'),lng:+w.getAttribute('lon')},w.querySelector('name')?w.querySelector('name').textContent:'Point'));
+    toast(count?`Loaded ${count} route(s)`:'Loaded points');
+  }
+  const all=[];routes.forEach(r=>r.pts.forEach(p=>all.push([p.lat,p.lng])));pois.forEach(p=>all.push([p.lat,p.lng]));
+  if(all.length)map.fitBounds(all,{padding:[40,40]});
+  if(routes.length)activeId=routes[routes.length-1].id;
+  renderRoutes();
+}
+
+/* ---------- CLEAR EVERYTHING ---------- */
+$('#clearAll').onclick=()=>{
+  if(!routes.length&&!pois.length&&!measurePts.length){toast('Already empty');return;}
+  if(!confirm('Clear ALL routes, markers and measurements? This cannot be undone.'))return;
+  routes.forEach(r=>{const st=layerStore[r.id];if(st){if(st.line)map.removeLayer(st.line);if(st.hit)map.removeLayer(st.hit);st.verts.forEach(v=>map.removeLayer(v));st.tips.forEach(t=>map.removeLayer(t));}delete layerStore[r.id];});
+  routes=[];pois.forEach(p=>{if(poiStore[p.id])map.removeLayer(poiStore[p.id]);});pois=[];
+  Object.keys(poiStore).forEach(k=>delete poiStore[k]);
+  markedAvg.clear();clearMeasure();activeId=null;colorIdx=0;
+  try{localStorage.removeItem(LS_KEY);}catch(e){}
+  renderRoutes();toast('Everything cleared');
+};
+
+/* ====================================================================
+   PERSISTENCE (localStorage — works when opened as a file/site)
+   ==================================================================== */
+const LS_KEY='mountain_routes_v2';
+function persist(){try{localStorage.setItem(LS_KEY,JSON.stringify({routes:routes.map(r=>({name:r.name,color:r.color,pts:r.pts,visible:r.visible,original:r.original})),pois:pois.map(p=>({name:p.name,lat:p.lat,lng:p.lng,color:p.color})),base:baseId}));}catch(e){}}
+function restore(){try{const raw=localStorage.getItem(LS_KEY);if(!raw)return false;const o=JSON.parse(raw);
+  (o.routes||[]).forEach(r=>{const id=newId();const pts=r.pts||[];routes.push({id,name:r.name,color:r.color,pts,visible:r.visible!==false,original:r.original||null,history:[]});layerStore[id]={line:null,hit:null,verts:[],tips:[]};});
+  (o.pois||[]).forEach(p=>{const np={id:newId(),name:p.name,lat:p.lat,lng:p.lng,color:p.color||'#cf5a2b'};pois.push(np);drawPOI(np);});
+  if(o.base)baseId=o.base;if(routes.length)activeId=routes[routes.length-1].id;return true;}catch(e){return false;}}
+
+/* ---------- sidebar toggle ---------- */
+$('#toggle').onclick=()=>{$('#sidebar').classList.toggle('collapsed');setTimeout(()=>map.invalidateSize(),300);};
+if(window.innerWidth<700)$('#sidebar').classList.add('collapsed');
+
+/* ====================================================================
+   BOOT
+   ==================================================================== */
+restore();
+setBase(baseId);
+if(!readHash())map.setView([42.66,25.24],8);
+$('#cZoom').textContent=map.getZoom();
+renderRoutes();
+writeHash();
+setTimeout(()=>map.invalidateSize(),200);
+</script>
+</body>
+</html>

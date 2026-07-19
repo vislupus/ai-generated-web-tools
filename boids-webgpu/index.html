@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Murmuration — 200k WebGPU boids</title>
+<style>
+  :root {
+    --bg: #06080f;
+    --ink: #cfd8e3;
+    --dim: #6b7689;
+    --accent: #6fe3d6;
+    --panel: rgba(10, 14, 22, 0.78);
+    --line: rgba(120, 140, 170, 0.16);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: var(--bg); }
+  body { font: 12px/1.45 "SF Mono", "Cascadia Code", ui-monospace, Menlo, Consolas, monospace; color: var(--ink); }
+  #gpu { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  #gpu.dragging { cursor: grabbing; }
+
+  #hud {
+    position: fixed; top: 14px; left: 14px; width: 248px;
+    background: var(--panel); border: 1px solid var(--line);
+    backdrop-filter: blur(10px); border-radius: 10px; padding: 14px 16px;
+    user-select: none;
+  }
+  #hud h1 { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  #hud h1 span { color: var(--accent); }
+  .stats { display: flex; gap: 14px; margin: 8px 0 12px; color: var(--dim); }
+  .stats b { color: var(--ink); font-weight: 600; }
+  .ctl { margin: 9px 0; }
+  .ctl label { display: flex; justify-content: space-between; color: var(--dim); margin-bottom: 3px; }
+  .ctl label output { color: var(--ink); }
+  input[type=range] {
+    -webkit-appearance: none; width: 100%; height: 3px; border-radius: 2px;
+    background: rgba(120,140,170,0.28); outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 11px; height: 11px; border-radius: 50%;
+    background: var(--accent); cursor: pointer; border: none;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 11px; height: 11px; border-radius: 50%; background: var(--accent); cursor: pointer; border: none;
+  }
+  .row { display: flex; gap: 8px; margin-top: 12px; }
+  button, select {
+    flex: 1; background: rgba(120,140,170,0.12); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 0;
+    font: inherit; cursor: pointer;
+  }
+  button:hover, select:hover { border-color: var(--accent); }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  select { padding: 6px 4px; }
+  .hint { margin-top: 10px; color: var(--dim); font-size: 11px; }
+
+  #fail {
+    position: fixed; inset: 0; display: none; place-items: center; text-align: center;
+    background: var(--bg); padding: 24px; z-index: 10;
+  }
+  #fail .card { max-width: 460px; border: 1px solid var(--line); border-radius: 12px; padding: 28px; background: var(--panel); }
+  #fail h2 { font-size: 15px; margin-bottom: 10px; color: var(--accent); }
+  #fail p { color: var(--dim); font-size: 12.5px; }
+  @media (max-width: 560px) { #hud { width: 200px; padding: 11px 12px; } }
+</style>
+</head>
+<body>
+<canvas id="gpu"></canvas>
+
+<div id="hud">
+  <h1>Murmuration <span>/ WebGPU</span></h1>
+  <div class="stats">
+    <div>boids <b id="sBoids">—</b></div>
+    <div>fps <b id="sFps">—</b></div>
+    <div>ms <b id="sMs">—</b></div>
+  </div>
+  <div class="ctl"><label>separation <output id="oSep">1.6</output></label><input id="rSep" type="range" min="0" max="3.5" step="0.05" value="1.6"></div>
+  <div class="ctl"><label>alignment <output id="oAli">1.0</output></label><input id="rAli" type="range" min="0" max="3" step="0.05" value="1.0"></div>
+  <div class="ctl"><label>cohesion <output id="oCoh">0.7</output></label><input id="rCoh" type="range" min="0" max="3" step="0.05" value="0.7"></div>
+  <div class="ctl"><label>obstacle avoid <output id="oAvo">2.0</output></label><input id="rAvo" type="range" min="0" max="4" step="0.05" value="2.0"></div>
+  <div class="ctl"><label>max speed <output id="oSpd">11</output></label><input id="rSpd" type="range" min="5" max="22" step="0.5" value="11"></div>
+  <div class="row">
+    <select id="selCount" aria-label="Boid count">
+      <option value="50000">50k</option>
+      <option value="100000">100k</option>
+      <option value="200000" selected>200k</option>
+      <option value="400000">400k</option>
+    </select>
+    <button id="btnPause">Pause</button>
+    <button id="btnReset">Reset</button>
+  </div>
+  <div class="hint">drag to orbit · scroll to zoom</div>
+</div>
+
+<div id="fail"><div class="card">
+  <h2>WebGPU unavailable</h2>
+  <p id="failMsg">This simulation needs WebGPU. Use a current Chrome, Edge, or another browser with WebGPU enabled, with hardware acceleration on.</p>
+</div></div>
+
+<script type="module">
+'use strict';
+
+/* ---------------- constants ---------------- */
+const GRID_DIM = 64;            // cells per axis
+const CELL_SIZE = 2.5;          // == perception radius
+const WORLD_HALF = GRID_DIM * CELL_SIZE / 2;   // 80
+const NUM_CELLS = GRID_DIM ** 3;
+const MAX_PER_CELL = 16;
+const WG = 256;
+
+/* ---------------- WGSL: simulation ---------------- */
+const simWGSL = /* wgsl */`
+struct Params {
+  dt: f32, numBoids: u32, gridDim: u32, cellSize: f32,
+  worldHalf: f32, perception: f32, sepRadius: f32, maxSpeed: f32,
+  minSpeed: f32, sepW: f32, alignW: f32, cohW: f32,
+  avoidW: f32, boundW: f32, time: f32, _pad: f32,
+};
+
+@group(0) @binding(0) var<uniform> P: Params;
+@group(0) @binding(1) var<storage, read> posIn: array<vec4f>;
+@group(0) @binding(2) var<storage, read> velIn: array<vec4f>;
+@group(0) @binding(3) var<storage, read_write> posOut: array<vec4f>;
+@group(0) @binding(4) var<storage, read_write> velOut: array<vec4f>;
+@group(0) @binding(5) var<storage, read_write> gridCount: array<atomic<u32>>;
+@group(0) @binding(6) var<storage, read_write> gridIdx: array<u32>;
+
+const MAXC: u32 = ${MAX_PER_CELL}u;
+
+fn cellCoord(p: vec3f) -> vec3i {
+  let g = i32(P.gridDim);
+  let c = vec3i(floor((p + vec3f(P.worldHalf)) / P.cellSize));
+  return clamp(c, vec3i(0), vec3i(g - 1));
+}
+fn cellIndex(c: vec3i) -> u32 {
+  let g = i32(P.gridDim);
+  return u32(c.x + c.y * g + c.z * g * g);
+}
+
+/* ---------- signed distance field for obstacles ---------- */
+fn sdSphere(p: vec3f, c: vec3f, r: f32) -> f32 { return length(p - c) - r; }
+fn sdTorus(p: vec3f) -> f32 {
+  let q = vec2f(length(p.xz) - 28.0, p.y);
+  return length(q) - 7.0;
+}
+fn movingCenter(t: f32) -> vec3f {
+  return vec3f(cos(t * 0.4) * 45.0, sin(t * 0.23) * 20.0, sin(t * 0.4) * 45.0);
+}
+fn sdScene(p: vec3f, t: f32) -> f32 {
+  var d = sdTorus(p);
+  d = min(d, sdSphere(p, vec3f(-45.0, 25.0, -30.0), 14.0));
+  d = min(d, sdSphere(p, vec3f(40.0, -22.0, 35.0), 11.0));
+  d = min(d, sdSphere(p, movingCenter(t), 9.0));
+  return d;
+}
+fn sdGrad(p: vec3f, t: f32) -> vec3f {
+  let h = 0.3;
+  let g = vec3f(
+    sdScene(p + vec3f(h,0.0,0.0), t) - sdScene(p - vec3f(h,0.0,0.0), t),
+    sdScene(p + vec3f(0.0,h,0.0), t) - sdScene(p - vec3f(0.0,h,0.0), t),
+    sdScene(p + vec3f(0.0,0.0,h), t) - sdScene(p - vec3f(0.0,0.0,h), t));
+  let l = length(g);
+  if (l < 1e-5) { return vec3f(0.0, 1.0, 0.0); }
+  return g / l;
+}
+
+/* ---------- pass 1: clear grid counters ---------- */
+@compute @workgroup_size(${WG})
+fn clearGrid(@builtin(global_invocation_id) gid: vec3u) {
+  let nc = P.gridDim * P.gridDim * P.gridDim;
+  if (gid.x >= nc) { return; }
+  atomicStore(&gridCount[gid.x], 0u);
+}
+
+/* ---------- pass 2: bin boids into the spatial hash ---------- */
+@compute @workgroup_size(${WG})
+fn binBoids(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  if (i >= P.numBoids) { return; }
+  let c = cellIndex(cellCoord(posIn[i].xyz));
+  let slot = atomicAdd(&gridCount[c], 1u);
+  if (slot < MAXC) { gridIdx[c * MAXC + slot] = i; }
+}
+
+/* ---------- pass 3: flocking + SDF avoidance + integrate ---------- */
+@compute @workgroup_size(${WG})
+fn simulate(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  if (i >= P.numBoids) { return; }
+
+  let p = posIn[i].xyz;
+  var v = velIn[i].xyz;
+
+  var sep = vec3f(0.0);
+  var aliSum = vec3f(0.0);
+  var cohSum = vec3f(0.0);
+  var n = 0u;
+  var nSep = 0u;
+
+  let cc = cellCoord(p);
+  let g = i32(P.gridDim);
+  let r2 = P.perception * P.perception;
+  let sr2 = P.sepRadius * P.sepRadius;
+
+  // gather neighbors from the 27 surrounding cells
+  for (var dz = -1; dz <= 1; dz++) {
+    let z = cc.z + dz;
+    if (z < 0 || z >= g) { continue; }
+    for (var dy = -1; dy <= 1; dy++) {
+      let y = cc.y + dy;
+      if (y < 0 || y >= g) { continue; }
+      for (var dx = -1; dx <= 1; dx++) {
+        let x = cc.x + dx;
+        if (x < 0 || x >= g) { continue; }
+        let ci = cellIndex(vec3i(x, y, z));
+        let cnt = min(atomicLoad(&gridCount[ci]), MAXC);
+        for (var k = 0u; k < cnt; k++) {
+          let j = gridIdx[ci * MAXC + k];
+          if (j == i) { continue; }
+          let d = posIn[j].xyz - p;
+          let d2 = dot(d, d);
+          if (d2 < r2) {
+            aliSum += velIn[j].xyz;
+            cohSum += posIn[j].xyz;
+            n++;
+            if (d2 < sr2) { sep -= d / (d2 + 1e-3); nSep++; }
+          }
+        }
+      }
+    }
+  }
+
+  var force = vec3f(0.0);
+
+  // Reynolds steering: desired velocity minus current velocity
+  if (n > 0u) {
+    let fn1 = f32(n);
+    let aliDes = aliSum / fn1;
+    if (dot(aliDes, aliDes) > 1e-6) {
+      force += (normalize(aliDes) * P.maxSpeed - v) * P.alignW;
+    }
+    let cohDir = cohSum / fn1 - p;
+    if (dot(cohDir, cohDir) > 1e-6) {
+      force += (normalize(cohDir) * P.maxSpeed - v) * P.cohW;
+    }
+  }
+  if (nSep > 0u && dot(sep, sep) > 1e-6) {
+    force += (normalize(sep) * P.maxSpeed - v) * P.sepW;
+  }
+
+  // SDF obstacle avoidance: steer along the gradient, ramped near the surface
+  let t = P.time;
+  let dist = sdScene(p, t);
+  let avoidR = 8.0;
+  if (dist < avoidR) {
+    let s = 1.0 - clamp(dist / avoidR, 0.0, 1.0);
+    force += sdGrad(p, t) * (s * s) * P.avoidW * 30.0;
+  }
+
+  // soft containment in the world box
+  let m = P.worldHalf - 12.0;
+  if (p.x >  m) { force.x -= (p.x - m) * P.boundW; }
+  if (p.x < -m) { force.x += (-m - p.x) * P.boundW; }
+  if (p.y >  m) { force.y -= (p.y - m) * P.boundW; }
+  if (p.y < -m) { force.y += (-m - p.y) * P.boundW; }
+  if (p.z >  m) { force.z -= (p.z - m) * P.boundW; }
+  if (p.z < -m) { force.z += (-m - p.z) * P.boundW; }
+
+  // integrate with speed clamp
+  v += force * P.dt;
+  var sp = length(v);
+  if (sp < 1e-4) { v = vec3f(0.0, 0.0, P.minSpeed); sp = P.minSpeed; }
+  v = v / sp * clamp(sp, P.minSpeed, P.maxSpeed);
+
+  var np = p + v * P.dt;
+
+  // hard projection out of obstacles (anti-tunneling)
+  let nd = sdScene(np, t);
+  if (nd < 0.6) { np += sdGrad(np, t) * (0.6 - nd); }
+  np = clamp(np, vec3f(-P.worldHalf), vec3f(P.worldHalf));
+
+  posOut[i] = vec4f(np, 1.0);
+  velOut[i] = vec4f(v, 0.0);
+}
+`;
+
+/* ---------------- WGSL: boid rendering (instanced, oriented) ---------------- */
+const boidWGSL = /* wgsl */`
+struct U { viewProj: mat4x4f, camPos: vec3f, time: f32, };
+@group(0) @binding(0) var<uniform> u: U;
+@group(0) @binding(1) var<storage, read> pos: array<vec4f>;
+@group(0) @binding(2) var<storage, read> vel: array<vec4f>;
+
+struct VOut {
+  @builtin(position) clip: vec4f,
+  @location(0) normal: vec3f,
+  @location(1) color: vec3f,
+  @location(2) world: vec3f,
+};
+
+@vertex
+fn vs(@location(0) lp: vec3f, @location(1) ln: vec3f,
+      @builtin(instance_index) ii: u32) -> VOut {
+  let p = pos[ii].xyz;
+  let v = vel[ii].xyz;
+  let speed = length(v);
+
+  // orientation basis from velocity
+  let f = v / max(speed, 1e-3);
+  var up0 = vec3f(0.0, 1.0, 0.0);
+  if (abs(f.y) > 0.99) { up0 = vec3f(1.0, 0.0, 0.0); }
+  let r = normalize(cross(up0, f));
+  let upv = cross(f, r);
+
+  let s = 0.45;
+  let wp = p + (r * lp.x + upv * lp.y + f * lp.z) * s;
+
+  var o: VOut;
+  o.clip = u.viewProj * vec4f(wp, 1.0);
+  o.normal = r * ln.x + upv * ln.y + f * ln.z;
+  o.world = wp;
+
+  // color: speed gradient + per-boid variation
+  let h = fract(f32(ii) * 0.61803398);
+  let tc = clamp((speed - 4.0) / 12.0, 0.0, 1.0);
+  var col = mix(vec3f(0.13, 0.38, 0.72), vec3f(0.33, 0.88, 0.93), tc);
+  col = mix(col, vec3f(1.0, 0.74, 0.34), smoothstep(0.72, 1.0, tc));
+  col *= 0.82 + 0.34 * h;
+  o.color = col;
+  return o;
+}
+
+@fragment
+fn fs(in: VOut) -> @location(0) vec4f {
+  let N = normalize(in.normal);
+  let L = normalize(vec3f(0.42, 0.8, 0.42));
+  let ndl = abs(dot(N, L));               // two-sided shading for thin darts
+  var c = in.color * (0.34 + 0.78 * ndl);
+  let dist = length(in.world - u.camPos);
+  let fog = clamp((dist - 140.0) / 460.0, 0.0, 1.0);
+  c = mix(c, vec3f(0.024, 0.031, 0.059), fog);
+  return vec4f(c, 1.0);
+}
+`;
+
+/* ---------------- WGSL: obstacle rendering ---------------- */
+const obstacleWGSL = /* wgsl */`
+struct U { viewProj: mat4x4f, camPos: vec3f, time: f32, };
+@group(0) @binding(0) var<uniform> u: U;
+
+struct VOut {
+  @builtin(position) clip: vec4f,
+  @location(0) normal: vec3f,
+  @location(1) world: vec3f,
+};
+
+@vertex
+fn vs(@location(0) lp: vec3f, @location(1) ln: vec3f,
+      @location(2) inst: vec4f) -> VOut {   // inst = center.xyz, uniform scale
+  let wp = lp * inst.w + inst.xyz;
+  var o: VOut;
+  o.clip = u.viewProj * vec4f(wp, 1.0);
+  o.normal = ln;
+  o.world = wp;
+  return o;
+}
+
+@fragment
+fn fs(in: VOut) -> @location(0) vec4f {
+  let N = normalize(in.normal);
+  let V = normalize(u.camPos - in.world);
+  let L = normalize(vec3f(0.42, 0.8, 0.42));
+  let ndl = max(dot(N, L), 0.0);
+  let rim = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+  var c = vec3f(0.10, 0.115, 0.155) * (0.45 + 0.8 * ndl);
+  c += vec3f(0.30, 0.78, 0.72) * rim * 0.55;
+  let dist = length(in.world - u.camPos);
+  let fog = clamp((dist - 140.0) / 460.0, 0.0, 1.0);
+  c = mix(c, vec3f(0.024, 0.031, 0.059), fog);
+  return vec4f(c, 1.0);
+}
+`;
+
+/* ---------------- WGSL: bounding-box lines ---------------- */
+const lineWGSL = /* wgsl */`
+struct U { viewProj: mat4x4f, camPos: vec3f, time: f32, };
+@group(0) @binding(0) var<uniform> u: U;
+@vertex fn vs(@location(0) p: vec3f) -> @builtin(position) vec4f {
+  return u.viewProj * vec4f(p, 1.0);
+}
+@fragment fn fs() -> @location(0) vec4f { return vec4f(0.16, 0.22, 0.33, 1.0); }
+`;
+
+/* ---------------- small mat4 helpers (column-major) ---------------- */
+function m4Perspective(fovY, aspect, near, far) {
+  const f = 1 / Math.tan(fovY / 2), o = new Float32Array(16);
+  o[0] = f / aspect; o[5] = f;
+  o[10] = far / (near - far); o[11] = -1;
+  o[14] = far * near / (near - far);
+  return o;
+}
+function m4LookAt(eye, target, up) {
+  const z = norm3(sub3(eye, target));
+  const x = norm3(cross3(up, z));
+  const y = cross3(z, x);
+  const o = new Float32Array(16);
+  o[0] = x[0]; o[1] = y[0]; o[2] = z[0];
+  o[4] = x[1]; o[5] = y[1]; o[6] = z[1];
+  o[8] = x[2]; o[9] = y[2]; o[10] = z[2];
+  o[12] = -dot3(x, eye); o[13] = -dot3(y, eye); o[14] = -dot3(z, eye);
+  o[15] = 1;
+  return o;
+}
+function m4Mul(a, b) {
+  const o = new Float32Array(16);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+    let s = 0;
+    for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k];
+    o[c * 4 + r] = s;
+  }
+  return o;
+}
+const sub3 = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+const dot3 = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+const cross3 = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const norm3 = a => { const l = Math.hypot(...a) || 1; return [a[0]/l, a[1]/l, a[2]/l]; };
+
+/* ---------------- geometry builders ---------------- */
+function buildDart() {
+  // elongated 4-sided pyramid: tip forward (+z), flattened diamond base
+  const T = [0, 0, 1.7];
+  const B = [[0.6, 0, -1], [0, 0.3, -1], [-0.6, 0, -1], [0, -0.3, -1]];
+  const tris = [];
+  for (let k = 0; k < 4; k++) tris.push([T, B[k], B[(k + 1) % 4]]);
+  tris.push([B[0], B[2], B[1]], [B[0], B[3], B[2]]);   // back cap
+  const out = new Float32Array(tris.length * 3 * 6);
+  let w = 0;
+  for (const [a, b, c] of tris) {
+    const n = norm3(cross3(sub3(b, a), sub3(c, a)));
+    for (const v of [a, b, c]) { out.set(v, w); out.set(n, w + 3); w += 6; }
+  }
+  return out;
+}
+function buildSphere(stacks = 20, slices = 28) {
+  const verts = [], idx = [];
+  for (let i = 0; i <= stacks; i++) {
+    const phi = Math.PI * i / stacks, sp = Math.sin(phi), cp = Math.cos(phi);
+    for (let j = 0; j <= slices; j++) {
+      const th = 2 * Math.PI * j / slices;
+      const x = sp * Math.cos(th), y = cp, z = sp * Math.sin(th);
+      verts.push(x, y, z, x, y, z);
+    }
+  }
+  const S = slices + 1;
+  for (let i = 0; i < stacks; i++) for (let j = 0; j < slices; j++) {
+    const a = i * S + j, b = a + S;
+    idx.push(a, b, a + 1, a + 1, b, b + 1);
+  }
+  return { v: new Float32Array(verts), i: new Uint16Array(idx) };
+}
+function buildTorus(R = 28, r = 7, mj = 56, mn = 20) {
+  const verts = [], idx = [];
+  for (let i = 0; i <= mj; i++) {
+    const u = 2 * Math.PI * i / mj, cu = Math.cos(u), su = Math.sin(u);
+    for (let j = 0; j <= mn; j++) {
+      const v = 2 * Math.PI * j / mn, cv = Math.cos(v), sv = Math.sin(v);
+      verts.push((R + r * cv) * cu, r * sv, (R + r * cv) * su, cv * cu, sv, cv * su);
+    }
+  }
+  const S = mn + 1;
+  for (let i = 0; i < mj; i++) for (let j = 0; j < mn; j++) {
+    const a = i * S + j, b = a + S;
+    idx.push(a, b, a + 1, a + 1, b, b + 1);
+  }
+  return { v: new Float32Array(verts), i: new Uint16Array(idx) };
+}
+function buildBoxLines(h) {
+  const c = [];
+  for (const s of [-h, h]) {
+    c.push(-h,-h,s,  h,-h,s,   h,-h,s,  h,h,s,   h,h,s, -h,h,s,  -h,h,s, -h,-h,s);
+  }
+  for (const x of [-h, h]) for (const y of [-h, h]) c.push(x, y, -h, x, y, h);
+  return new Float32Array(c);
+}
+
+/* ---------------- obstacle definitions (mirrors the WGSL SDF) ---------------- */
+const STATIC_SPHERES = [[-45, 25, -30, 14], [40, -22, 35, 11]];
+const MOVING_R = 9;
+const movingCenterJS = t => [Math.cos(t * 0.4) * 45, Math.sin(t * 0.23) * 20, Math.sin(t * 0.4) * 45];
+function sceneSDFJS(p, t) {
+  const q0 = Math.hypot(Math.hypot(p[0], p[2]) - 28, p[1]) - 7;
+  let d = q0;
+  for (const s of STATIC_SPHERES)
+    d = Math.min(d, Math.hypot(p[0]-s[0], p[1]-s[1], p[2]-s[2]) - s[3]);
+  const m = movingCenterJS(t);
+  d = Math.min(d, Math.hypot(p[0]-m[0], p[1]-m[1], p[2]-m[2]) - MOVING_R);
+  return d;
+}
+
+/* ---------------- main ---------------- */
+async function main() {
+  const canvas = document.getElementById('gpu');
+  if (!navigator.gpu) return fail('navigator.gpu is missing — this browser has no WebGPU support.');
+  const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+  if (!adapter) return fail('No suitable GPU adapter found. Check that hardware acceleration is enabled.');
+  const device = await adapter.requestDevice();
+  device.lost.then(info => { if (info.reason !== 'destroyed') fail('GPU device lost: ' + info.message); });
+
+  const ctx = canvas.getContext('webgpu');
+  const format = navigator.gpu.getPreferredCanvasFormat();
+  ctx.configure({ device, format, alphaMode: 'opaque' });
+
+  const SAMPLES = 4;
+  let msaaTex = null, depthTex = null;
+
+  function resize() {
+    const dpr = Math.min(devicePixelRatio || 1, 1.75);
+    const w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+    const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+    if (canvas.width === w && canvas.height === h && msaaTex) return;
+    canvas.width = w; canvas.height = h;
+    msaaTex?.destroy(); depthTex?.destroy();
+    msaaTex = device.createTexture({ size: [w, h], sampleCount: SAMPLES, format, usage: GPUTextureUsage.RENDER_ATTACHMENT });
+    depthTex = device.createTexture({ size: [w, h], sampleCount: SAMPLES, format: 'depth24plus', usage: GPUTextureUsage.RENDER_ATTACHMENT });
+  }
+  new ResizeObserver(resize).observe(canvas);
+  resize();
+
+  /* ----- static buffers ----- */
+  const paramsBuf = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const renderUBuf = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+
+  const gridCountBuf = device.createBuffer({ size: NUM_CELLS * 4, usage: GPUBufferUsage.STORAGE });
+  const gridIdxBuf = device.createBuffer({ size: NUM_CELLS * MAX_PER_CELL * 4, usage: GPUBufferUsage.STORAGE });
+
+  const dart = buildDart();
+  const dartBuf = device.createBuffer({ size: dart.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(dartBuf, 0, dart);
+  const dartVerts = dart.length / 6;
+
+  const sph = buildSphere(), tor = buildTorus();
+  const mkVB = a => { const b = device.createBuffer({ size: a.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST }); device.queue.writeBuffer(b, 0, a); return b; };
+  const mkIB = a => {
+    const sz = Math.ceil(a.byteLength / 4) * 4;
+    const b = device.createBuffer({ size: sz, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST });
+    device.queue.writeBuffer(b, 0, a); return b;
+  };
+  const sphVB = mkVB(sph.v), sphIB = mkIB(sph.i);
+  const torVB = mkVB(tor.v), torIB = mkIB(tor.i);
+
+  const sphereInstBuf = device.createBuffer({ size: 3 * 16, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+  const torusInstBuf = device.createBuffer({ size: 16, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(torusInstBuf, 0, new Float32Array([0, 0, 0, 1]));
+
+  const boxLines = buildBoxLines(WORLD_HALF);
+  const boxBuf = mkVB(boxLines);
+  const boxVerts = boxLines.length / 3;
+
+  /* ----- pipelines ----- */
+  const simMod = device.createShaderModule({ code: simWGSL });
+  const clearPipe = device.createComputePipeline({ layout: 'auto', compute: { module: simMod, entryPoint: 'clearGrid' } });
+  const binPipe = device.createComputePipeline({ layout: 'auto', compute: { module: simMod, entryPoint: 'binBoids' } });
+  const simPipe = device.createComputePipeline({ layout: 'auto', compute: { module: simMod, entryPoint: 'simulate' } });
+
+  const depthState = { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' };
+  const meshLayout = [{ arrayStride: 24, attributes: [
+    { shaderLocation: 0, offset: 0, format: 'float32x3' },
+    { shaderLocation: 1, offset: 12, format: 'float32x3' }] }];
+
+  const boidMod = device.createShaderModule({ code: boidWGSL });
+  const boidPipe = device.createRenderPipeline({
+    layout: 'auto',
+    vertex: { module: boidMod, entryPoint: 'vs', buffers: meshLayout },
+    fragment: { module: boidMod, entryPoint: 'fs', targets: [{ format }] },
+    primitive: { topology: 'triangle-list', cullMode: 'none' },
+    depthStencil: depthState, multisample: { count: SAMPLES },
+  });
+
+  const obsMod = device.createShaderModule({ code: obstacleWGSL });
+  const obsPipe = device.createRenderPipeline({
+    layout: 'auto',
+    vertex: { module: obsMod, entryPoint: 'vs', buffers: [
+      meshLayout[0],
+      { arrayStride: 16, stepMode: 'instance', attributes: [{ shaderLocation: 2, offset: 0, format: 'float32x4' }] }] },
+    fragment: { module: obsMod, entryPoint: 'fs', targets: [{ format }] },
+    primitive: { topology: 'triangle-list', cullMode: 'back' },
+    depthStencil: depthState, multisample: { count: SAMPLES },
+  });
+
+  const lineMod = device.createShaderModule({ code: lineWGSL });
+  const linePipe = device.createRenderPipeline({
+    layout: 'auto',
+    vertex: { module: lineMod, entryPoint: 'vs', buffers: [
+      { arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x3' }] }] },
+    fragment: { module: lineMod, entryPoint: 'fs', targets: [{ format }] },
+    primitive: { topology: 'line-list' },
+    depthStencil: depthState, multisample: { count: SAMPLES },
+  });
+
+  const obsBG = device.createBindGroup({ layout: obsPipe.getBindGroupLayout(0),
+    entries: [{ binding: 0, resource: { buffer: renderUBuf } }] });
+  const lineBG = device.createBindGroup({ layout: linePipe.getBindGroupLayout(0),
+    entries: [{ binding: 0, resource: { buffer: renderUBuf } }] });
+
+  /* ----- per-population resources (rebuilt on count change) ----- */
+  let numBoids = 0, posBuf = [], velBuf = [], binBG = [], simBG = [], boidBG = [], cur = 0;
+
+  function setupBoids(n) {
+    numBoids = n; cur = 0;
+    posBuf.forEach(b => b.destroy()); velBuf.forEach(b => b.destroy());
+    const usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST;
+    posBuf = [0, 1].map(() => device.createBuffer({ size: n * 16, usage }));
+    velBuf = [0, 1].map(() => device.createBuffer({ size: n * 16, usage }));
+
+    // scatter outside obstacles
+    const P = new Float32Array(n * 4), V = new Float32Array(n * 4);
+    const lim = WORLD_HALF - 6;
+    for (let i = 0; i < n; i++) {
+      let p;
+      do {
+        p = [(Math.random()*2-1)*lim, (Math.random()*2-1)*lim, (Math.random()*2-1)*lim];
+      } while (sceneSDFJS(p, 0) < 2.5);
+      P.set(p, i * 4); P[i*4+3] = 1;
+      const th = Math.random() * Math.PI * 2, ph = Math.acos(Math.random()*2-1), sp = 6 + Math.random()*5;
+      V[i*4]   = Math.sin(ph)*Math.cos(th)*sp;
+      V[i*4+1] = Math.cos(ph)*sp;
+      V[i*4+2] = Math.sin(ph)*Math.sin(th)*sp;
+    }
+    device.queue.writeBuffer(posBuf[0], 0, P);
+    device.queue.writeBuffer(posBuf[1], 0, P);
+    device.queue.writeBuffer(velBuf[0], 0, V);
+    device.queue.writeBuffer(velBuf[1], 0, V);
+
+    binBG = [0, 1].map(i => device.createBindGroup({ layout: binPipe.getBindGroupLayout(0), entries: [
+      { binding: 0, resource: { buffer: paramsBuf } },
+      { binding: 1, resource: { buffer: posBuf[i] } },
+      { binding: 5, resource: { buffer: gridCountBuf } },
+      { binding: 6, resource: { buffer: gridIdxBuf } }] }));
+    simBG = [0, 1].map(i => device.createBindGroup({ layout: simPipe.getBindGroupLayout(0), entries: [
+      { binding: 0, resource: { buffer: paramsBuf } },
+      { binding: 1, resource: { buffer: posBuf[i] } },
+      { binding: 2, resource: { buffer: velBuf[i] } },
+      { binding: 3, resource: { buffer: posBuf[1 - i] } },
+      { binding: 4, resource: { buffer: velBuf[1 - i] } },
+      { binding: 5, resource: { buffer: gridCountBuf } },
+      { binding: 6, resource: { buffer: gridIdxBuf } }] }));
+    boidBG = [0, 1].map(i => device.createBindGroup({ layout: boidPipe.getBindGroupLayout(0), entries: [
+      { binding: 0, resource: { buffer: renderUBuf } },
+      { binding: 1, resource: { buffer: posBuf[i] } },
+      { binding: 2, resource: { buffer: velBuf[i] } }] }));
+    document.getElementById('sBoids').textContent = (n / 1000) + 'k';
+  }
+  const clearBG = device.createBindGroup({ layout: clearPipe.getBindGroupLayout(0), entries: [
+    { binding: 0, resource: { buffer: paramsBuf } },
+    { binding: 5, resource: { buffer: gridCountBuf } }] });
+
+  setupBoids(200000);
+
+  /* ----- UI state ----- */
+  const ui = { sep: 1.6, ali: 1.0, coh: 0.7, avo: 2.0, spd: 11, paused: false };
+  const bindSlider = (id, oid, key) => {
+    const el = document.getElementById(id), out = document.getElementById(oid);
+    el.addEventListener('input', () => { ui[key] = +el.value; out.textContent = el.value; });
+  };
+  bindSlider('rSep', 'oSep', 'sep'); bindSlider('rAli', 'oAli', 'ali');
+  bindSlider('rCoh', 'oCoh', 'coh'); bindSlider('rAvo', 'oAvo', 'avo');
+  bindSlider('rSpd', 'oSpd', 'spd');
+  const btnPause = document.getElementById('btnPause');
+  btnPause.addEventListener('click', () => { ui.paused = !ui.paused; btnPause.textContent = ui.paused ? 'Resume' : 'Pause'; });
+  document.getElementById('btnReset').addEventListener('click', () => setupBoids(numBoids));
+  document.getElementById('selCount').addEventListener('change', e => setupBoids(+e.target.value));
+
+  /* ----- orbit camera ----- */
+  const cam = { yaw: 0.7, pitch: 0.32, dist: 235, auto: true };
+  let dragging = false, lastX = 0, lastY = 0;
+  canvas.addEventListener('pointerdown', e => { dragging = true; cam.auto = false; lastX = e.clientX; lastY = e.clientY; canvas.classList.add('dragging'); canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    cam.yaw += (e.clientX - lastX) * 0.005;
+    cam.pitch = Math.max(-1.45, Math.min(1.45, cam.pitch + (e.clientY - lastY) * 0.005));
+    lastX = e.clientX; lastY = e.clientY;
+  });
+  const endDrag = () => { dragging = false; canvas.classList.remove('dragging'); };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('wheel', e => { e.preventDefault(); cam.dist = Math.max(60, Math.min(600, cam.dist * Math.exp(e.deltaY * 0.001))); }, { passive: false });
+
+  /* ----- frame loop ----- */
+  const pF = new Float32Array(16), pU = new Uint32Array(pF.buffer);
+  const rU = new Float32Array(20);
+  const sphereInst = new Float32Array(12);
+  sphereInst.set(STATIC_SPHERES[0], 0);
+  sphereInst.set(STATIC_SPHERES[1], 4);
+
+  let simTime = 0, last = performance.now(), fpsE = 60, msE = 16, hudT = 0;
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function frame(now) {
+    const rawDt = (now - last) / 1000; last = now;
+    const dt = Math.min(rawDt, 1 / 30);
+    fpsE += (1 / Math.max(rawDt, 1e-4) - fpsE) * 0.05;
+    msE += (rawDt * 1000 - msE) * 0.05;
+    hudT += rawDt;
+    if (hudT > 0.25) {
+      hudT = 0;
+      document.getElementById('sFps').textContent = fpsE.toFixed(0);
+      document.getElementById('sMs').textContent = msE.toFixed(1);
+    }
+
+    resize();
+    if (!ui.paused) simTime += dt;
+    if (cam.auto && !reduceMotion) cam.yaw += dt * 0.05;
+
+    // params
+    pF[0] = dt; pU[1] = numBoids; pU[2] = GRID_DIM; pF[3] = CELL_SIZE;
+    pF[4] = WORLD_HALF; pF[5] = CELL_SIZE; pF[6] = 1.2; pF[7] = ui.spd;
+    pF[8] = Math.min(5, ui.spd * 0.45); pF[9] = ui.sep; pF[10] = ui.ali; pF[11] = ui.coh;
+    pF[12] = ui.avo; pF[13] = 1.5; pF[14] = simTime; pF[15] = 0;
+    device.queue.writeBuffer(paramsBuf, 0, pF);
+
+    // camera
+    const cp = Math.cos(cam.pitch);
+    const eye = [Math.sin(cam.yaw) * cp * cam.dist, Math.sin(cam.pitch) * cam.dist, Math.cos(cam.yaw) * cp * cam.dist];
+    const vp = m4Mul(m4Perspective(Math.PI / 3.4, canvas.width / canvas.height, 0.5, 1200), m4LookAt(eye, [0, 0, 0], [0, 1, 0]));
+    rU.set(vp, 0); rU.set(eye, 16); rU[19] = simTime;
+    device.queue.writeBuffer(renderUBuf, 0, rU);
+
+    // moving obstacle instance
+    const mc = movingCenterJS(simTime);
+    sphereInst[8] = mc[0]; sphereInst[9] = mc[1]; sphereInst[10] = mc[2]; sphereInst[11] = MOVING_R;
+    device.queue.writeBuffer(sphereInstBuf, 0, sphereInst);
+
+    const enc = device.createCommandEncoder();
+
+    if (!ui.paused) {
+      const cpass = enc.beginComputePass();
+      cpass.setPipeline(clearPipe);
+      cpass.setBindGroup(0, clearBG);
+      cpass.dispatchWorkgroups(Math.ceil(NUM_CELLS / WG));
+      cpass.setPipeline(binPipe);
+      cpass.setBindGroup(0, binBG[cur]);
+      cpass.dispatchWorkgroups(Math.ceil(numBoids / WG));
+      cpass.setPipeline(simPipe);
+      cpass.setBindGroup(0, simBG[cur]);
+      cpass.dispatchWorkgroups(Math.ceil(numBoids / WG));
+      cpass.end();
+      cur = 1 - cur;
+    }
+
+    const rpass = enc.beginRenderPass({
+      colorAttachments: [{
+        view: msaaTex.createView(), resolveTarget: ctx.getCurrentTexture().createView(),
+        loadOp: 'clear', storeOp: 'store', clearValue: { r: 0.024, g: 0.031, b: 0.059, a: 1 },
+      }],
+      depthStencilAttachment: { view: depthTex.createView(), depthLoadOp: 'clear', depthStoreOp: 'discard', depthClearValue: 1 },
+    });
+
+    rpass.setPipeline(linePipe);
+    rpass.setBindGroup(0, lineBG);
+    rpass.setVertexBuffer(0, boxBuf);
+    rpass.draw(boxVerts);
+
+    rpass.setPipeline(obsPipe);
+    rpass.setBindGroup(0, obsBG);
+    rpass.setVertexBuffer(0, sphVB);
+    rpass.setVertexBuffer(1, sphereInstBuf);
+    rpass.setIndexBuffer(sphIB, 'uint16');
+    rpass.drawIndexed(sph.i.length, 3);
+    rpass.setVertexBuffer(0, torVB);
+    rpass.setVertexBuffer(1, torusInstBuf);
+    rpass.setIndexBuffer(torIB, 'uint16');
+    rpass.drawIndexed(tor.i.length, 1);
+
+    rpass.setPipeline(boidPipe);
+    rpass.setBindGroup(0, boidBG[cur]);
+    rpass.setVertexBuffer(0, dartBuf);
+    rpass.draw(dartVerts, numBoids);
+
+    rpass.end();
+    device.queue.submit([enc.finish()]);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+function fail(msg) {
+  document.getElementById('fail').style.display = 'grid';
+  document.getElementById('failMsg').textContent = msg;
+}
+
+main().catch(e => fail(e.message || String(e)));
+</script>
+</body>
+</html>

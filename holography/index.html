@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digital Holography Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #050507;
+  --bg-2:      #0a0a10;
+  --bg-3:      #12121b;
+  --bg-4:      #1a1a26;
+  --line:      #1d1d2a;
+  --line-2:    #2a2a3a;
+  --txt:       #ece8de;
+  --txt-2:     #908a7e;
+  --txt-3:     #5a5650;
+  --laser:     #ff2b3d;
+  --laser-glow: rgba(255, 43, 61, 0.45);
+  --green:     #6effb0;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); }
+body {
+  color: var(--txt);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    radial-gradient(ellipse at top, rgba(255,43,61,0.04), transparent 50%),
+    radial-gradient(ellipse at bottom right, rgba(74,158,255,0.025), transparent 60%),
+    var(--bg);
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    radial-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+    radial-gradient(rgba(255,255,255,0.008) 1px, transparent 1px);
+  background-size: 3px 3px, 7px 7px;
+  background-position: 0 0, 1px 2px;
+  pointer-events: none;
+  z-index: 1;
+}
+.app { position: relative; z-index: 2; max-width: 1480px; margin: 0 auto; padding: 28px 32px 40px; }
+.header { display: flex; justify-content: space-between; align-items: flex-end; padding: 8px 0 22px; border-bottom: 1px solid var(--line); margin-bottom: 22px; position: relative; }
+.header::after { content: ''; position: absolute; left: 0; bottom: -1px; width: 80px; height: 1px; background: var(--laser); box-shadow: 0 0 8px var(--laser-glow); }
+.brand { display: flex; align-items: baseline; gap: 18px; }
+.brand-mark { color: var(--laser); font-size: 22px; line-height: 1; text-shadow: 0 0 12px var(--laser-glow); display: inline-block; transform: translateY(2px); }
+h1 { font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 500; font-size: 28px; letter-spacing: 0.5px; color: var(--txt); line-height: 1; }
+h1 em { color: var(--laser); font-style: italic; }
+.tagline { font-size: 9.5px; color: var(--txt-3); letter-spacing: 0.18em; text-transform: uppercase; padding-bottom: 4px; }
+.header-meta { display: flex; gap: 22px; font-size: 10px; color: var(--txt-3); letter-spacing: 0.12em; text-transform: uppercase; padding-bottom: 4px; }
+.header-meta strong { color: var(--txt); font-weight: 400; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.header-meta .live { color: var(--laser); text-shadow: 0 0 6px var(--laser-glow); }
+.header-meta .pulse { display: inline-block; width: 6px; height: 6px; background: var(--green); border-radius: 50%; margin-right: 8px; vertical-align: 1px; animation: pulse 2s infinite; }
+.pulse.busy { background: var(--laser); animation-duration: 0.6s; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px currentColor; }
+  50% { opacity: 0.35; box-shadow: 0 0 0 currentColor; }
+}
+.grid { display: grid; grid-template-columns: 270px 1fr 1fr 1fr; gap: 14px; }
+@media (max-width: 1240px) {
+  .grid { grid-template-columns: 240px 1fr 1fr; }
+  .panel.recon { grid-column: 1 / -1; }
+  .panel.recon .canvas-frame { max-width: 380px; margin-left: auto; margin-right: auto; }
+}
+@media (max-width: 880px) {
+  .grid { grid-template-columns: 1fr 1fr; }
+  .panel.source { grid-column: 1 / -1; }
+}
+@media (max-width: 580px) { .grid { grid-template-columns: 1fr; } .panel.recon { grid-column: auto; } }
+.panel { background: linear-gradient(180deg, var(--bg-2), var(--bg)); border: 1px solid var(--line); padding: 16px 16px 18px; position: relative; display: flex; flex-direction: column; }
+.panel::before { content: ''; position: absolute; top: -1px; left: -1px; width: 14px; height: 14px; border-top: 1px solid var(--laser); border-left: 1px solid var(--laser); pointer-events: none; opacity: 0.55; }
+.panel::after { content: ''; position: absolute; bottom: -1px; right: -1px; width: 14px; height: 14px; border-bottom: 1px solid var(--laser); border-right: 1px solid var(--laser); pointer-events: none; opacity: 0.55; }
+.panel-title { display: flex; justify-content: space-between; align-items: baseline; font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 400; font-size: 16px; color: var(--txt); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); letter-spacing: 0.4px; }
+.panel-title .num { font-family: 'JetBrains Mono', monospace; font-style: normal; font-size: 9px; letter-spacing: 0.15em; color: var(--txt-3); }
+.subsection { font-size: 9px; color: var(--txt-3); letter-spacing: 0.18em; text-transform: uppercase; margin: 16px 0 8px; font-weight: 500; display: flex; align-items: center; gap: 10px; }
+.subsection::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.tabs { display: flex; border: 1px solid var(--line-2); background: var(--bg-3); }
+.tab { flex: 1; background: none; border: none; color: var(--txt-3); padding: 9px 12px; font-family: inherit; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; transition: all 0.15s; }
+.tab.active { background: var(--laser); color: var(--bg); font-weight: 500; }
+.tab:not(.active):hover { color: var(--txt); background: var(--bg-4); }
+.upload-zone { margin-top: 12px; position: relative; }
+.upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.upload-label { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 12px; background: var(--bg-3); border: 1px dashed var(--line-2); color: var(--txt-2); font-size: 10px; letter-spacing: 0.05em; text-align: center; transition: all 0.15s; }
+.upload-zone:hover .upload-label { border-color: var(--laser); color: var(--txt); }
+.upload-label::before { content: '↟'; color: var(--laser); font-size: 14px; }
+.hint { font-size: 9.5px; color: var(--txt-3); margin-top: 6px; font-style: italic; line-height: 1.55; }
+.laser-bank { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.laser-btn { background: var(--bg-3); border: 1px solid var(--line-2); color: var(--txt-2); padding: 9px 4px 7px; font-family: inherit; font-size: 11px; cursor: pointer; position: relative; transition: all 0.12s; font-variant-numeric: tabular-nums; }
+.laser-btn::before { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; background: var(--c); opacity: 0.7; }
+.laser-btn:hover { color: var(--txt); }
+.laser-btn.active { background: var(--bg); color: var(--txt); border-color: var(--c); }
+.laser-btn.active::before { height: 3px; box-shadow: 0 0 8px var(--c), 0 0 16px var(--c); opacity: 1; }
+.readout { display: flex; justify-content: space-between; align-items: baseline; font-size: 10px; margin: 6px 0; padding: 4px 0; }
+.readout > span:first-child { color: var(--txt-3); letter-spacing: 0.05em; }
+.readout > span:last-child { color: var(--txt); font-variant-numeric: tabular-nums; }
+.slider-row { margin: 8px 0 4px; }
+.slider-row label { display: flex; justify-content: space-between; font-size: 10px; color: var(--txt-2); margin-bottom: 6px; letter-spacing: 0.04em; }
+.slider-row label > span:last-child { color: var(--txt); font-variant-numeric: tabular-nums; }
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; background: transparent; cursor: pointer; height: 16px; }
+input[type=range]::-webkit-slider-runnable-track { height: 1px; background: var(--line-2); }
+input[type=range]::-moz-range-track { height: 1px; background: var(--line-2); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 11px; height: 11px; background: var(--laser); border-radius: 50%; margin-top: -5px; cursor: grab; box-shadow: 0 0 10px var(--laser-glow); transition: transform 0.1s; }
+input[type=range]::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.2); }
+input[type=range]::-moz-range-thumb { width: 11px; height: 11px; background: var(--laser); border-radius: 50%; border: none; cursor: grab; box-shadow: 0 0 10px var(--laser-glow); }
+input[type=range].thick::-webkit-slider-runnable-track { height: 2px; background: linear-gradient(90deg, var(--laser-glow), var(--line-2)); }
+input[type=range].thick::-webkit-slider-thumb { width: 18px; height: 18px; margin-top: -8px; background: var(--laser); box-shadow: 0 0 16px var(--laser-glow), 0 0 4px rgba(0,0,0,0.6); border: 2px solid var(--bg); }
+.canvas-frame { position: relative; aspect-ratio: 1; background: #000; margin-bottom: 12px; border: 1px solid var(--line); }
+.canvas-frame canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+.canvas-frame .corners > i { position: absolute; width: 8px; height: 8px; pointer-events: none; border-color: var(--txt-3); }
+.canvas-frame .corners > i.tl { top: -1px; left: -1px; border-top: 1px solid; border-left: 1px solid; }
+.canvas-frame .corners > i.tr { top: -1px; right: -1px; border-top: 1px solid; border-right: 1px solid; }
+.canvas-frame .corners > i.bl { bottom: -1px; left: -1px; border-bottom: 1px solid; border-left: 1px solid; }
+.canvas-frame .corners > i.br { bottom: -1px; right: -1px; border-bottom: 1px solid; border-right: 1px solid; }
+.canvas-label { position: absolute; bottom: 6px; right: 6px; font-size: 8.5px; color: var(--txt-2); background: rgba(0,0,0,0.65); padding: 3px 6px; letter-spacing: 0.04em; font-family: 'JetBrains Mono', monospace; border-left: 1px solid var(--laser); }
+.canvas-coords { position: absolute; top: 6px; left: 6px; font-size: 8.5px; color: var(--txt-3); letter-spacing: 0.05em; font-family: 'JetBrains Mono', monospace; pointer-events: none; }
+.depth-block { margin-top: 4px; padding-top: 4px; }
+.depth-display { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line); position: relative; overflow: hidden; }
+.depth-display::before { content: 'z'; position: absolute; top: 6px; left: 10px; font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 11px; color: var(--txt-3); }
+.depth-value { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 36px; font-weight: 500; color: var(--laser); font-variant-numeric: tabular-nums; line-height: 1; margin-left: 14px; text-shadow: 0 0 14px var(--laser-glow); }
+.depth-unit { font-size: 11px; color: var(--txt-2); font-family: 'JetBrains Mono', monospace; letter-spacing: 0.1em; margin-left: auto; }
+.depth-marks { display: flex; justify-content: space-between; margin-top: 8px; font-size: 9px; color: var(--txt-3); letter-spacing: 0.05em; font-variant-numeric: tabular-nums; }
+.depth-marks button { background: none; border: none; color: var(--txt-3); font-family: inherit; font-size: inherit; cursor: pointer; padding: 2px 4px; letter-spacing: inherit; }
+.depth-marks button:hover { color: var(--laser); }
+.depth-marks button strong { color: var(--txt); font-weight: 400; }
+.toggles { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.toggle input { display: none; }
+.toggle-track { width: 28px; height: 14px; background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 7px; position: relative; transition: all 0.15s; flex-shrink: 0; }
+.toggle-track::after { content: ''; position: absolute; top: 1px; left: 1px; width: 10px; height: 10px; background: var(--txt-3); border-radius: 50%; transition: all 0.15s; }
+.toggle input:checked + .toggle-track { background: var(--laser); border-color: var(--laser); box-shadow: 0 0 8px var(--laser-glow); }
+.toggle input:checked + .toggle-track::after { left: 15px; background: var(--bg); }
+.toggle-label { font-size: 11px; color: var(--txt); letter-spacing: 0.02em; }
+.toggle-aux { font-size: 9px; color: var(--txt-3); margin-top: 2px; letter-spacing: 0.05em; }
+.footer { display: flex; justify-content: space-between; align-items: center; padding-top: 14px; margin-top: 24px; border-top: 1px solid var(--line); font-size: 9px; color: var(--txt-3); letter-spacing: 0.18em; text-transform: uppercase; flex-wrap: wrap; gap: 10px; }
+.footer .formula { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 12px; color: var(--txt-2); letter-spacing: normal; text-transform: none; }
+.footer .formula em { color: var(--laser); font-style: italic; }
+.busy-indicator { position: fixed; top: 32px; right: 36px; z-index: 100; font-size: 9px; color: var(--laser); letter-spacing: 0.15em; text-transform: uppercase; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+.busy-indicator.show { opacity: 1; }
+.busy-indicator::before { content: '⚉ '; animation: spin 1s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+[data-show] { animation: fadein 0.25s ease; }
+@keyframes fadein { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+
+<div class="busy-indicator" id="busyInd">computing</div>
+
+<div class="app">
+
+  <header class="header">
+    <div class="brand">
+      <span class="brand-mark">◢</span>
+      <h1>Holography <em>Console</em></h1>
+      <span class="tagline">digital coherent · v1.0</span>
+    </div>
+    <div class="header-meta">
+      <span><span class="pulse" id="pulse"></span><span id="status">READY</span></span>
+      <span>N<strong id="meta-n">256</strong></span>
+      <span>λ<strong id="meta-lambda" class="live">633</strong> nm</span>
+      <span>Δx<strong id="meta-dx">8.0</strong> μm</span>
+    </div>
+  </header>
+
+  <main class="grid">
+
+    <section class="panel source">
+      <h2 class="panel-title"><span>Source</span><span class="num">01 · INPUT</span></h2>
+
+      <div class="tabs">
+        <button class="tab active" data-source="builtin">Scene</button>
+        <button class="tab" data-source="upload">Image</button>
+      </div>
+
+      <div data-show="builtin">
+        <p class="hint" style="margin-top:12px">
+          Three letters distributed across depth: <strong style="color:var(--txt)">A</strong> at 80 mm,
+          <strong style="color:var(--txt)">B</strong> at 110 mm, <strong style="color:var(--txt)">C</strong> at 140 mm.
+        </p>
+      </div>
+
+      <div data-show="upload" hidden>
+        <div class="upload-zone">
+          <input type="file" id="imgUpload" accept="image/*">
+          <div class="upload-label">load image · drop or click</div>
+        </div>
+        <div class="slider-row" style="margin-top:14px">
+          <label><span>Object distance</span><span><span id="zObjVal">100</span> mm</span></label>
+          <input type="range" id="zObj" min="40" max="200" step="1" value="100">
+        </div>
+      </div>
+
+      <h3 class="subsection">Wavelength</h3>
+      <div class="laser-bank">
+        <button class="laser-btn" data-lambda="405" style="--c:#9d7bff">405</button>
+        <button class="laser-btn" data-lambda="488" style="--c:#4ad8ff">488</button>
+        <button class="laser-btn" data-lambda="532" style="--c:#7eff7e">532</button>
+        <button class="laser-btn active" data-lambda="633" style="--c:#ff2b3d">633</button>
+      </div>
+
+      <h3 class="subsection">Sensor</h3>
+      <div class="slider-row">
+        <label><span>Pixel pitch</span><span><span id="dxVal">8.0</span> μm</span></label>
+        <input type="range" id="dx" min="4" max="14" step="0.5" value="8">
+      </div>
+
+      <div class="readout"><span>FOV</span><span id="fovVal">2.05 mm</span></div>
+      <div class="readout"><span>Reference θ</span><span id="thetaVal">1.13°</span></div>
+      <div class="readout"><span>Recording time</span><span id="recordTime">— ms</span></div>
+    </section>
+
+    <section class="panel obj">
+      <h2 class="panel-title"><span>Object Field</span><span class="num">02 · SCENE</span></h2>
+      <div class="canvas-frame">
+        <span class="corners"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></span>
+        <span class="canvas-coords">spatial · color = depth</span>
+        <canvas id="canvasObject" width="256" height="256"></canvas>
+        <span class="canvas-label">|U(x,y)| · object planes</span>
+      </div>
+      <p class="hint">
+        Object intensity. In the built-in scene, depth is colour-coded:
+        <span style="color:#ff8484">red</span> → near,
+        <span style="color:#ffd366">amber</span> → mid,
+        <span style="color:#7fb3ff">blue</span> → far.
+      </p>
+    </section>
+
+    <section class="panel holo">
+      <h2 class="panel-title"><span>Hologram</span><span class="num">03 · RECORD</span></h2>
+      <div class="canvas-frame">
+        <span class="corners"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></span>
+        <span class="canvas-coords">interference fringes</span>
+        <canvas id="canvasHologram" width="256" height="256"></canvas>
+        <span class="canvas-label">I = |U_obj + U_ref|²</span>
+      </div>
+      <p class="hint">
+        Greyscale fringe intensity. The off-axis reference produces a fast carrier;
+        the object information sits as a slow modulation of these fringes.
+      </p>
+    </section>
+
+    <section class="panel recon">
+      <h2 class="panel-title"><span>Reconstruction</span><span class="num">04 · REPLAY</span></h2>
+      <div class="canvas-frame">
+        <span class="corners"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></span>
+        <span class="canvas-coords">depth focus · z</span>
+        <canvas id="canvasRecon" width="256" height="256"></canvas>
+        <span class="canvas-label" id="reconLabel">|U(x,y; z)| · ASM</span>
+      </div>
+
+      <div class="depth-block">
+        <div class="depth-display">
+          <span class="depth-value" id="zReconVal">110</span>
+          <span class="depth-unit">mm</span>
+        </div>
+        <input type="range" id="zRecon" class="thick" min="40" max="200" step="0.5" value="110">
+        <div class="depth-marks" id="depthMarks">
+          <button data-z="80"><strong>A</strong> · 80</button>
+          <button data-z="110"><strong>B</strong> · 110</button>
+          <button data-z="140"><strong>C</strong> · 140</button>
+        </div>
+      </div>
+
+      <div class="toggles">
+        <label class="toggle">
+          <input type="checkbox" id="twinSuppress">
+          <span class="toggle-track"></span>
+          <span>
+            <span class="toggle-label">Twin-image suppression</span>
+            <div class="toggle-aux">Fourier-domain sideband filter on +1 order</div>
+          </span>
+        </label>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <span class="formula">
+      <em>U</em>(<em>x</em>,<em>y</em>; <em>z</em>) = ℱ⁻¹{ ℱ{<em>U</em>₀} · exp(<em>i k z</em> √(1 − λ²<em>f</em>²)) }
+    </span>
+    <span>BL-ASM · COOLEY-TUKEY · OFF-AXIS REFERENCE</span>
+  </footer>
+
+</div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   FFT — Cooley-Tukey radix-2, in-place, on Float32Arrays
+============================================================ */
+function fft1d(re, im, inverse) {
+  const N = re.length;
+  let j = 0;
+  for (let i = 1; i < N; i++) {
+    let bit = N >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      let t = re[i]; re[i] = re[j]; re[j] = t;
+      t = im[i]; im[i] = im[j]; im[j] = t;
+    }
+  }
+  const sign = inverse ? 1 : -1;
+  for (let len = 2; len <= N; len <<= 1) {
+    const half = len >> 1;
+    const ang = sign * 2 * Math.PI / len;
+    const wRe0 = Math.cos(ang), wIm0 = Math.sin(ang);
+    for (let i = 0; i < N; i += len) {
+      let cRe = 1, cIm = 0;
+      for (let k = 0; k < half; k++) {
+        const a = i + k, b = a + half;
+        const tRe = cRe * re[b] - cIm * im[b];
+        const tIm = cRe * im[b] + cIm * re[b];
+        re[b] = re[a] - tRe; im[b] = im[a] - tIm;
+        re[a] += tRe;        im[a] += tIm;
+        const nRe = cRe * wRe0 - cIm * wIm0;
+        cIm = cRe * wIm0 + cIm * wRe0;
+        cRe = nRe;
+      }
+    }
+  }
+  if (inverse) {
+    const inv = 1 / N;
+    for (let i = 0; i < N; i++) { re[i] *= inv; im[i] *= inv; }
+  }
+}
+
+/* 2-D FFT on N×N stored row-major */
+function fft2d(re, im, N, inverse) {
+  const rowRe = new Float32Array(N), rowIm = new Float32Array(N);
+  // rows
+  for (let v = 0; v < N; v++) {
+    const off = v * N;
+    for (let u = 0; u < N; u++) { rowRe[u] = re[off+u]; rowIm[u] = im[off+u]; }
+    fft1d(rowRe, rowIm, inverse);
+    for (let u = 0; u < N; u++) { re[off+u] = rowRe[u]; im[off+u] = rowIm[u]; }
+  }
+  // columns
+  for (let u = 0; u < N; u++) {
+    for (let v = 0; v < N; v++) { rowRe[v] = re[v*N+u]; rowIm[v] = im[v*N+u]; }
+    fft1d(rowRe, rowIm, inverse);
+    for (let v = 0; v < N; v++) { re[v*N+u] = rowRe[v]; im[v*N+u] = rowIm[v]; }
+  }
+}
+
+/* ============================================================
+   Angular Spectrum Method propagation
+   Applies H(fx,fy) = exp(i k z sqrt(1 - (λfx)² - (λfy)²))
+   Evanescent components are zeroed for stability.
+============================================================ */
+function asmPropagate(re, im, dz, lambda, dx, N) {
+  fft2d(re, im, N, false);
+  const k = 2 * Math.PI / lambda;
+  const dfreq = 1 / (N * dx);
+  for (let v = 0; v < N; v++) {
+    const fy = (v < N/2 ? v : v - N) * dfreq;
+    const fy2 = (lambda * fy) * (lambda * fy);
+    for (let u = 0; u < N; u++) {
+      const fx = (u < N/2 ? u : u - N) * dfreq;
+      const fx2 = (lambda * fx) * (lambda * fx);
+      const val = 1 - fx2 - fy2;
+      const idx = v * N + u;
+      if (val <= 0) {
+        re[idx] = 0; im[idx] = 0;
+      } else {
+        const phase = k * dz * Math.sqrt(val);
+        const cR = Math.cos(phase), cI = Math.sin(phase);
+        const fr = re[idx], fi = im[idx];
+        re[idx] = fr * cR - fi * cI;
+        im[idx] = fr * cI + fi * cR;
+      }
+    }
+  }
+  fft2d(re, im, N, true);
+}
+
+/* ============================================================
+   Scene rasterization — letters or uploaded image
+============================================================ */
+const N = 256;
+const auxCanvas = document.createElement('canvas');
+auxCanvas.width = N; auxCanvas.height = N;
+const auxCtx = auxCanvas.getContext('2d', { willReadFrequently: true });
+
+function rasterLetter(letter, sizeFactor, dxOff, dyOff) {
+  // returns Float32Array(N*N) of values in [0,1] with letter alpha
+  auxCtx.fillStyle = '#000'; auxCtx.fillRect(0, 0, N, N);
+  auxCtx.fillStyle = '#fff';
+  auxCtx.font = `bold ${Math.round(N * sizeFactor)}px "Cormorant Garamond", serif`;
+  auxCtx.textAlign = 'center';
+  auxCtx.textBaseline = 'middle';
+  auxCtx.fillText(letter, N/2 + dxOff, N/2 + dyOff);
+  const data = auxCtx.getImageData(0, 0, N, N).data;
+  const out = new Float32Array(N * N);
+  for (let i = 0, p = 0; i < N*N; i++, p+=4) {
+    out[i] = data[p] / 255; // red channel (white text -> 1)
+  }
+  return out;
+}
+
+function rasterImage(img) {
+  auxCtx.fillStyle = '#000'; auxCtx.fillRect(0, 0, N, N);
+  // fit while preserving aspect
+  const s = Math.min(N / img.width, N / img.height);
+  const w = img.width * s, h = img.height * s;
+  auxCtx.drawImage(img, (N - w) / 2, (N - h) / 2, w, h);
+  const data = auxCtx.getImageData(0, 0, N, N).data;
+  const out = new Float32Array(N * N);
+  for (let i = 0, p = 0; i < N*N; i++, p+=4) {
+    // luminance
+    out[i] = (0.299 * data[p] + 0.587 * data[p+1] + 0.114 * data[p+2]) / 255;
+  }
+  return out;
+}
+
+/* ============================================================
+   Display helpers
+============================================================ */
+function drawIntensity(canvas, arr, gamma) {
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(N, N);
+  let mn = Infinity, mx = -Infinity;
+  const M = N * N;
+  for (let i = 0; i < M; i++) { const v = arr[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+  const range = mx - mn || 1;
+  const g = gamma || 1;
+  for (let i = 0, p = 0; i < M; i++, p += 4) {
+    let v = (arr[i] - mn) / range;
+    if (g !== 1) v = Math.pow(v, g);
+    const c = Math.max(0, Math.min(255, Math.round(v * 255)));
+    img.data[p] = c; img.data[p+1] = c; img.data[p+2] = c; img.data[p+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function drawComplexMag(canvas, re, im, gamma) {
+  const M = re.length;
+  const mag = new Float32Array(M);
+  for (let i = 0; i < M; i++) mag[i] = Math.sqrt(re[i]*re[i] + im[i]*im[i]);
+  drawIntensity(canvas, mag, gamma);
+}
+
+function drawScene(canvas, layers) {
+  // layers: array of { mask: Float32Array, color: [r,g,b] }
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(N, N);
+  for (let i = 0, p = 0; i < N*N; i++, p+=4) {
+    let r = 8, g = 8, b = 12; // background
+    for (const L of layers) {
+      const a = L.mask[i];
+      if (a > 0) {
+        r = r * (1 - a) + L.color[0] * a;
+        g = g * (1 - a) + L.color[1] * a;
+        b = b * (1 - a) + L.color[2] * a;
+      }
+    }
+    img.data[p] = r; img.data[p+1] = g; img.data[p+2] = b; img.data[p+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+</script>
+
+<script>
+'use strict';
+
+/* ============================================================
+   Main controller
+============================================================ */
+const state = {
+  N: 256,
+  lambda: 633e-9,        // metres
+  dx: 8e-6,              // metres (pixel pitch)
+  carrierBin: 64,        // off-axis reference carrier (bins of fx)
+  source: 'builtin',     // 'builtin' | 'upload'
+  zObj: 100e-3,          // for uploaded image (metres)
+  zRecon: 110e-3,
+  twinSuppress: false,
+  // computed
+  hologramI: null,       // Float32Array intensity (real, the actual recorded greyscale)
+  uploadedMask: null,    // Float32Array of uploaded image
+};
+
+const layerColours = {
+  near: [255, 132, 132],   // red-ish
+  mid:  [255, 211, 102],   // amber
+  far:  [127, 179, 255],   // blue
+};
+
+const canvasObject = document.getElementById('canvasObject');
+const canvasHologram = document.getElementById('canvasHologram');
+const canvasRecon = document.getElementById('canvasRecon');
+
+function setStatus(text, busy) {
+  document.getElementById('status').textContent = text;
+  const p = document.getElementById('pulse');
+  p.classList.toggle('busy', !!busy);
+  document.getElementById('busyInd').classList.toggle('show', !!busy);
+}
+
+function updateMeta() {
+  document.getElementById('meta-lambda').textContent = Math.round(state.lambda * 1e9);
+  document.getElementById('meta-dx').textContent = (state.dx * 1e6).toFixed(1);
+  const fov = state.N * state.dx * 1e3;
+  document.getElementById('fovVal').textContent = fov.toFixed(2) + ' mm';
+  // theta = lambda * fx_carrier ; fx_carrier = carrierBin / (N * dx)
+  const fxC = state.carrierBin / (state.N * state.dx);
+  const theta = Math.asin(Math.min(1, state.lambda * fxC));
+  document.getElementById('thetaVal').textContent = (theta * 180 / Math.PI).toFixed(2) + '°';
+}
+
+/* ============================================================
+   RECORDING — build the object wave at hologram plane (z=0)
+   Each object plane is back-propagated by its z; sum them up.
+   Then add an off-axis tilted reference and form |U_obj+U_ref|².
+============================================================ */
+function recordHologram() {
+  const t0 = performance.now();
+  const M = state.N * state.N;
+  const N = state.N;
+
+  // Accumulate complex object field at z=0
+  const objRe = new Float32Array(M);
+  const objIm = new Float32Array(M);
+
+  function addLayer(mask, zPlane) {
+    const re = new Float32Array(M);
+    const im = new Float32Array(M);
+    for (let i = 0; i < M; i++) re[i] = mask[i];
+    // light from object at +zPlane reaches sensor at z=0 → propagate by -zPlane
+    asmPropagate(re, im, -zPlane, state.lambda, state.dx, N);
+    for (let i = 0; i < M; i++) { objRe[i] += re[i]; objIm[i] += im[i]; }
+  }
+
+  let sceneLayers;
+  if (state.source === 'builtin') {
+    const mA = rasterLetter('A', 0.42, -55, -10);
+    const mB = rasterLetter('B', 0.42,   0, -10);
+    const mC = rasterLetter('C', 0.42, +55, -10);
+    addLayer(mA, 80e-3);
+    addLayer(mB, 110e-3);
+    addLayer(mC, 140e-3);
+    sceneLayers = [
+      { mask: mA, color: layerColours.near },
+      { mask: mB, color: layerColours.mid },
+      { mask: mC, color: layerColours.far },
+    ];
+  } else {
+    const mask = state.uploadedMask;
+    if (!mask) {
+      // nothing yet; show placeholder
+      const ctx = canvasObject.getContext('2d');
+      ctx.fillStyle = '#0a0a10'; ctx.fillRect(0, 0, N, N);
+      ctx.fillStyle = '#5a5650'; ctx.font = '12px "JetBrains Mono"';
+      ctx.textAlign = 'center';
+      ctx.fillText('— no image loaded —', N/2, N/2);
+      // clear holo and recon too
+      const ctxH = canvasHologram.getContext('2d');
+      ctxH.fillStyle = '#000'; ctxH.fillRect(0, 0, N, N);
+      const ctxR = canvasRecon.getContext('2d');
+      ctxR.fillStyle = '#000'; ctxR.fillRect(0, 0, N, N);
+      state.hologramI = null;
+      return;
+    }
+    addLayer(mask, state.zObj);
+    sceneLayers = [{ mask: mask, color: [220, 220, 230] }];
+  }
+
+  // Render scene preview (color-coded depth)
+  drawScene(canvasObject, sceneLayers);
+
+  // Reference wave: tilted plane wave with carrier in x.
+  // R(x,y) = exp(i 2π k_c x_pix / N)
+  // Hologram intensity I = |U_obj + U_ref|²
+  const I = new Float32Array(M);
+  const kc = state.carrierBin;
+  for (let v = 0; v < N; v++) {
+    for (let u = 0; u < N; u++) {
+      const idx = v * N + u;
+      const ph = 2 * Math.PI * kc * u / N;
+      const rRe = Math.cos(ph), rIm = Math.sin(ph);
+      // U_total = U_obj + U_ref
+      const tRe = objRe[idx] + rRe;
+      const tIm = objIm[idx] + rIm;
+      I[idx] = tRe * tRe + tIm * tIm;
+    }
+  }
+  state.hologramI = I;
+
+  drawIntensity(canvasHologram, I, 0.7);
+
+  const ms = (performance.now() - t0).toFixed(0);
+  document.getElementById('recordTime').textContent = ms + ' ms';
+}
+
+/* ============================================================
+   RECONSTRUCTION
+   Mode A (default, twin OFF):
+     U_h(x,y) = (I - mean(I))   (real-valued; carries all three terms)
+     Propagate forward by +z. Display |U|.
+   Mode B (twin suppression ON):
+     S = FFT(I)
+     Mask a circular window around the +1 sideband at (-k_c, 0) [bin index N-k_c]
+     Roll the spectrum so the lobe lands at DC
+     IFFT → complex object field at z=0 (cleanly, no DC, no twin)
+     Propagate forward by +z. Display |U|.
+============================================================ */
+function reconstruct() {
+  if (!state.hologramI) return;
+  setStatus('RECON', true);
+  // run on next frame so the spinner appears before the freeze
+  requestAnimationFrame(() => {
+    const N = state.N;
+    const M = N * N;
+    const re = new Float32Array(M);
+    const im = new Float32Array(M);
+
+    if (!state.twinSuppress) {
+      // Direct: subtract DC, treat as real field
+      let mean = 0;
+      for (let i = 0; i < M; i++) mean += state.hologramI[i];
+      mean /= M;
+      for (let i = 0; i < M; i++) re[i] = state.hologramI[i] - mean;
+      // Propagate forward by +zRecon
+      asmPropagate(re, im, state.zRecon, state.lambda, state.dx, N);
+    } else {
+      // Sideband filter: take spectrum of I, isolate -1 order
+      // (the term U_obj · U_ref* whose spectrum sits at u = -k_c → bin index N-k_c)
+      for (let i = 0; i < M; i++) re[i] = state.hologramI[i];
+      fft2d(re, im, N, false);
+
+      const fre = new Float32Array(M);
+      const fim = new Float32Array(M);
+      const kc = state.carrierBin;
+      // Centre of sideband in unshifted spectrum: u = N - kc, v = 0
+      // Window radius: ~kc/1.6 (half-pitch of carrier separation)
+      const radius = Math.round(kc / 1.6);
+      const r2 = radius * radius;
+      for (let v = 0; v < N; v++) {
+        for (let u = 0; u < N; u++) {
+          // distance from sideband centre, with wrap
+          let du = u - (N - kc);
+          if (du > N/2) du -= N; else if (du < -N/2) du += N;
+          let dv = v - 0;
+          if (dv > N/2) dv -= N; else if (dv < -N/2) dv += N;
+          const d2 = du*du + dv*dv;
+          if (d2 <= r2) {
+            // soft cosine window for cleaner edges
+            const w = 0.5 * (1 + Math.cos(Math.PI * Math.sqrt(d2) / radius));
+            // Roll: the lobe at (N-kc, 0) should map to (0, 0).
+            // newU = u - (N - kc) ≡ u + kc (mod N).
+            const nu = (u + kc) % N;
+            const nv = v;
+            const nidx = nv * N + nu;
+            const sidx = v * N + u;
+            fre[nidx] = re[sidx] * w;
+            fim[nidx] = im[sidx] * w;
+          }
+        }
+      }
+      // IFFT to get complex object field at z=0
+      fft2d(fre, fim, N, true);
+      // Propagate forward by +zRecon
+      asmPropagate(fre, fim, state.zRecon, state.lambda, state.dx, N);
+      for (let i = 0; i < M; i++) { re[i] = fre[i]; im[i] = fim[i]; }
+    }
+
+    drawComplexMag(canvasRecon, re, im, 0.55);
+    document.getElementById('reconLabel').textContent =
+      `|U(x,y; ${(state.zRecon*1000).toFixed(1)} mm)| · ASM`;
+    setStatus('READY', false);
+  });
+}
+
+/* ============================================================
+   Top-level pipeline orchestration
+============================================================ */
+let recordPending = null;
+function scheduleRecord(reason) {
+  setStatus(reason || 'RECORDING', true);
+  if (recordPending) cancelAnimationFrame(recordPending);
+  recordPending = requestAnimationFrame(() => {
+    recordPending = requestAnimationFrame(() => {
+      try { recordHologram(); } finally { recordPending = null; }
+      reconstruct();
+    });
+  });
+}
+
+let reconTimer = null;
+function scheduleRecon() {
+  if (reconTimer) clearTimeout(reconTimer);
+  reconTimer = setTimeout(() => { reconTimer = null; reconstruct(); }, 60);
+}
+
+/* ============================================================
+   UI wiring
+============================================================ */
+// Tabs
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const v = btn.dataset.source;
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('[data-show]').forEach(el => {
+      el.hidden = el.dataset.show !== v;
+    });
+    state.source = v;
+    if (v === 'upload') {
+      // Update depth marks for uploaded image
+      const dm = document.getElementById('depthMarks');
+      dm.innerHTML = `<button data-z="${Math.round(state.zObj*1000)}"><strong>obj</strong> · ${Math.round(state.zObj*1000)}</button>`;
+      attachDepthMarks();
+    } else {
+      const dm = document.getElementById('depthMarks');
+      dm.innerHTML = `
+        <button data-z="80"><strong>A</strong> · 80</button>
+        <button data-z="110"><strong>B</strong> · 110</button>
+        <button data-z="140"><strong>C</strong> · 140</button>
+      `;
+      attachDepthMarks();
+    }
+    scheduleRecord('REBUILD');
+  });
+});
+
+// Wavelength
+document.querySelectorAll('.laser-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.laser-btn').forEach(b => b.classList.toggle('active', b === btn));
+    state.lambda = parseFloat(btn.dataset.lambda) * 1e-9;
+    updateMeta();
+    scheduleRecord('λ-CHANGE');
+  });
+});
+
+// dx slider
+const dxSlider = document.getElementById('dx');
+dxSlider.addEventListener('input', () => {
+  const v = parseFloat(dxSlider.value);
+  state.dx = v * 1e-6;
+  document.getElementById('dxVal').textContent = v.toFixed(1);
+  updateMeta();
+});
+dxSlider.addEventListener('change', () => scheduleRecord('SENSOR'));
+
+// zObj slider
+const zObjSlider = document.getElementById('zObj');
+zObjSlider.addEventListener('input', () => {
+  const v = parseFloat(zObjSlider.value);
+  state.zObj = v * 1e-3;
+  document.getElementById('zObjVal').textContent = v;
+});
+zObjSlider.addEventListener('change', () => {
+  if (state.source === 'upload') scheduleRecord('Z-OBJ');
+});
+
+// zRecon slider — debounced
+const zReconSlider = document.getElementById('zRecon');
+zReconSlider.addEventListener('input', () => {
+  const v = parseFloat(zReconSlider.value);
+  state.zRecon = v * 1e-3;
+  document.getElementById('zReconVal').textContent = v.toFixed(1);
+  scheduleRecon();
+});
+
+// Depth quick-marks
+function attachDepthMarks() {
+  document.querySelectorAll('#depthMarks button').forEach(b => {
+    b.addEventListener('click', () => {
+      const z = parseFloat(b.dataset.z);
+      zReconSlider.value = z;
+      state.zRecon = z * 1e-3;
+      document.getElementById('zReconVal').textContent = z.toFixed(1);
+      reconstruct();
+    });
+  });
+}
+attachDepthMarks();
+
+// Twin suppression
+document.getElementById('twinSuppress').addEventListener('change', e => {
+  state.twinSuppress = e.target.checked;
+  reconstruct();
+});
+
+// Image upload
+document.getElementById('imgUpload').addEventListener('change', e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      state.uploadedMask = rasterImage(img);
+      scheduleRecord('IMAGE-LOAD');
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+/* Initial run */
+updateMeta();
+scheduleRecord('INIT');
+
+</script>
+
+</body>
+</html>

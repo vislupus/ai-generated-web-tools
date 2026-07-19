@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crystal Druse — Procedural Mineralogy Lab</title>
+<style>
+  :root{
+    --bg:#06060a; --panel:rgba(13,13,19,.74); --line:rgba(255,255,255,.08);
+    --text:#d7d7df; --dim:#6a6a78; --accent:#c9a86a;
+    --mono:"SFMono-Regular","JetBrains Mono","Fira Code",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;background:var(--bg);overflow:hidden;
+    font-family:var(--mono);color:var(--text);-webkit-font-smoothing:antialiased}
+  canvas{display:block;position:fixed;inset:0}
+  #panel{position:fixed;top:20px;left:20px;width:300px;max-height:calc(100vh - 40px);
+    background:var(--panel);backdrop-filter:blur(24px) saturate(140%);
+    -webkit-backdrop-filter:blur(24px) saturate(140%);
+    border:1px solid var(--line);border-radius:4px;z-index:10;
+    box-shadow:0 24px 64px rgba(0,0,0,.6);display:flex;flex-direction:column;
+    transition:transform .4s cubic-bezier(.2,.9,.2,1),opacity .3s}
+  #panel.collapsed{transform:translateX(-292px);opacity:.3}
+  .phead{padding:16px 20px 13px;border-bottom:1px solid var(--line);
+    display:flex;align-items:baseline;justify-content:space-between;flex-shrink:0}
+  .phead h1{font-size:11.5px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:#fff}
+  .phead .sub{font-size:8.5px;letter-spacing:1.5px;color:var(--dim);text-transform:uppercase}
+  .pbody{padding:8px 20px 18px;overflow-y:auto;scrollbar-width:thin;
+    scrollbar-color:rgba(255,255,255,.15) transparent}
+  .pbody::-webkit-scrollbar{width:5px}
+  .pbody::-webkit-scrollbar-thumb{background:rgba(255,255,255,.13);border-radius:3px}
+  .sect{font-size:8.5px;letter-spacing:2.5px;text-transform:uppercase;color:var(--accent);
+    opacity:.7;margin:16px 0 10px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+  .sect:first-child{margin-top:10px}
+  .field{margin-bottom:14px}
+  .field>.lbl{display:flex;justify-content:space-between;align-items:baseline;
+    font-size:9px;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);margin-bottom:7px}
+  .field>.lbl .v{color:var(--accent);font-weight:600;letter-spacing:.5px}
+  select{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--line);
+    color:var(--text);padding:8px 10px;border-radius:3px;font-family:var(--mono);
+    font-size:10.5px;letter-spacing:.5px;cursor:pointer;appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='6'><path d='M0 0l4 6 4-6z' fill='%236a6a78'/></svg>");
+    background-repeat:no-repeat;background-position:right 10px center;transition:border-color .2s}
+  select:hover,select:focus{border-color:rgba(201,168,106,.4);outline:none}
+  select option{background:#13131b;color:var(--text)}
+  input[type=range]{width:100%;appearance:none;-webkit-appearance:none;height:2px;
+    background:rgba(255,255,255,.12);border-radius:2px;outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;
+    width:11px;height:11px;border-radius:50%;background:var(--accent);
+    border:2px solid var(--bg);box-shadow:0 0 0 1px rgba(201,168,106,.5);transition:transform .15s}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
+  input[type=range]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;
+    background:var(--accent);border:2px solid var(--bg);cursor:pointer}
+  .tog{display:flex;align-items:center;justify-content:space-between;
+    padding:9px 11px;background:rgba(255,255,255,.04);border:1px solid var(--line);
+    border-radius:3px;cursor:pointer;font-size:9.5px;letter-spacing:1.2px;
+    text-transform:uppercase;color:var(--dim);transition:all .2s;user-select:none}
+  .tog:hover{border-color:rgba(201,168,106,.3)}
+  .tog.on{color:var(--accent);border-color:rgba(201,168,106,.4);background:rgba(201,168,106,.08)}
+  .tog .dot{width:8px;height:8px;border-radius:50%;background:var(--dim);transition:background .2s}
+  .tog.on .dot{background:var(--accent);box-shadow:0 0 8px rgba(201,168,106,.7)}
+  .btn{width:100%;margin-top:6px;padding:11px;
+    background:linear-gradient(180deg,rgba(201,168,106,.18),rgba(201,168,106,.07));
+    border:1px solid rgba(201,168,106,.35);color:var(--accent);font-family:var(--mono);
+    font-size:10px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;
+    border-radius:3px;cursor:pointer;transition:all .2s}
+  .btn:hover{background:rgba(201,168,106,.25);color:#f0d9a8}
+  .btn:active{transform:scale(.985)}
+  .btn.ghost{background:rgba(255,255,255,.03);border-color:var(--line);color:var(--dim)}
+  .btn.ghost:hover{color:var(--text);border-color:rgba(255,255,255,.2)}
+  .stat-row{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.8px;
+    color:var(--dim);padding:3px 0}
+  .stat-row b{color:var(--text);font-weight:600}
+  #toggle{position:fixed;top:20px;left:20px;width:34px;height:34px;background:var(--panel);
+    border:1px solid var(--line);border-radius:4px;color:var(--accent);cursor:pointer;
+    z-index:11;display:none;align-items:center;justify-content:center;font-size:14px;
+    backdrop-filter:blur(24px)}
+  #loader{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;z-index:50;transition:opacity .6s}
+  #loader.hidden{opacity:0;pointer-events:none}
+  .spinner{width:38px;height:38px;border:1px solid rgba(255,255,255,.1);
+    border-top-color:var(--accent);border-radius:50%;animation:spin .9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #ltxt{margin-top:22px;font-size:10px;letter-spacing:3px;color:var(--dim);text-transform:uppercase}
+  #caption{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    font-size:9px;letter-spacing:3px;color:rgba(255,255,255,.22);text-transform:uppercase;
+    text-align:center;pointer-events:none}
+  #caption b{color:rgba(201,168,106,.55)}
+  #hint{position:fixed;bottom:20px;right:22px;font-size:8.5px;letter-spacing:2px;
+    color:rgba(255,255,255,.2);text-transform:uppercase;text-align:right;line-height:1.7}
+  @media(max-width:720px){#panel{width:272px}#hint{display:none}}
+</style>
+</head>
+<body>
+<div id="loader"><div class="spinner"></div><div id="ltxt">Nucleating crystal seeds</div></div>
+<button id="toggle">☰</button>
+<div id="panel">
+  <div class="phead"><h1>Crystal Druse</h1><span class="sub">Mineralogy&nbsp;Lab</span></div>
+  <div class="pbody">
+    <div class="sect">Specimen</div>
+    <div class="field">
+      <div class="lbl"><span>Mineral Species</span><span class="v" id="mineralV">Amethyst</span></div>
+      <select id="mineral"></select>
+    </div>
+    <div class="field">
+      <div class="lbl"><span>Host Surface</span><span class="v" id="cavityV">Geode</span></div>
+      <select id="cavity">
+        <option value="geode">Geode — spheroidal vug</option>
+        <option value="bowl">Open Bowl — shallow</option>
+        <option value="vug">Deep Vug — elongate</option>
+        <option value="plate">Matrix Plate — flat slab</option>
+        <option value="ball">Crystal Ball — full sphere</option>
+        <option value="egg">Geode Egg — ovoid</option>
+      </select>
+    </div>
+    <div class="sect">Crystallization</div>
+    <div class="field">
+      <div class="lbl"><span>Crystal Count</span><span class="v" id="countV">420</span></div>
+      <input type="range" id="count" min="60" max="1400" step="20" value="420">
+    </div>
+    <div class="field">
+      <div class="lbl"><span>Growth Iterations</span><span class="v" id="iterV">16</span></div>
+      <input type="range" id="iter" min="4" max="32" step="1" value="16">
+    </div>
+    <div class="field">
+      <div class="lbl"><span>Orientation Scatter</span><span class="v" id="scatV">0.55</span></div>
+      <input type="range" id="scat" min="0.1" max="1.0" step="0.05" value="0.55">
+    </div>
+    <div class="sect">Crystal Shape</div>
+    <div class="field">
+      <div class="lbl"><span>Crystal Size</span><span class="v" id="sizeV">1.00</span></div>
+      <input type="range" id="size" min="0.4" max="2.2" step="0.05" value="1.0">
+    </div>
+    <div class="field">
+      <div class="lbl"><span>Elongation</span><span class="v" id="elongV">1.00</span></div>
+      <input type="range" id="elong" min="0.3" max="2.4" step="0.05" value="1.0">
+    </div>
+    <div class="field">
+      <div class="lbl"><span>Tip Sharpness</span><span class="v" id="tipSharpV">1.00</span></div>
+      <input type="range" id="tipSharp" min="0" max="2.2" step="0.05" value="1.0">
+    </div>
+    <div class="sect">Optics</div>
+    <div class="field">
+      <div class="lbl"><span>Transparency</span><span class="v" id="transV">0.85</span></div>
+      <input type="range" id="trans" min="0" max="1" step="0.02" value="0.85">
+    </div>
+    <div class="field">
+      <div class="lbl"><span>Reflectivity</span><span class="v" id="reflV">0.90</span></div>
+      <input type="range" id="refl" min="0" max="2.5" step="0.05" value="0.9">
+    </div>
+    <div class="field">
+      <div class="lbl"><span>Surface Roughness</span><span class="v" id="roughV">0.06</span></div>
+      <input type="range" id="rough" min="0" max="0.5" step="0.01" value="0.06">
+    </div>
+    <div class="field">
+      <div class="lbl"><span>Inclusion Density</span><span class="v" id="incV">0.45</span></div>
+      <input type="range" id="inc" min="0" max="1" step="0.02" value="0.45">
+    </div>
+    <div class="field">
+      <div class="lbl"><span>Inclusion Type</span><span class="v" id="incTV">Phantoms</span></div>
+      <select id="incType">
+        <option value="0">Veils — milky sheets</option>
+        <option value="1" selected>Phantoms — growth horizons</option>
+        <option value="2">Rutile — needle wisps</option>
+        <option value="3">Clouds — diffuse fog</option>
+      </select>
+    </div>
+    <div class="field">
+      <div class="lbl"><span>Hue Shift</span><span class="v" id="hueV">0°</span></div>
+      <input type="range" id="hue" min="-180" max="180" step="5" value="0">
+    </div>
+    <div class="field">
+      <div class="lbl"><span>Light Intensity</span><span class="v" id="lightV">1.0×</span></div>
+      <input type="range" id="light" min="0.3" max="2.4" step="0.1" value="1.0">
+    </div>
+    <div class="sect">Camera</div>
+    <div class="field"><div class="tog on" id="orbitTog"><span>Auto-Orbit</span><span class="dot"></span></div></div>
+    <div class="field">
+      <div class="lbl"><span>Orbit Speed</span><span class="v" id="spdV">0.55</span></div>
+      <input type="range" id="spd" min="-2" max="2" step="0.05" value="0.55">
+    </div>
+    <div class="field"><button class="btn ghost" id="reset">↺ Reset View</button></div>
+    <div class="sect">&nbsp;</div>
+    <button class="btn" id="regen">⟳ &nbsp;Recrystallize</button>
+    <div class="sect">Specimen Data</div>
+    <div class="stat-row"><span>CRYSTALS GROWN</span><b id="sCount">—</b></div>
+    <div class="stat-row"><span>SURVIVING POINTS</span><b id="sWin">—</b></div>
+    <div class="stat-row"><span>BURIED (DRUZY)</span><b id="sBury">—</b></div>
+    <div class="stat-row"><span>TRIANGLES</span><b id="sTris">—</b></div>
+  </div>
+</div>
+<div id="caption">Procedural Crystallization &nbsp;·&nbsp; <b id="capMin">Amethyst Geode</b></div>
+<div id="hint">Drag · orbit<br>Scroll · zoom<br>Dbl-click panel · hide</div>
+<script type="importmap">
+{
+  "imports":{
+    "three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/* ===== MINERAL CATALOG : optics + crystallographic habit ===== */
+const MINERALS = {
+  amethyst:    { label:'Amethyst', cap:'Amethyst', color:0x8a5fc4, deep:0x4a2580,
+                 transmission:.86, roughness:.05, ior:1.553, thickness:.9,  attenD:.55, atten:0x47227d,
+                 anis:.42, metal:0, clear:.45, ccR:.05, habit:'prism', sides:6, term:'rhomb',
+                 eMin:1.4, eMax:3.6, tip:.45, irr:.05, taper:.18, inc:0x6b3fb0, incScale:1.7 },
+  quartz:      { label:'Rock Crystal', cap:'Rock Quartz', color:0xd6dbe8, deep:0x9aa3bc,
+                 transmission:.94, roughness:.02, ior:1.544, thickness:.7,  attenD:2.4, atten:0xdfe6ff,
+                 anis:.3,  metal:0, clear:.55, ccR:.03, habit:'prism', sides:6, term:'rhomb',
+                 eMin:2.0, eMax:5.2, tip:.4,  irr:.035,taper:.12, inc:0xeef0ff, incScale:1.3 },
+  citrine:     { label:'Citrine', cap:'Citrine', color:0xd99a3c, deep:0x9c5d18,
+                 transmission:.9,  roughness:.04, ior:1.55,  thickness:.85, attenD:.9,  atten:0xc77f25,
+                 anis:.34, metal:0, clear:.5,  ccR:.04, habit:'prism', sides:6, term:'rhomb',
+                 eMin:1.6, eMax:4.0, tip:.42, irr:.04, taper:.15, inc:0xe0a84a, incScale:1.6 },
+  smoky:       { label:'Smoky Quartz', cap:'Smoky Quartz', color:0x6a5a52, deep:0x2e2520,
+                 transmission:.78, roughness:.05, ior:1.545, thickness:1.1, attenD:.45, atten:0x261d18,
+                 anis:.32, metal:0, clear:.45, ccR:.05, habit:'prism', sides:6, term:'rhomb',
+                 eMin:1.8, eMax:4.6, tip:.4,  irr:.045,taper:.14, inc:0x4a3b32, incScale:1.4 },
+  rose:        { label:'Rose Quartz', cap:'Rose Quartz', color:0xd98aa0, deep:0xae5a75,
+                 transmission:.7,  roughness:.09, ior:1.546, thickness:1.3, attenD:.7,  atten:0xc46f8a,
+                 anis:.2,  metal:0, clear:.35, ccR:.08, habit:'prism', sides:6, term:'rhomb',
+                 eMin:1.2, eMax:2.8, tip:.4,  irr:.05, taper:.16, inc:0xf3c8d6, incScale:2.4 },
+  aquamarine:  { label:'Aquamarine', cap:'Aquamarine Beryl', color:0x5fb6c4, deep:0x2d7e8e,
+                 transmission:.9,  roughness:.03, ior:1.577, thickness:.9,  attenD:1.1, atten:0x3f97a8,
+                 anis:.3,  metal:0, clear:.5,  ccR:.04, habit:'prism', sides:6, term:'flat',
+                 eMin:2.2, eMax:5.4, tip:.12, irr:.03, taper:.05, inc:0xc8eef4, incScale:1.5 },
+  emerald:     { label:'Emerald', cap:'Emerald Beryl', color:0x1a7a4e, deep:0x07401f,
+                 transmission:.62, roughness:.06, ior:1.585, thickness:1.6, attenD:.4,  atten:0x062a17,
+                 anis:.28, metal:0, clear:.42, ccR:.07, habit:'prism', sides:6, term:'flat',
+                 eMin:1.6, eMax:3.4, tip:.1,  irr:.04, taper:.04, inc:0x1f6b40, incScale:2.0 },
+  tourmaline:  { label:'Schorl Tourmaline', cap:'Tourmaline Spray', color:0x12533a, deep:0x06281a,
+                 transmission:.5,  roughness:.07, ior:1.624, thickness:1.8, attenD:.32, atten:0x05231a,
+                 anis:.55, metal:0, clear:.45, ccR:.08, habit:'prism', sides:3, term:'flat', striated:true,
+                 eMin:3.0, eMax:7.5, tip:.12, irr:.02, taper:.06, inc:0x0c4630, incScale:1.8 },
+  calcite:     { label:'Calcite', cap:'Calcite', color:0xfdf3d6, deep:0xe6cf9a,
+                 transmission:.74, roughness:.06, ior:1.486, thickness:.9,  attenD:1.6, atten:0xfff0c8,
+                 anis:.16, metal:0, clear:.42, ccR:.07, habit:'prism', sides:6, term:'scaleno',
+                 eMin:.9,  eMax:2.4, tip:.95, irr:.05, taper:.34, inc:0xfff2cf, incScale:1.6 },
+  rhodochrosite:{label:'Rhodochrosite', cap:'Rhodochrosite', color:0xd2547a, deep:0x8a2e4c,
+                 transmission:.68, roughness:.07, ior:1.6,   thickness:1.2, attenD:.6,  atten:0xa83a5e,
+                 anis:.18, metal:0, clear:.4,  ccR:.07, habit:'prism', sides:6, term:'scaleno',
+                 eMin:.8,  eMax:1.8, tip:.7,  irr:.05, taper:.3,  inc:0xeaa0b8, incScale:2.0 },
+  fluorite:    { label:'Fluorite', cap:'Fluorite', color:0x7d63d6, deep:0x3aa07e,
+                 transmission:.88, roughness:.04, ior:1.434, thickness:1.0, attenD:.7,  atten:0x5a4ab0,
+                 anis:.12, metal:0, clear:.4,  ccR:.06, habit:'octa', sides:4, term:'flat',
+                 eMin:1.0, eMax:1.4, tip:0,   irr:.05, taper:0, sizeMul:1.9, twin:true, inc:0xb79fe6, incScale:1.7 },
+  pyrite:      { label:'Pyrite', cap:'Pyrite Aggregate', color:0xe7c25b, deep:0xb8902f,
+                 transmission:0,   roughness:.22, ior:1.0,   thickness:0,   attenD:1,   atten:0xffffff,
+                 anis:0,   metal:.96,clear:.15, ccR:.3,  habit:'cube', sides:4, term:'flat', striated:true,
+                 eMin:.75, eMax:1.35,tip:0,   irr:.09, taper:0, sizeMul:1.55, inc:0xffffff, incScale:1 },
+  selenite:    { label:'Selenite', cap:'Selenite Blades', color:0xeef0f4, deep:0xc4c8d4,
+                 transmission:.92, roughness:.05, ior:1.52,  thickness:.7,  attenD:1.8, atten:0xeef2ff,
+                 anis:.5,  metal:0, clear:.45, ccR:.05, habit:'prism', sides:4, term:'chisel', tabular:.32,
+                 eMin:2.4, eMax:6.0, tip:.25, irr:.03, taper:.08, inc:0xf4f6ff, incScale:1.4 },
+};
+
+const lerp=(a,b,t)=>a+(b-a)*t, clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), TAU=Math.PI*2;
+// global crystal-shape overrides driven by the new UI controls
+let GEN={size:1, elong:1, tip:1};
+function makeRNG(seed){let s=seed>>>0;return function(){s|=0;s=(s+0x6D2B79F5)|0;
+  let t=Math.imul(s^(s>>>15),1|s);t=(t+Math.imul(t^(t>>>7),61|t))^t;
+  return((t^(t>>>14))>>>0)/4294967296;};}
+
+class NoiseField{
+  constructor(seed,oct=4){this.s=seed;this.o=oct;}
+  h(x,y,z){const n=Math.sin(x*127.1+y*311.7+z*74.7+this.s*.137)*43758.5453;return n-Math.floor(n);}
+  vn(x,y,z){const xi=Math.floor(x),yi=Math.floor(y),zi=Math.floor(z);
+    const xf=x-xi,yf=y-yi,zf=z-zi;
+    const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf),w=zf*zf*(3-2*zf);
+    const a=this.h(xi,yi,zi),b=this.h(xi+1,yi,zi),c=this.h(xi,yi+1,zi),d=this.h(xi+1,yi+1,zi),
+          e=this.h(xi,yi,zi+1),f=this.h(xi+1,yi,zi+1),g=this.h(xi,yi+1,zi+1),hh=this.h(xi+1,yi+1,zi+1);
+    return lerp(lerp(lerp(a,b,u),lerp(c,d,u),v),lerp(lerp(e,f,u),lerp(g,hh,u),v),w);}
+  fbm(x,y,z){let s=0,a=1,fr=1,n=0;for(let i=0;i<this.o;i++){s+=this.vn(x*fr,y*fr,z*fr)*a;n+=a;a*=.5;fr*=2;}return s/n;}
+}
+
+class Cavity{
+  constructor(shape,R,seed){this.shape=shape;this.R=R;
+    this.n=new NoiseField(seed,4);this.c=new NoiseField(seed+999,2);}
+  radiusAt(d){
+    const f=this.n.fbm(d.x*2.4+5,d.y*2.4,d.z*2.4-3);
+    const l=this.c.fbm(d.x*.9,d.y*.9+2,d.z*.9);
+    switch(this.shape){
+      case 'geode':return this.R*(.82+l*.34+(f-.5)*.16);
+      case 'bowl': return this.R*(.95+(f-.5)*.12);
+      case 'vug':  return this.R*(.78+Math.abs(d.y)*.55+(f-.5)*.18);
+      case 'plate':return this.R*(1+l*.08);
+      case 'ball': return this.R*(.92+l*.07+(f-.5)*.04);
+      case 'egg':  return this.R*(.8+l*.3+(f-.5)*.14)*(1+0.35*d.y*d.y);
+      default:return this.R;
+    }
+  }
+  sample(rng){
+    if(this.shape==='plate'){
+      const rad=Math.sqrt(rng())*this.R*.95,a=rng()*TAU;
+      const x=Math.cos(a)*rad,z=Math.sin(a)*rad;
+      const y=-.15*this.R+this.c.fbm(x*.5,0,z*.5)*.18*this.R;
+      return {pos:new THREE.Vector3(x,y,z),nrm:new THREE.Vector3(x*.14,this.R,z*.14).normalize()};
+    }
+    if(this.shape==='ball'){
+      const u=rng()*2-1, th=rng()*TAU, si=Math.sqrt(1-u*u);
+      const dir=new THREE.Vector3(si*Math.cos(th),u,si*Math.sin(th));
+      const r=this.radiusAt(dir);
+      return {pos:dir.clone().multiplyScalar(r),nrm:dir.clone()};
+    }
+    let phiMax;
+    if(this.shape==='bowl')phiMax=Math.PI*.52;
+    else if(this.shape==='vug')phiMax=Math.PI*.82;
+    else if(this.shape==='egg')phiMax=Math.PI*.74;
+    else phiMax=Math.PI*.66;
+    const phi=Math.acos(1-rng()*(1-Math.cos(phiMax))),th=rng()*TAU;
+    const x=Math.sin(phi)*Math.cos(th),y=-Math.cos(phi),z=Math.sin(phi)*Math.sin(th);
+    const dir=new THREE.Vector3(x,y,z),r=this.radiusAt(dir);
+    const pos=dir.clone().multiplyScalar(r);
+    // STABLE growth direction: point from the wall toward the open
+    // cavity interior, with a gentle upward bias so crystals fan
+    // toward the opening like a real geode (no noisy cross-products).
+    const nrm=dir.clone().multiplyScalar(-1)
+      .addScaledVector(new THREE.Vector3(0,1,0),0.28).normalize();
+    return {pos,nrm};
+  }
+  buildShell(){
+    const SEG=110,RING=64,pos=[],idx=[];
+    if(this.shape==='ball'){
+      // displaced rock ball whose surface sits just under the crystal
+      // bases, so crystals read as attached instead of floating
+      const SEG=84,RING=52,p=[],ix=[];
+      for(let r=0;r<=RING;r++){const phi=(r/RING)*Math.PI;
+        for(let s=0;s<=SEG;s++){const th=(s/SEG)*TAU;
+          const x=Math.sin(phi)*Math.cos(th),y=Math.cos(phi),z=Math.sin(phi)*Math.sin(th);
+          const d=new THREE.Vector3(x,y,z),rr=this.radiusAt(d)*0.985;
+          p.push(x*rr,y*rr,z*rr);}}
+      for(let r=0;r<RING;r++)for(let s=0;s<SEG;s++){
+        const a=r*(SEG+1)+s,b=a+SEG+1;ix.push(a,b,a+1);ix.push(a+1,b,b+1);}
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));
+      g.setIndex(ix);g.computeVertexNormals();return g;
+    }
+    if(this.shape==='plate'){
+      const N=84,rad=this.R*1.16;
+      pos.push(0,-.15*this.R,0);
+      for(let i=0;i<=N;i++){const a=(i/N)*TAU,l=this.c.fbm(Math.cos(a)*.5,0,Math.sin(a)*.5);
+        const rr=rad*(.9+l*.18),yy=-.15*this.R+this.c.fbm(Math.cos(a),1,Math.sin(a))*.16*this.R;
+        pos.push(Math.cos(a)*rr,yy,Math.sin(a)*rr);}
+      for(let i=1;i<=N;i++)idx.push(0,i+1,i);
+      const base=pos.length/3;
+      for(let i=0;i<=N;i++){const a=(i/N)*TAU,l=this.c.fbm(Math.cos(a)*.5,0,Math.sin(a)*.5);
+        const rr=rad*(.9+l*.18);pos.push(Math.cos(a)*rr,-.7*this.R,Math.sin(a)*rr);}
+      for(let i=0;i<N;i++){const a0=1+i,a1=2+i,b0=base+i,b1=base+i+1;
+        idx.push(a0,b0,a1);idx.push(a1,b0,b1);}
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+      g.setIndex(idx);g.computeVertexNormals();return g;
+    }
+    let cap;
+    if(this.shape==='bowl')cap=Math.PI*.58;
+    else if(this.shape==='vug')cap=Math.PI*.9;
+    else if(this.shape==='egg')cap=Math.PI*.60;
+    else cap=Math.PI*.74;
+    for(let r=0;r<=RING;r++){const phi=(r/RING)*cap;
+      for(let s=0;s<=SEG;s++){const th=(s/SEG)*TAU;
+        const x=Math.sin(phi)*Math.cos(th),y=-Math.cos(phi),z=Math.sin(phi)*Math.sin(th);
+        const d=new THREE.Vector3(x,y,z),rr=this.radiusAt(d)*1.18;
+        pos.push(x*rr,y*rr,z*rr);}}
+    for(let r=0;r<RING;r++)for(let s=0;s<SEG;s++){
+      const a=r*(SEG+1)+s,b=a+SEG+1;idx.push(a,a+1,b);idx.push(a+1,b+1,b);}
+    const rim=RING*(SEG+1),ob=pos.length/3;
+    for(let s=0;s<=SEG;s++){const th=(s/SEG)*TAU,phi=cap;
+      const x=Math.sin(phi)*Math.cos(th),y=-Math.cos(phi),z=Math.sin(phi)*Math.sin(th);
+      const d=new THREE.Vector3(x,y,z),rr=this.radiusAt(d)*1.46;
+      pos.push(x*rr,y*rr-.05*this.R,z*rr);}
+    for(let s=0;s<SEG;s++){const a=rim+s,b=ob+s;idx.push(a,b,a+1);idx.push(a+1,b,b+1);}
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    g.setIndex(idx);g.computeVertexNormals();return g;
+  }
+}
+
+/* ===== CRYSTAL GEOMETRY (flat-shaded faceted habits) ===== */
+function tri(P,N,U,a,b,c,uv){
+  const e1=b.clone().sub(a),e2=c.clone().sub(a);
+  const nn=new THREE.Vector3().crossVectors(e1,e2).normalize();
+  P.push(a.x,a.y,a.z,b.x,b.y,b.z,c.x,c.y,c.z);
+  N.push(nn.x,nn.y,nn.z,nn.x,nn.y,nn.z,nn.x,nn.y,nn.z);
+  U.push(uv[0],uv[1],uv[2],uv[3],uv[4],uv[5]);
+}
+function makePrism(m,rng){
+  const P=[],N=[],U=[],sides=m.sides;
+  // UNIT geometry: body height = 1, radius = 1. Real size (girth &
+  // length) is applied once, later, by the per-crystal transform.
+  const len=1.0, tip=m.tip*GEN.tip, irr=m.irr;
+  const tab=m.tabular||1;
+  const rJ=[];for(let i=0;i<sides;i++)rJ.push(1+(rng()-.5)*2*irr);
+  const ring=(y,sc)=>{const o=[];for(let i=0;i<sides;i++){
+    const a=(i/sides)*TAU+Math.PI/sides, rr=sc*rJ[i];
+    o.push(new THREE.Vector3(Math.cos(a)*rr,y,Math.sin(a)*rr*tab));}return o;};
+  const bot=ring(0,1), sh=ring(len,1-m.taper);
+  for(let i=0;i<sides;i++){const j=(i+1)%sides;
+    if(m.striated){const ribs=3;
+      for(let k=0;k<ribs;k++){const t0=k/ribs,t1=(k+1)/ribs;
+        const bA=bot[i].clone().lerp(bot[j],t0),bB=bot[i].clone().lerp(bot[j],t1);
+        const sA=sh[i].clone().lerp(sh[j],t0),sB=sh[i].clone().lerp(sh[j],t1);
+        const pu=(1-Math.abs((t0+t1)/2-.5)*2)*.045;
+        const c=new THREE.Vector3((bA.x+bB.x)/2,0,(bA.z+bB.z)/2).normalize().multiplyScalar(pu);
+        bA.add(c);bB.add(c);sA.add(c);sB.add(c);
+        tri(P,N,U,bA,sA,sB,[0,0,0,1,1,1]);tri(P,N,U,bA,sB,bB,[0,0,1,1,1,0]);}
+    }else{
+      tri(P,N,U,bot[i],sh[i],sh[j],[0,0,0,.7,1,.7]);
+      tri(P,N,U,bot[i],sh[j],bot[j],[0,0,1,.7,1,0]);}
+  }
+  const apex=new THREE.Vector3((rng()-.5)*irr*2,len+tip,(rng()-.5)*irr*2);
+  if(m.term==='rhomb'){
+    const rim=[];
+    for(let i=0;i<sides;i++){const a=(i/sides)*TAU+Math.PI/sides;
+      const big=(i%2===0), rr=(1-m.taper)*(big?1.04:.84)*rJ[i];
+      const yy=len+(big?tip*.32:tip*.16);
+      rim.push(new THREE.Vector3(Math.cos(a)*rr,yy,Math.sin(a)*rr*tab));}
+    for(let i=0;i<sides;i++){const j=(i+1)%sides;
+      tri(P,N,U,sh[i],rim[i],rim[j],[0,.7,.5,.85,1,.85]);
+      tri(P,N,U,sh[i],rim[j],sh[j],[0,.7,1,.85,1,.7]);
+      tri(P,N,U,rim[i],apex,rim[j],[0,.85,.5,1,1,.85]);}
+  }else if(m.term==='scaleno'){
+    const mid=[];
+    for(let i=0;i<sides;i++){const a=(i/sides)*TAU+Math.PI/sides;
+      const e=(i%2===0)?1.18:.7, rr=(1-m.taper)*1.05*rJ[i];
+      mid.push(new THREE.Vector3(Math.cos(a)*rr,len+tip*.42*e,Math.sin(a)*rr*tab));}
+    for(let i=0;i<sides;i++){const j=(i+1)%sides;
+      tri(P,N,U,sh[i],mid[i],mid[j],[0,.7,.5,.9,1,.9]);
+      tri(P,N,U,sh[i],mid[j],sh[j],[0,.7,1,.9,1,.7]);
+      tri(P,N,U,mid[i],apex,mid[j],[0,.9,.5,1,1,.9]);}
+  }else if(m.term==='chisel'){
+    const tilt=.5;
+    const a=sh.map(v=>{const w=v.clone();w.y=len+(v.x>0?tip*tilt:-tip*tilt)+tip*.3;return w;});
+    for(let i=0;i<sides;i++){const j=(i+1)%sides;
+      tri(P,N,U,sh[i],a[i],a[j],[0,.7,.5,.95,1,.95]);
+      tri(P,N,U,sh[i],a[j],sh[j],[0,.7,1,.95,1,.7]);}
+    tri(P,N,U,a[0],a[1],a[2],[0,1,.5,1,1,1]);
+    if(sides===4)tri(P,N,U,a[0],a[2],a[3],[0,1,.5,1,1,1]);
+  }else if(m.term==='flat'||tip<.001){
+    const bev=.14,ct=new THREE.Vector3(0,len+0.02,0);
+    for(let i=0;i<sides;i++){const j=(i+1)%sides;
+      const a=sh[i].clone().lerp(ct,bev),b=sh[j].clone().lerp(ct,bev);
+      a.y+=tip*.4+.02;b.y+=tip*.4+.02;
+      tri(P,N,U,sh[i],a,b,[0,.7,.4,.95,.6,.95]);
+      tri(P,N,U,sh[i],b,sh[j],[0,.7,.6,.95,1,.7]);
+      tri(P,N,U,a,new THREE.Vector3(0,len+tip*.4+.02,0),b,[.4,.95,.5,1,.6,.95]);}
+  }else{
+    for(let i=0;i<sides;i++){const j=(i+1)%sides;
+      tri(P,N,U,sh[i],apex,sh[j],[0,.7,.5,1,1,.7]);}
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));
+  g.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(U,2));
+  g._h=len+tip;return g;
+}
+function makeOcta(m,rng){
+  const P=[],N=[],U=[];
+  // one octahedron (optionally corner-truncated toward a cuboctahedron)
+  const addOcta=(scale,rot)=>{
+    const j=()=>(rng()-.5)*m.irr*2;
+    let v=[new THREE.Vector3(0,1+j(),0),new THREE.Vector3(0,-1+j(),0),
+           new THREE.Vector3(1+j(),0,0),new THREE.Vector3(-1+j(),0,0),
+           new THREE.Vector3(0,0,1+j()),new THREE.Vector3(0,0,-1+j())];
+    v=v.map(p=>{const q=p.clone().multiplyScalar(scale);
+      if(rot) q.applyAxisAngle(new THREE.Vector3(0,1,0),rot)
+              .applyAxisAngle(new THREE.Vector3(1,0,0),rot*0.6);
+      return q;});
+    const f=[[0,2,4],[0,4,3],[0,3,5],[0,5,2],[1,4,2],[1,3,4],[1,5,3],[1,2,5]];
+    f.forEach(t=>tri(P,N,U,v[t[0]],v[t[1]],v[t[2]],[0,0,1,0,.5,1]));
+  };
+  addOcta(1.0, 0);
+  if(m.twin) addOcta(0.86, Math.PI/4);   // interpenetrant fluorite twin
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));
+  g.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(U,2));
+  g._h=2;return g;
+}
+function makeCube(m,rng){
+  const P=[],N=[],U=[],s=1,j=()=>(rng()-.5)*m.irr*2;
+  const v=[new THREE.Vector3(-s+j(),-s+j(),-s+j()),new THREE.Vector3(s+j(),-s+j(),-s+j()),
+           new THREE.Vector3(s+j(),-s+j(),s+j()),new THREE.Vector3(-s+j(),-s+j(),s+j()),
+           new THREE.Vector3(-s+j(),s+j(),-s+j()),new THREE.Vector3(s+j(),s+j(),-s+j()),
+           new THREE.Vector3(s+j(),s+j(),s+j()),new THREE.Vector3(-s+j(),s+j(),s+j())];
+  const f=[[0,1,2,3],[5,4,7,6],[4,5,1,0],[3,2,6,7],[1,5,6,2],[4,0,3,7]];
+  f.forEach((q,fi)=>{
+    if(m.striated){const D=4;
+      for(let r=0;r<D;r++)for(let c=0;c<D;c++){
+        const u0=r/D,u1=(r+1)/D,w0=c/D,w1=(c+1)/D;
+        const A=v[q[0]].clone().lerp(v[q[1]],u0).lerp(v[q[3]].clone().lerp(v[q[2]],u0),w0);
+        const B=v[q[0]].clone().lerp(v[q[1]],u1).lerp(v[q[3]].clone().lerp(v[q[2]],u1),w0);
+        const C=v[q[0]].clone().lerp(v[q[1]],u1).lerp(v[q[3]].clone().lerp(v[q[2]],u1),w1);
+        const E=v[q[0]].clone().lerp(v[q[1]],u0).lerp(v[q[3]].clone().lerp(v[q[2]],u0),w1);
+        const gv=(fi%2?(r%2?.04:-.02):(c%2?.04:-.02));
+        [A,B,C,E].forEach(p=>p.addScaledVector(p.clone().normalize(),gv));
+        tri(P,N,U,A,B,C,[0,0,1,0,1,1]);tri(P,N,U,A,C,E,[0,0,1,1,0,1]);}
+    }else{tri(P,N,U,v[q[0]],v[q[1]],v[q[2]],[0,0,1,0,1,1]);
+          tri(P,N,U,v[q[0]],v[q[2]],v[q[3]],[0,0,1,1,0,1]);}
+  });
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));
+  g.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(U,2));
+  g._h=2;return g;
+}
+
+/* ===== NUCLEATION + GEOMETRIC-SELECTION GROWTH =====
+   A dense forest of randomly-oriented seeds nucleates on the
+   wall; crystals whose c-axis points most directly into the
+   open cavity grow fastest, widen their footprint and overgrow
+   (BURY) their tilted neighbours -> a coarsening palisade. */
+function nucleate(cavity, count, scatter, rng){
+  const clusterN=Math.max(3,Math.round(count/55));
+  const clusters=[];
+  for(let i=0;i<clusterN;i++) clusters.push(cavity.sample(rng).pos);
+  const sites=[]; const scale=0.40;
+  let attempts=0, maxA=count*40+400;
+  while(sites.length<count && attempts<maxA){
+    attempts++;
+    let s=cavity.sample(rng);
+    if(rng()<0.6 && clusters.length){
+      const c=clusters[(rng()*clusters.length)|0];
+      const test=cavity.sample(rng);
+      if(test.pos.distanceTo(c) < s.pos.distanceTo(c)) s=test;
+    }
+    const desired=lerp(0.10,0.34,rng()**1.4)*scale;
+    let ok=true;
+    for(const e of sites){
+      if(s.pos.distanceTo(e.pos) < (e.r+desired)*0.62){ok=false;break;}
+    }
+    if(!ok) continue;
+    const free=s.nrm.clone().normalize();
+    const ax=new THREE.Vector3(rng()-.5,rng()-.5,rng()-.5).normalize();
+    let perp=new THREE.Vector3().crossVectors(free,ax);
+    if(perp.lengthSq()<1e-6) perp.set(1,0,0); else perp.normalize();
+    const th=(rng()**1.5)*scatter*1.3;
+    const cAxis=free.clone().applyAxisAngle(perp,th).normalize();
+    sites.push({
+      pos:s.pos, free, cAxis, r:desired,
+      align:clamp(cAxis.dot(free),-1,1),
+      age:rng(), stage:0.55+rng()*0.45, spin:rng()*TAU,
+      L:desired, buried:false, seed:rng()*1000,
+    });
+  }
+  return sites;
+}
+function growSelection(sites, m, iterations){
+  for(const a of sites)
+    a.sel = THREE.MathUtils.smoothstep(a.align, 0.45, 1.0);
+  const itF = 0.6 + iterations*0.025;            // gentle coarsening with iters
+  // hard ceilings relative to the 3-unit cavity so nothing can
+  // ever grow into a sea-urchin spike again
+  const G_MAX = 0.34;                            // max prism girth
+  const L_MAX = 1.9;                             // max crystal length
+  for(const a of sites){
+    const aspect = lerp(m.eMin, m.eMax, (a.seed*0.5)%1);  // length / girth
+    // girth grows with selection (winners get fat); jittered
+    a.Rtar = Math.min(G_MAX,
+      a.r * (1.0 + 2.4*a.sel) * (0.7 + 0.6*((a.seed*0.013)%1)));
+    // length = girth * habit aspect, modulated by selection & maturity
+    a.Ltar = Math.min(L_MAX,
+      a.Rtar * aspect * (0.45 + 0.9*a.sel) * (0.6 + 0.4*a.stage) * itF);
+  }
+  const passes=Math.max(3,iterations);
+  for(let it=0; it<passes; it++){
+    for(const a of sites){
+      a.L=lerp(a.L,a.Ltar,0.16+0.16*a.sel);
+      a.r=lerp(a.r,a.Rtar,0.18+0.14*a.sel);
+    }
+    for(let i=0;i<sites.length;i++){
+      const a=sites[i];
+      for(let k=i+1;k<sites.length;k++){
+        const b=sites[k];
+        const d=a.pos.distanceTo(b.pos);
+        const ov=a.r+b.r-d*0.9;
+        if(ov<=0) continue;
+        const sa=a.sel*0.62 + a.r*1.3 + (1-a.age)*0.12;
+        const sb=b.sel*0.62 + b.r*1.3 + (1-b.age)*0.12;
+        if(sa>=sb){ b.r-=ov*clamp((sa-sb)*1.6,0.2,0.9);
+          if(b.r<b.Rtar*0.38) b.buried=true; }
+        else{ a.r-=ov*clamp((sb-sa)*1.6,0.2,0.9);
+          if(a.r<a.Rtar*0.38) a.buried=true; }
+        a.r=Math.max(0.018,a.r); b.r=Math.max(0.018,b.r);
+      }
+    }
+  }
+  for(const a of sites)
+    if(a.buried) a.L=Math.min(a.L, a.r*1.4 + 0.02);
+}
+
+/* ===== VOLUMETRIC INCLUSION SHADER (raymarched 3D noise) =====
+   Injected into MeshPhysicalMaterial via onBeforeCompile so real
+   PBR transmission / anisotropy is preserved while internal
+   structure parallaxes correctly as the camera orbits. */
+const INCLUDE_FRAG = `
+uniform float uInc; uniform float uIncStyle; uniform float uIncScale;
+uniform vec3  uIncColor; uniform float uTime;
+varying vec3  vWPos; varying vec3 vCenter; varying vec3 vAxis;
+varying float vHalf;  varying float vSeed;
+float vhash(vec3 p){ p=fract(p*0.3183099+vec3(0.1,0.2,0.3)); p*=17.0;
+  return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+float vnoise(vec3 x){ vec3 i=floor(x),f=fract(x); f=f*f*(3.0-2.0*f);
+  float a=vhash(i+vec3(0.,0.,0.)),b=vhash(i+vec3(1.,0.,0.));
+  float c=vhash(i+vec3(0.,1.,0.)),d=vhash(i+vec3(1.,1.,0.));
+  float e=vhash(i+vec3(0.,0.,1.)),g=vhash(i+vec3(1.,0.,1.));
+  float h=vhash(i+vec3(0.,1.,1.)),k=vhash(i+vec3(1.,1.,1.));
+  return mix(mix(mix(a,b,f.x),mix(c,d,f.x),f.y),
+             mix(mix(e,g,f.x),mix(h,k,f.x),f.y),f.z); }
+float fbm3(vec3 p){ float s=0.0,a=0.5; for(int i=0;i<5;i++){ s+=a*vnoise(p);
+  p=p*2.03+vec3(1.7,9.2,-3.3); a*=0.5; } return s; }
+vec4 inclusions(vec3 wpos){
+  if(uInc<0.002) return vec4(0.0);
+  vec3 rd = normalize(wpos - cameraPosition);
+  rd = normalize(mix(rd, normalize(vCenter - wpos), 0.18));
+  float span = max(vHalf*2.3, 0.001);
+  float ss = span/30.0;
+  float t = ss*0.5, dens=0.0;
+  for(int i=0;i<30;i++){
+    vec3 p  = wpos + rd*t;
+    vec3 lp = p - vCenter;
+    float h = dot(lp, vAxis);
+    vec3 perp = lp - vAxis*h;
+    float rp = length(perp);
+    float inside =
+        (1.0 - smoothstep(vHalf*0.50, vHalf*1.05, rp)) *
+        (1.0 - smoothstep(vHalf*0.95, vHalf*1.30, abs(h)));
+    if(inside>0.002){
+      vec3 q = lp*uIncScale + vSeed*7.0 + vec3(0.0,uTime*0.025,0.0);
+      float n = fbm3(q), feat;
+      if(uIncStyle<0.5){
+        feat = smoothstep(0.55,0.84,n);
+      }else if(uIncStyle<1.5){
+        float layer = 0.5+0.5*sin(h*9.0 + n*4.0);
+        feat = smoothstep(0.50,0.80,n)*pow(layer,3.0);
+      }else if(uIncStyle<2.5){
+        float fib = abs(fbm3(q*0.6+vec3(5.0))-0.5)*2.0;
+        feat = (1.0-smoothstep(0.0,0.10,fib))*smoothstep(0.35,0.7,n);
+      }else{
+        feat = smoothstep(0.42,0.92,n*n);
+      }
+      dens += feat*inside*ss;
+    }
+    t += ss;
+  }
+  float a = 1.0 - exp(-dens*uInc*7.0);
+  return vec4(uIncColor, clamp(a,0.0,0.94));
+}
+`;
+function makeCrystalMaterial(m, st){
+  const hue=(st.hue||0)/360;
+  const bc=new THREE.Color(m.color); { const q={}; bc.getHSL(q);
+    let h=q.h+hue; h-=Math.floor(h); bc.setHSL(h,q.s,q.l); }
+  const icCol=new THREE.Color(m.inc); { const q={}; icCol.getHSL(q);
+    let h=q.h+hue; h-=Math.floor(h); icCol.setHSL(h,q.s,q.l); }
+  const mat=new THREE.MeshPhysicalMaterial({
+    color:bc,
+    metalness:m.metal, roughness:st.rough,
+    transmission:m.metal>0.5?0:(m.transmission>0?st.trans:0),
+    thickness:m.thickness, ior:m.ior,
+    attenuationDistance:m.attenD, attenuationColor:new THREE.Color(m.atten),
+    clearcoat:m.clear, clearcoatRoughness:m.ccR,
+    anisotropy:m.anis, anisotropyRotation:Math.PI/2,
+    envMapIntensity:st.refl, transparent:m.transmission>0,
+    side:THREE.DoubleSide, flatShading:true,
+  });
+  if(m.metal>0.5) mat.transparent=false;
+  mat.onBeforeCompile=(sh)=>{
+    sh.uniforms.uInc      ={value:st.inc};
+    sh.uniforms.uIncStyle ={value:st.incType};
+    sh.uniforms.uIncScale ={value:m.incScale};
+    sh.uniforms.uIncColor ={value:icCol};
+    sh.uniforms.uTime     ={value:0};
+    sh.vertexShader=sh.vertexShader
+      .replace('#include <common>',
+        '#include <common>\nattribute vec3 aCenter;attribute vec3 aAxis;attribute float aHalf;attribute float aSeed;\nvarying vec3 vWPos;varying vec3 vCenter;varying vec3 vAxis;varying float vHalf;varying float vSeed;')
+      .replace('#include <begin_vertex>',
+        '#include <begin_vertex>\nvWPos=(modelMatrix*vec4(transformed,1.0)).xyz;vCenter=aCenter;vAxis=aAxis;vHalf=aHalf;vSeed=aSeed;');
+    sh.fragmentShader=sh.fragmentShader
+      .replace('#include <common>','#include <common>\n'+INCLUDE_FRAG)
+      .replace('#include <opaque_fragment>',
+'#ifdef OPAQUE\ndiffuseColor.a = 1.0;\n#endif\n#ifdef USE_TRANSMISSION\ndiffuseColor.a *= material.transmissionAlpha;\n#endif\nvec4 _incl = inclusions(vWPos);\noutgoingLight = mix(outgoingLight, mix(outgoingLight, _incl.rgb, 0.7), _incl.a);\ngl_FragColor = vec4( outgoingLight, diffuseColor.a );\n');
+    mat.userData.shader=sh;
+  };
+  return mat;
+}
+
+/* ===== DRUSE assembler ===== */
+function tagCrystal(geo,center,axis,half,seed){
+  const n=geo.attributes.position.count;
+  const c=new Float32Array(n*3),ax=new Float32Array(n*3),hf=new Float32Array(n),sd=new Float32Array(n);
+  for(let i=0;i<n;i++){c[i*3]=center.x;c[i*3+1]=center.y;c[i*3+2]=center.z;
+    ax[i*3]=axis.x;ax[i*3+1]=axis.y;ax[i*3+2]=axis.z;hf[i]=half;sd[i]=seed;}
+  geo.setAttribute('aCenter',new THREE.BufferAttribute(c,3));
+  geo.setAttribute('aAxis',new THREE.BufferAttribute(ax,3));
+  geo.setAttribute('aHalf',new THREE.BufferAttribute(hf,1));
+  geo.setAttribute('aSeed',new THREE.BufferAttribute(sd,1));
+}
+class Druse{
+  constructor(p){this.params=p;this.group=new THREE.Group();this.stats={};}
+  generate(){
+    const m=MINERALS[this.params.mineral];
+    GEN={ size:this.params.size, elong:this.params.elong, tip:this.params.tipSharp };
+    const rng=makeRNG(this.params.seed);
+    const cav=new Cavity(this.params.cavity,3.0,this.params.seed);
+    const sites=nucleate(cav,this.params.count,this.params.scat,rng);
+    growSelection(sites,m,this.params.iterations);
+    const geos=[];
+    const _m=new THREE.Matrix4(),_rot=new THREE.Matrix4();
+    const right=new THREE.Vector3(),fwd=new THREE.Vector3();
+    let win=0,bury=0;
+    for(const s of sites){
+      if(s.r<0.012) continue;
+      if(s.buried) bury++; else win++;
+      const g = m.habit==='cube'?makeCube(m,rng)
+              : m.habit==='octa'?makeOcta(m,rng)
+              : makePrism(m,rng);
+      const isPrism = !(m.habit==='cube'||m.habit==='octa');
+      const sm = (m.sizeMul||1) * GEN.size;
+      const G = Math.min(0.6, s.r * sm);                       // prism girth
+      const L = Math.min(2.8, (isPrism ? Math.max(s.L, s.r*0.8)
+                                       : s.r) * sm * (isPrism?GEN.elong:1)); // length
+      const up=s.cAxis.clone().normalize();
+      right.set(0,1,0); if(Math.abs(up.y)>0.92) right.set(1,0,0);
+      fwd.crossVectors(up,right).normalize();
+      right.crossVectors(fwd,up).normalize();
+      _m.makeBasis(right,up,fwd);
+      _rot.makeRotationY(s.spin); _m.multiply(_rot);
+      _m.multiply(new THREE.Matrix4().makeScale(G,L,G));
+      const seat=s.pos.clone().addScaledVector(s.free,-G*0.6);
+      _m.setPosition(seat);
+      g.applyMatrix4(_m);
+      const half=Math.max((g._h||2)*L*0.5,0.02);
+      const center=seat.clone().addScaledVector(up,half);
+      tagCrystal(g,center,up,half,s.seed);
+      geos.push(g);
+    }
+    const merged=mergeGeometries(geos,false);
+    geos.forEach(g=>g.dispose());
+    const cMat=makeCrystalMaterial(m,this.params);
+    this.crystals=new THREE.Mesh(merged,cMat);
+    this.crystals.frustumCulled=false;
+    this.group.add(this.crystals);
+    const shellGeo=cav.buildShell();
+    const sMat=new THREE.MeshStandardMaterial({
+      color:0x2a2620,roughness:.95,metalness:0,side:THREE.DoubleSide});
+    this.shell=new THREE.Mesh(shellGeo,sMat);
+    this.group.add(this.shell);
+    this.stats={count:geos.length,win,bury,tris:(merged.attributes.position.count/3)|0};
+    this._merged=merged;this._shell=shellGeo;this._mats=[cMat,sMat];
+    return this;
+  }
+  dispose(){this._merged?.dispose();this._shell?.dispose();this._mats?.forEach(x=>x.dispose());}
+}
+
+/* ===== SCENE ===== */
+let renderer,scene,camera,controls,druse;
+const canvas=document.createElement('canvas');document.body.appendChild(canvas);
+const lights={};
+function initScene(){
+  renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure=0.98;
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x06060a);
+  scene.fog=new THREE.FogExp2(0x06060a,0.02);
+  const pm=new THREE.PMREMGenerator(renderer);
+  scene.environment=pm.fromScene(new RoomEnvironment(),0.04).texture;
+  camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,0.1,200);
+  camera.position.set(0,4.4,9.2);
+  controls=new OrbitControls(camera,renderer.domElement);
+  controls.enableDamping=true;controls.dampingFactor=0.05;
+  controls.autoRotate=true;controls.autoRotateSpeed=0.55;
+  controls.minDistance=4;controls.maxDistance=20;
+  controls.maxPolarAngle=Math.PI*0.62;
+  controls.target.set(0,0.4,0);
+  scene.add(new THREE.AmbientLight(0x3a4150,0.4));
+  lights.key=new THREE.DirectionalLight(0xfff0d8,2.3); lights.key.position.set(6,9,4); scene.add(lights.key);
+  lights.fill=new THREE.PointLight(0x5577cc,1.4,40);    lights.fill.position.set(-7,2,-4); scene.add(lights.fill);
+  lights.rim=new THREE.DirectionalLight(0xffffff,1.8);  lights.rim.position.set(-3,5,-8); scene.add(lights.rim);
+  lights.acc=new THREE.PointLight(0xcf9f5f,0.9,30);     lights.acc.position.set(0,-3,3); scene.add(lights.acc);
+  addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+}
+function applyLight(mul){
+  lights.key.intensity=2.3*mul; lights.fill.intensity=1.4*mul;
+  lights.rim.intensity=1.8*mul; lights.acc.intensity=0.9*mul;
+  renderer.toneMappingExposure=0.88+0.18*mul;
+}
+
+/* ===== STATE ===== */
+const state={
+  mineral:'amethyst', cavity:'geode',
+  count:420, iterations:16, scat:0.55,
+  size:1.0, elong:1.0, tipSharp:1.0,
+  trans:0.85, refl:0.9, rough:0.06,
+  inc:0.45, incType:1, hue:0, light:1.0, spd:0.55,
+  seed:(Math.random()*1e9)|0,
+};
+const loader=document.getElementById('loader'),ltxt=document.getElementById('ltxt');
+const msgs=['Nucleating crystal seeds','Simulating geometric selection',
+  'Burying tilted neighbours','Elongating surviving prisms',
+  'Faceting terminations','Seeding volumetric inclusions'];
+const isBall=()=>state.cavity==='ball';
+function regenerate(newSeed=true){
+  if(newSeed)state.seed=(Math.random()*1e9)|0;
+  loader.classList.remove('hidden');
+  let mi=0;ltxt.textContent=msgs[0];
+  const cyc=setInterval(()=>{mi=(mi+1)%msgs.length;ltxt.textContent=msgs[mi];},240);
+  setTimeout(()=>{
+    if(druse){scene.remove(druse.group);druse.dispose();}
+    druse=new Druse({...state}).generate();
+    scene.add(druse.group);
+    applyLight(state.light);
+    controls.target.set(0, isBall()?0:0.4, 0);
+    const m=MINERALS[state.mineral];
+    document.getElementById('sCount').textContent=druse.stats.count;
+    document.getElementById('sWin').textContent=druse.stats.win;
+    document.getElementById('sBury').textContent=druse.stats.bury;
+    document.getElementById('sTris').textContent=druse.stats.tris.toLocaleString();
+    const cavName=document.getElementById('cavity').selectedOptions[0].text.split(' — ')[0];
+    document.getElementById('capMin').textContent=m.cap+' '+cavName;
+    clearInterval(cyc);
+    setTimeout(()=>loader.classList.add('hidden'),200);
+  },60);
+}
+
+/* ===== UI ===== */
+function bindUI(){
+  const $=id=>document.getElementById(id);
+  const ms=$('mineral');
+  for(const k in MINERALS){const o=document.createElement('option');
+    o.value=k;o.textContent=MINERALS[k].label;ms.appendChild(o);}
+  ms.value=state.mineral;
+  ms.addEventListener('change',e=>{state.mineral=e.target.value;
+    $('mineralV').textContent=MINERALS[state.mineral].label;regenerate(false);});
+  $('cavity').addEventListener('change',e=>{state.cavity=e.target.value;
+    $('cavityV').textContent=e.target.selectedOptions[0].text.split(' — ')[0];regenerate(false);});
+  const liveRegen=(id,key,fmt)=>{
+    $(id).addEventListener('input',e=>{state[key]=+e.target.value;
+      $(id+'V').textContent=fmt?fmt(state[key]):state[key];});
+    $(id).addEventListener('change',()=>regenerate(false));
+  };
+  liveRegen('count','count');
+  liveRegen('iter','iterations');
+  liveRegen('scat','scat',v=>v.toFixed(2));
+  liveRegen('size','size',v=>v.toFixed(2));
+  liveRegen('elong','elong',v=>v.toFixed(2));
+  liveRegen('tipSharp','tipSharp',v=>v.toFixed(2));
+  const refreshOptics=()=>{
+    if(!druse)return;
+    const m=MINERALS[state.mineral],mat=druse.crystals.material;
+    mat.roughness=state.rough;
+    mat.envMapIntensity=state.refl;
+    mat.transmission=m.metal>0.5?0:(m.transmission>0?state.trans:0);
+    mat.transparent=mat.transmission>0;
+    // hue shift on body + inclusion colour
+    const hsl={}; new THREE.Color(m.color).getHSL(hsl);
+    let h=hsl.h+state.hue/360; h-=Math.floor(h);
+    mat.color.setHSL(h,hsl.s,hsl.l);
+    mat.needsUpdate=true;
+    const sh=mat.userData.shader;
+    if(sh){
+      sh.uniforms.uInc.value=state.inc;
+      sh.uniforms.uIncStyle.value=state.incType;
+      const ic={}; new THREE.Color(m.inc).getHSL(ic);
+      let ih=ic.h+state.hue/360; ih-=Math.floor(ih);
+      sh.uniforms.uIncColor.value.setHSL(ih,ic.s,ic.l);
+    }
+  };
+  const liveMat=(id,key,fmt)=>{
+    $(id).addEventListener('input',e=>{state[key]=+e.target.value;
+      $(id+'V').textContent=fmt?fmt(state[key]):state[key];refreshOptics();});
+  };
+  liveMat('trans','trans',v=>v.toFixed(2));
+  liveMat('refl','refl',v=>v.toFixed(2));
+  liveMat('rough','rough',v=>v.toFixed(2));
+  liveMat('inc','inc',v=>v.toFixed(2));
+  liveMat('hue','hue',v=>Math.round(v)+'°');
+  $('incType').addEventListener('change',e=>{state.incType=+e.target.value;
+    $('incTV').textContent=e.target.selectedOptions[0].text.split(' — ')[0];refreshOptics();});
+  $('light').addEventListener('input',e=>{state.light=+e.target.value;
+    $('lightV').textContent=state.light.toFixed(1)+'×';applyLight(state.light);});
+  const ot=$('orbitTog');
+  ot.addEventListener('click',()=>{controls.autoRotate=!controls.autoRotate;
+    ot.classList.toggle('on',controls.autoRotate);});
+  $('spd').addEventListener('input',e=>{const v=+e.target.value;state.spd=v;
+    $('spdV').textContent=v.toFixed(2);controls.autoRotateSpeed=v;});
+  $('reset').addEventListener('click',()=>{camera.position.set(0,4.4,9.2);
+    controls.target.set(0,isBall()?0:0.4,0);controls.update();});
+  $('regen').addEventListener('click',()=>regenerate(true));
+  const panel=$('panel'),tg=$('toggle');let col=false;
+  const ref=()=>tg.style.display=col?'flex':'none';
+  tg.addEventListener('click',()=>{col=false;panel.classList.remove('collapsed');ref();});
+  panel.addEventListener('dblclick',ev=>{
+    if(ev.target.closest('select')||ev.target.closest('input'))return;
+    col=true;panel.classList.add('collapsed');ref();});
+}
+
+/* ===== LOOP ===== */
+function animate(){
+  requestAnimationFrame(animate);
+  controls.update();
+  const t=performance.now();
+  lights.acc.intensity=(0.9+Math.sin(t*0.0004)*0.25)*state.light;
+  if(druse){const sh=druse.crystals.material.userData.shader;
+    if(sh) sh.uniforms.uTime.value=t*0.001;}
+  renderer.render(scene,camera);
+}
+initScene();
+bindUI();
+regenerate(false);
+animate();
+</script>
+</body>
+</html>

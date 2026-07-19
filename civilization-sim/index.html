@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Civilization Simulation — p5.js</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; }
+body {
+  background: #06060a;
+  color: #d0d0e0;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 11px;
+  display: flex;
+  overflow: hidden;
+}
+#sim {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  background: #000;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+canvas { display: block; }
+#panel {
+  width: 340px;
+  flex-shrink: 0;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #14141c, #0a0a14);
+  border-left: 1px solid #2a2a3a;
+}
+#panel::-webkit-scrollbar { width: 4px; }
+#panel::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 2px; }
+.section {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #1c1c28;
+}
+.section:last-child { border-bottom: none; }
+.section h3 {
+  color: #6cd3ff;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 7px;
+  font-weight: 600;
+}
+.stat {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  color: #788898;
+}
+.stat .v { color: #fff; font-weight: 600; }
+.stat .v.warn { color: #ff7080; }
+canvas.graph {
+  width: 100%;
+  height: 38px;
+  background: #050509;
+  margin-top: 4px;
+  border: 1px solid #1a1a25;
+  display: block;
+}
+.trait-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+.trait-row .name { color: #899; font-size: 10px; text-transform: capitalize; }
+.trait-row .val { text-align: right; font-size: 9px; color: #fff; }
+.bar { height: 5px; background: #1a1a25; border-radius: 1px; overflow: hidden; }
+.bar > div { height: 100%; background: linear-gradient(90deg, #4a8acc, #6cd3ff); transition: width 0.3s; }
+.tech-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+.tech {
+  background: #15151f;
+  padding: 5px 4px;
+  border-radius: 2px;
+  font-size: 9px;
+  color: #4a4a5a;
+  text-align: center;
+  border: 1px solid #20202c;
+  position: relative;
+  overflow: hidden;
+}
+.tech.unlocked {
+  background: linear-gradient(135deg, #1a4a3a, #2a7a5a);
+  color: #afedc8;
+  border-color: #4a8;
+  box-shadow: 0 0 6px rgba(74,168,128,0.3);
+}
+.tech.progress { background: #1a1a28; color: #889; border-color: #2a2a3a; }
+.tech-fill { position: absolute; bottom: 0; left: 0; height: 2px; background: #6cd3ff; }
+#title { color: #6cd3ff; font-size: 14px; margin-bottom: 1px; letter-spacing: 2px; font-weight: 600; }
+.meta { color: #4a4a5a; font-size: 9px; margin-bottom: 10px; }
+#year { color: #ffaa66; font-weight: 600; font-size: 11px; }
+#phase { color: #aabbcc; }
+
+.slider-row {
+  display: grid;
+  grid-template-columns: 1fr 50px;
+  align-items: center;
+  gap: 8px;
+  margin: 5px 0;
+}
+.slider-row label {
+  font-size: 10px;
+  color: #899;
+  display: flex;
+  justify-content: space-between;
+  grid-column: 1 / -1;
+  margin-bottom: 1px;
+}
+.slider-row label .lv { color: #6cd3ff; font-weight: 600; }
+.slider-row input[type=range] {
+  -webkit-appearance: none;
+  width: 100%; height: 4px;
+  background: #1a1a25;
+  border-radius: 2px;
+  outline: none;
+  grid-column: 1 / -1;
+}
+.slider-row input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px;
+  background: #6cd3ff;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1px solid #14141c;
+}
+.slider-row input[type=range]::-moz-range-thumb {
+  width: 12px; height: 12px;
+  background: #6cd3ff;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1px solid #14141c;
+}
+.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.btn-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+button.b {
+  background: #1a1a28;
+  border: 1px solid #2a2a3a;
+  color: #ccd;
+  padding: 7px 5px;
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  border-radius: 3px;
+  text-align: center;
+  transition: all 0.15s;
+  letter-spacing: 0.3px;
+}
+button.b:hover { background: #25253a; border-color: #4a4a6a; color: #fff; }
+button.b:active { transform: scale(0.96); }
+button.b.disaster { color: #ffb0b0; border-color: #5a2a2a; }
+button.b.disaster:hover { background: #3a1a1a; color: #ffd0d0; }
+button.b.mood { color: #ffd0a0; border-color: #5a4a2a; }
+button.b.mood:hover { background: #3a2a1a; color: #ffe8b0; }
+button.b.spawn { color: #b0e0ff; border-color: #2a4a6a; }
+button.b.spawn:hover { background: #1a2a4a; color: #d0f0ff; }
+button.b.pause { background: #2a2a3a; color: #ffd76a; border-color: #4a4a5a; grid-column: 1 / -1; padding: 9px; font-weight: 600; }
+button.b.pause:hover { background: #3a3a4a; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 7px; margin-top: 4px; font-size: 9px; }
+.legend span { display: inline-flex; align-items: center; gap: 3px; color: #889; }
+.legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
+
+@media (max-width: 1100px) {
+  body { flex-direction: column; }
+  #panel { width: 100%; height: auto; max-height: 50vh; border-left: none; border-top: 1px solid #2a2a3a; }
+  #sim { width: 100%; height: 50vh; }
+}
+</style>
+</head>
+<body>
+<div id="sim"></div>
+<div id="panel">
+  <div id="title">CIV.SIM</div>
+  <div class="meta">Year <span id="year">0</span> · <span id="phase">Initializing</span></div>
+
+  <div class="section">
+    <h3>Simulation Controls</h3>
+    <div class="slider-row">
+      <label>Speed <span class="lv" id="speedV">1×</span></label>
+      <input type="range" id="speed" min="1" max="20" step="1" value="1">
+    </div>
+    <div class="slider-row">
+      <label>Max population <span class="lv" id="maxPopV">500</span></label>
+      <input type="range" id="maxPop" min="50" max="2000" step="10" value="500">
+    </div>
+    <div class="btn-grid" style="margin-top:6px">
+      <button class="b pause" id="pauseBtn">⏸ Pause</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>Disasters</h3>
+    <div class="btn-grid three">
+      <button class="b disaster" id="ev_epidemic" title="Trigger plague in a settlement">Epidemic</button>
+      <button class="b disaster" id="ev_drought" title="Halt food &amp; water regrowth">Drought</button>
+      <button class="b disaster" id="ev_flood" title="Damage settlements near water">Flood</button>
+      <button class="b disaster" id="ev_cold" title="Brutal winter — energy drain">Cold</button>
+      <button class="b disaster" id="ev_heat" title="Heat wave — water depletes fast">Heat</button>
+      <button class="b disaster" id="ev_bugs" title="Locust swarm — eats food">Bugs</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>Mood Nudges</h3>
+    <div class="btn-grid three">
+      <button class="b mood" id="mood_bored" title="Force agents to migrate &amp; explore">Restless</button>
+      <button class="b mood" id="mood_war" title="Push aggressive tribes toward war">Warlike</button>
+      <button class="b mood" id="mood_trade" title="Boost cooperation &amp; trade">Trading</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>Newcomers from Afar</h3>
+    <div class="btn-grid">
+      <button class="b spawn" id="spawn_traders" title="Skilled, peaceful, intelligent merchants">Traders</button>
+      <button class="b spawn" id="spawn_raiders" title="Aggressive, mobile, alien warriors">Raiders</button>
+      <button class="b spawn" id="spawn_nomads" title="Mixed wanderers with strange genes">Nomads</button>
+      <button class="b spawn" id="spawn_scholars" title="High-intelligence wisdom-bearers">Scholars</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>Population</h3>
+    <div class="stat"><span>Living agents</span><span class="v" id="pop">0</span></div>
+    <div class="stat"><span>Tribes</span><span class="v" id="tribes">0</span></div>
+    <div class="stat"><span>Settlements</span><span class="v" id="setts">0</span></div>
+    <canvas class="graph" id="popgraph"></canvas>
+  </div>
+
+  <div class="section">
+    <h3>Economy</h3>
+    <div class="stat"><span>GDP equivalent</span><span class="v" id="gdp">0</span></div>
+    <div class="stat"><span>Trade routes</span><span class="v" id="trade">0</span></div>
+    <canvas class="graph" id="gdpgraph"></canvas>
+  </div>
+
+  <div class="section">
+    <h3>Conflict &amp; Disease</h3>
+    <div class="stat"><span>Active wars</span><span class="v warn" id="wars">0</span></div>
+    <div class="stat"><span>Total deaths</span><span class="v" id="deaths">0</span></div>
+    <div class="stat"><span>Plague carriers</span><span class="v" id="plague">0</span></div>
+    <canvas class="graph" id="wargraph"></canvas>
+  </div>
+
+  <div class="section">
+    <h3>Average Trait Evolution</h3>
+    <div id="traits"></div>
+  </div>
+
+  <div class="section">
+    <h3>Technology Tree</h3>
+    <div class="tech-grid" id="techgrid"></div>
+  </div>
+
+  <div class="section">
+    <h3>Legend</h3>
+    <div class="legend">
+      <span><i style="background:#3c5e8a"></i>Ocean</span>
+      <span><i style="background:#dcc88c"></i>Beach</span>
+      <span><i style="background:#78aa50"></i>Grass</span>
+      <span><i style="background:#3c6e3c"></i>Forest</span>
+      <span><i style="background:#786e64"></i>Mountain</span>
+      <span><i style="background:#c8b464"></i>Desert</span>
+      <span><i style="background:#c8d2dc"></i>Tundra</span>
+      <span><i style="background:#466eb4"></i>River</span>
+      <span><i style="background:#ffd932"></i>Settlement</span>
+      <span><i style="background:#ff5050"></i>War</span>
+      <span><i style="background:#c060ff"></i>Plague</span>
+      <span><i style="background:#ffd76a"></i>Trade</span>
+      <span><i style="background:#ffffff"></i>Stranger</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ CIV.SIM v2 — extended civilization simulation ============
+
+const W = 220, H = 150;
+const NUM_AGENTS = 500;
+const TICKS_PER_YEAR = 40;
+const MAX_HISTORY = 2200;
+
+const BIOME = { OCEAN:0, BEACH:1, GRASSLAND:2, FOREST:3, MOUNTAIN:4, DESERT:5, TUNDRA:6, RIVER:7 };
+const BCOLOR = [
+  [60, 94, 138],   [220, 200, 140], [120, 170, 80],  [60, 110, 60],
+  [120, 110, 100], [200, 180, 100], [200, 210, 220], [70, 110, 180]
+];
+const RES = ['food','wood','ore','water'];
+
+const TECHS = [
+  { id:'fire',     name:'Fire',         cost:8,    prereq:[] },
+  { id:'tools',    name:'Tools',        cost:30,   prereq:['fire'] },
+  { id:'agri',     name:'Agriculture',  cost:80,   prereq:['tools'] },
+  { id:'metal',    name:'Metallurgy',   cost:140,  prereq:['tools'] },
+  { id:'writing',  name:'Writing',      cost:130,  prereq:['agri'] },
+  { id:'trade',    name:'Trade',        cost:170,  prereq:['writing'] },
+  { id:'medicine', name:'Medicine',     cost:200,  prereq:['writing'] },
+  { id:'math',     name:'Mathematics',  cost:240,  prereq:['writing'] },
+  { id:'eng',      name:'Engineering',  cost:340,  prereq:['metal','math'] },
+  { id:'industry', name:'Industry',     cost:520,  prereq:['eng','trade'] }
+];
+
+let TS = 4, CW = 0, CH = 0;
+let tiles = [];
+let agents = [];
+let tribes = [];
+let settlements = [];
+let tradeRoutes = [];
+let wars = [];
+let plagues = [];
+let bugs = [];
+let nextId = 1;
+let totalDeaths = 0;
+let yearTick = 0;
+let currentYear = 0;
+let totalKnowledge = 0;
+let unlockedTechs = new Set();
+let techProgress = {};
+let worldGfx = null;
+let popHistory = [], gdpHistory = [], warHistory = [];
+let spatialHash = {};
+const HASH_CELL = 5;
+
+let speedMult = 1;
+let maxPop = 500;
+let paused = false;
+let modifiers = [];
+
+function generateWorld() {
+  noiseSeed(floor(random(99999)));
+  tiles = [];
+  for (let x = 0; x < W; x++) {
+    tiles[x] = [];
+    for (let y = 0; y < H; y++) {
+      let nx = x * 0.045, ny = y * 0.045;
+      let e = noise(nx, ny);
+      e += noise(nx*2, ny*2) * 0.5 - 0.15;
+      let cx = (x - W*0.5) / (W*0.5);
+      let cy = (y - H*0.5) / (H*0.5);
+      let cd = sqrt(cx*cx + cy*cy);
+      e -= cd * 0.32;
+      let m = noise(nx + 500, ny + 500);
+      let lat = abs(y - H*0.5) / (H*0.5);
+      let temp = 1 - lat * 0.9 - max(0, e - 0.5) * 0.4;
+
+      let b;
+      if (e < 0.18) b = BIOME.OCEAN;
+      else if (e < 0.23) b = BIOME.BEACH;
+      else if (e > 0.62) b = BIOME.MOUNTAIN;
+      else if (temp < 0.22) b = BIOME.TUNDRA;
+      else if (m < 0.35 && temp > 0.55) b = BIOME.DESERT;
+      else if (m > 0.55) b = BIOME.FOREST;
+      else b = BIOME.GRASSLAND;
+
+      let res = { food:0, wood:0, ore:0, water:0 };
+      if (b === BIOME.GRASSLAND) { res.food = 75 + random(20); res.water = 5 + random(8); }
+      if (b === BIOME.FOREST)    { res.wood = 50 + random(25); res.food = 48 + random(12); res.water = 8; }
+      if (b === BIOME.MOUNTAIN)  { res.ore = 45 + random(35); res.wood = 4; }
+      if (b === BIOME.DESERT)    { res.ore = 6 + random(12); res.food = 1; }
+      if (b === BIOME.TUNDRA)    { res.food = 15; res.ore = 12; }
+      if (b === BIOME.BEACH)     { res.water = 25; res.food = 27; }
+
+      tiles[x][y] = { biome: b, elev: e, moist: m, temp, res, maxRes: {...res} };
+    }
+  }
+
+  for (let r = 0; r < 8; r++) {
+    let bx, by, attempts = 0, t;
+    do { bx = floor(random(W)); by = floor(random(H)); t = tiles[bx][by]; attempts++; }
+    while (attempts < 80 && (t.biome !== BIOME.MOUNTAIN || t.elev < 0.6));
+    if (attempts >= 80) continue;
+    let cx = bx, cy = by;
+    for (let s = 0; s < 120; s++) {
+      let cur = tiles[cx][cy];
+      if (cur.biome === BIOME.OCEAN) break;
+      cur.biome = BIOME.RIVER;
+      cur.res.water = 60; cur.maxRes.water = 60;
+      let bestE = cur.elev, bx2 = -1, by2 = -1;
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if (!dx && !dy) continue;
+        let nxx = cx + dx, nyy = cy + dy;
+        if (nxx < 0 || nxx >= W || nyy < 0 || nyy >= H) continue;
+        if (tiles[nxx][nyy].elev < bestE) { bestE = tiles[nxx][nyy].elev; bx2 = nxx; by2 = nyy; }
+      }
+      if (bx2 < 0) break;
+      cx = bx2; cy = by2;
+    }
+  }
+}
+
+function preRenderWorld() {
+  worldGfx = createGraphics(CW, CH);
+  worldGfx.noStroke();
+  for (let x = 0; x < W; x++) {
+    for (let y = 0; y < H; y++) {
+      let t = tiles[x][y];
+      let c = BCOLOR[t.biome];
+      let sh = 0.85 + t.elev * 0.3;
+      worldGfx.fill(c[0]*sh, c[1]*sh, c[2]*sh);
+      worldGfx.rect(x*TS, y*TS, TS+0.5, TS+0.5);
+    }
+  }
+  for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
+    let t = tiles[x][y];
+    if (t.biome === BIOME.MOUNTAIN && t.elev > 0.78) {
+      worldGfx.fill(255, 255, 255, 50);
+      worldGfx.rect(x*TS, y*TS, TS+0.5, TS+0.5);
+    }
+  }
+}
+
+function computeCanvasSize() {
+  let simEl = document.getElementById('sim');
+  let availW = simEl.clientWidth;
+  let availH = simEl.clientHeight;
+  let tx = availW / W, ty = availH / H;
+  TS = max(2, min(tx, ty));
+  CW = floor(W * TS);
+  CH = floor(H * TS);
+}
+
+function handleResize() {
+  computeCanvasSize();
+  if (typeof resizeCanvas === 'function') resizeCanvas(CW, CH);
+  if (tiles.length > 0) preRenderWorld();
+}
+
+function rebuildSpatialHash() {
+  spatialHash = {};
+  for (let a of agents) {
+    if (!a.alive) continue;
+    let kx = floor(a.x / HASH_CELL);
+    let ky = floor(a.y / HASH_CELL);
+    let key = kx + ',' + ky;
+    if (!spatialHash[key]) spatialHash[key] = [];
+    spatialHash[key].push(a);
+  }
+}
+function getNearby(x, y, range = 4) {
+  let result = [];
+  let kx = floor(x / HASH_CELL), ky = floor(y / HASH_CELL);
+  let cells = ceil(range / HASH_CELL);
+  for (let dx = -cells; dx <= cells; dx++) for (let dy = -cells; dy <= cells; dy++) {
+    let cell = spatialHash[(kx+dx) + ',' + (ky+dy)];
+    if (!cell) continue;
+    for (let a of cell) result.push(a);
+  }
+  return result;
+}
+
+function findResourceTile(fx, fy, resType, range = 25) {
+  let best = null, bestD = Infinity;
+  let cx = floor(fx), cy = floor(fy), r = ceil(range);
+  for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
+    let x = cx + dx, y = cy + dy;
+    if (x < 0 || x >= W || y < 0 || y >= H) continue;
+    let t = tiles[x][y];
+    if (t.biome === BIOME.OCEAN) continue;
+    if (t.res[resType] < 1) continue;
+    let d = dx*dx + dy*dy;
+    if (d < bestD) { bestD = d; best = { x: x + 0.5, y: y + 0.5, res: resType }; }
+  }
+  return best;
+}
+
+function modActive(type) {
+  for (let m of modifiers) if (m.type === type) return m;
+  return null;
+}
+
+class Agent {
+  constructor(x, y, genome, opts = {}) {
+    this.id = nextId++;
+    this.x = x; this.y = y;
+    this.genome = genome || {
+      intelligence: random(0.2, 0.8),
+      aggression: random(0.05, 0.7),
+      cooperation: random(0.2, 0.95),
+      mobility: random(0.5, 1.4),
+      foodPref: random(),
+      woodPref: random(),
+      orePref: random()
+    };
+    let pSum = this.genome.foodPref + this.genome.woodPref + this.genome.orePref;
+    this.genome.foodPref /= pSum; this.genome.woodPref /= pSum; this.genome.orePref /= pSum;
+    this.charisma = (this.genome.intelligence + this.genome.cooperation) * 0.5 + random(-0.1, 0.1);
+    this.inv = { food: 30, wood: 4, ore: 0, water: 18 };
+    this.health = 100; this.maxHealth = 100;
+    this.energy = 80; this.age = 0;
+    this.tribe = null;
+    this.target = null;
+    this.action = 'wander';
+    this.diseased = 0;
+    this.alive = true;
+    this.actionCooldown = floor(random(20));
+    this.reproCooldown = 100;
+    this.stranger = opts.stranger || 0;
+    this.boredTimer = 0;
+  }
+
+  preferredResource() {
+    let r = random();
+    if (r < this.genome.foodPref) return 'food';
+    if (r < this.genome.foodPref + this.genome.woodPref) return 'wood';
+    return 'ore';
+  }
+
+  currentTile() {
+    let tx = constrain(floor(this.x), 0, W-1);
+    let ty = constrain(floor(this.y), 0, H-1);
+    return tiles[tx][ty];
+  }
+
+  update() {
+    if (!this.alive) return;
+    this.age++;
+    if (this.stranger > 0) this.stranger--;
+    if (this.boredTimer > 0) this.boredTimer--;
+
+    let coldMod = modActive('cold') ? 1.7 : 1;
+    let heatMod = modActive('heat') ? 1.5 : 1;
+    this.energy -= 0.32 * coldMod;
+    this.actionCooldown = max(0, this.actionCooldown - 1);
+    this.reproCooldown = max(0, this.reproCooldown - 1);
+
+    if (this.inv.food > 0) {
+      let consume = min(0.22 * coldMod, this.inv.food);
+      this.inv.food -= consume;
+      this.energy += consume * 1.6;
+      if (this.health < this.maxHealth) this.health += 0.1;
+    }
+    if (this.inv.water > 0) {
+      let consume = min(0.16 * heatMod, this.inv.water);
+      this.inv.water -= consume;
+      this.energy += consume * 0.7;
+    }
+
+    if (this.diseased > 0) {
+      this.diseased++;
+      let mod = unlockedTechs.has('medicine') ? 0.4 : 1;
+      this.health -= 0.35 * mod;
+      if (this.diseased > 200 && random() < 0.005 / mod) this.diseased = 0;
+    }
+
+    this.energy = constrain(this.energy, -10, 100);
+
+    if (this.energy <= 0 || this.health <= 0) { this.die(); return; }
+    if (this.age > 1500 || (this.age > 1100 && random() < 0.0008)) { this.die(); return; }
+
+    if (this.actionCooldown <= 0) {
+      let nearby = getNearby(this.x, this.y, 2.5);
+      for (let other of nearby) {
+        if (other.id === this.id || !other.alive) continue;
+        if (dist(this.x, this.y, other.x, other.y) > 1.8) continue;
+        this.interact(other);
+        this.actionCooldown = 22;
+        break;
+      }
+    }
+
+    if (!this.target || dist(this.x, this.y, this.target.x, this.target.y) < 0.8) {
+      this.chooseGoal();
+    }
+
+    if (this.target) {
+      let dx = this.target.x - this.x, dy = this.target.y - this.y;
+      let d = sqrt(dx*dx + dy*dy);
+      let speed = this.genome.mobility * 0.13;
+      if (unlockedTechs.has('eng')) speed *= 1.15;
+      if (this.boredTimer > 0) speed *= 1.4;
+      if (d > 0.05) {
+        let nx = this.x + (dx/d) * speed;
+        let ny = this.y + (dy/d) * speed;
+        let tt = tiles[constrain(floor(nx),0,W-1)][constrain(floor(ny),0,H-1)];
+        if (tt.biome !== BIOME.OCEAN) { this.x = nx; this.y = ny; }
+        else { this.target = null; }
+      } else {
+        this.executeAtTarget();
+      }
+    }
+
+    if (this.age > 130 && this.reproCooldown <= 0 && this.health > 60 &&
+        this.energy > 50 && this.inv.food > 22 && agents.length < maxPop) {
+      let chance = 0.004;
+      if (this.tribe) chance += 0.004;
+      if (this.tribe?.settlement) chance += 0.005;
+      if (unlockedTechs.has('agri')) chance += 0.003;
+      if (random() < chance) this.reproduce();
+    }
+  }
+
+  chooseGoal() {
+    if (this.boredTimer > 0 && random() < 0.5) {
+      this.target = { x: random(W*0.05, W*0.95), y: random(H*0.05, H*0.95), type: 'roam' };
+      this.action = 'roam'; return;
+    }
+
+    if (this.inv.food < 4) {
+      let t = findResourceTile(this.x, this.y, 'food', 30);
+      if (t) { this.target = t; this.action = 'forage'; return; }
+    }
+    if (this.inv.water < 3) {
+      let t = findResourceTile(this.x, this.y, 'water', 30);
+      if (t) { this.target = t; this.action = 'forage'; return; }
+    }
+
+    let warPush = modActive('pushWar') ? 0.2 : 0;
+    if (this.tribe && this.tribe.atWar.length > 0 &&
+        this.genome.aggression + warPush > 0.45 &&
+        random() < (this.genome.aggression + warPush) * 0.7) {
+      let enemy = null, bestD = 25;
+      for (let other of agents) {
+        if (!other.alive || !other.tribe || other.tribe.id === this.tribe.id) continue;
+        if (!this.tribe.atWar.includes(other.tribe.id)) continue;
+        let d = dist(this.x, this.y, other.x, other.y);
+        if (d < bestD) { bestD = d; enemy = other; }
+      }
+      if (enemy) {
+        this.target = { x: enemy.x, y: enemy.y, type: 'attack', enemyId: enemy.id };
+        this.action = 'attack'; return;
+      }
+    }
+
+    if (this.tribe?.settlement) {
+      let s = this.tribe.settlement;
+      let d = dist(this.x, this.y, s.x, s.y);
+      if (d > 18 && random() < 0.4) {
+        this.target = { x: s.x + random(-3, 3), y: s.y + random(-3, 3), type: 'home' };
+        this.action = 'return'; return;
+      }
+    }
+
+    if (this.tribe && !this.tribe.settlement && this.tribe.centerX !== undefined) {
+      let d = dist(this.x, this.y, this.tribe.centerX, this.tribe.centerY);
+      if (d > 14 && random() < 0.35) {
+        this.target = { x: this.tribe.centerX + random(-3, 3), y: this.tribe.centerY + random(-3, 3), type: 'cluster' };
+        this.action = 'cluster'; return;
+      }
+    }
+
+    let res = this.preferredResource();
+    let t = findResourceTile(this.x, this.y, res, 25);
+    if (t) { this.target = t; this.action = 'gather'; return; }
+
+    this.target = {
+      x: constrain(this.x + random(-12, 12), 1, W-1.5),
+      y: constrain(this.y + random(-12, 12), 1, H-1.5),
+      type: 'wander'
+    };
+    this.action = 'wander';
+  }
+
+  executeAtTarget() {
+    if (!this.target) return;
+    if (this.target.res) {
+      let tile = this.currentTile();
+      if (tile.res[this.target.res] > 0) {
+        let amt = min(2 + (unlockedTechs.has('tools') ? 1 : 0) +
+                      (this.target.res === 'food' && unlockedTechs.has('agri') ? 2 : 0),
+                      tile.res[this.target.res]);
+        tile.res[this.target.res] -= amt;
+        this.inv[this.target.res] += amt;
+      }
+    } else if (this.target.type === 'attack' && this.target.enemyId) {
+      let enemy = agents.find(a => a.id === this.target.enemyId);
+      if (enemy && enemy.alive && dist(this.x, this.y, enemy.x, enemy.y) < 2) this.fight(enemy);
+    }
+    this.target = null;
+  }
+
+  interact(other) {
+    if (this.diseased > 0 && other.diseased === 0 && random() < 0.18) other.diseased = 1;
+    if (other.diseased > 0 && this.diseased === 0 && random() < 0.18) this.diseased = 1;
+
+    if (this.tribe && other.tribe && this.tribe.id !== other.tribe.id) {
+      if (this.tribe.atWar.includes(other.tribe.id)) { this.fight(other); return; }
+    }
+
+    let warBias = modActive('pushWar') ? 0.2 : 0;
+    let tradeBias = modActive('pushTrade') ? 0.2 : 0;
+
+    if (this.genome.aggression + warBias > 0.55 &&
+        this.genome.aggression + warBias > other.genome.cooperation + 0.1) {
+      if (random() < this.genome.aggression + warBias - 0.3) { this.fight(other); return; }
+    }
+
+    if (this.genome.cooperation + tradeBias > 0.4 && other.genome.cooperation + tradeBias > 0.4) this.trade(other);
+    if (this.genome.cooperation + tradeBias > 0.5 && other.genome.cooperation + tradeBias > 0.5) this.tryFormTribe(other);
+
+    let kBoost = (this.genome.intelligence + other.genome.intelligence) * 0.04;
+    if (this.tribe && this.tribe === other.tribe) kBoost *= 1.5;
+    if (this.tribe?.settlement) kBoost *= 1.3;
+    if (unlockedTechs.has('writing')) kBoost *= 1.4;
+    if (this.stranger > 0 || other.stranger > 0) kBoost *= 1.5;
+    addKnowledge(kBoost);
+  }
+
+  fight(other) {
+    let myBuff = (this.tribe && unlockedTechs.has('metal')) ? 1.3 : 1;
+    let oBuff = (other.tribe && unlockedTechs.has('metal')) ? 1.3 : 1;
+    let dmgToOther = (8 + this.genome.aggression * 14) * myBuff;
+    let dmgToSelf = (6 + other.genome.aggression * 12) * oBuff;
+    other.health -= dmgToOther;
+    this.health -= dmgToSelf;
+
+    if (this.tribe && other.tribe && this.tribe.id !== other.tribe.id) {
+      if (!this.tribe.atWar.includes(other.tribe.id)) {
+        this.tribe.atWar.push(other.tribe.id);
+        other.tribe.atWar.push(this.tribe.id);
+        wars.push({ a: this.tribe.id, b: other.tribe.id, start: yearTick, deaths: 0 });
+      }
+    }
+
+    if (other.health <= 0) {
+      this.inv.food += other.inv.food * 0.5;
+      this.inv.wood += other.inv.wood * 0.4;
+      this.inv.ore += other.inv.ore * 0.4;
+      other.die(true);
+    }
+    if (this.health <= 0) {
+      other.inv.food += this.inv.food * 0.5;
+      this.die(true);
+    }
+  }
+
+  trade(other) {
+    let myMax = null, myMaxV = 12;
+    for (let r of RES) if (this.inv[r] > myMaxV) { myMaxV = this.inv[r]; myMax = r; }
+    let oMax = null, oMaxV = 12;
+    for (let r of RES) if (other.inv[r] > oMaxV) { oMaxV = other.inv[r]; oMax = r; }
+    if (myMax && oMax && myMax !== oMax) {
+      let amt = min(4, myMaxV * 0.25, oMaxV * 0.25);
+      this.inv[myMax] -= amt; this.inv[oMax] += amt;
+      other.inv[oMax] -= amt; other.inv[myMax] += amt;
+      if (this.tribe?.settlement && other.tribe?.settlement && this.tribe !== other.tribe) {
+        let route = tradeRoutes.find(r =>
+          (r.a === this.tribe.settlement.id && r.b === other.tribe.settlement.id) ||
+          (r.b === this.tribe.settlement.id && r.a === other.tribe.settlement.id)
+        );
+        if (!route) tradeRoutes.push({ a: this.tribe.settlement.id, b: other.tribe.settlement.id, volume: amt });
+        else route.volume = min(50, route.volume + amt);
+      }
+    }
+  }
+
+  tryFormTribe(other) {
+    if (this.tribe && other.tribe && this.tribe.id === other.tribe.id) return;
+    if (!this.tribe && !other.tribe) {
+      let leader = this.charisma > other.charisma ? this : other;
+      let t = new Tribe(leader);
+      tribes.push(t);
+      t.addMember(this); t.addMember(other);
+    } else if (this.tribe && !other.tribe) {
+      this.tribe.addMember(other);
+    } else if (!this.tribe && other.tribe) {
+      other.tribe.addMember(this);
+    } else if (this.tribe && other.tribe && this.tribe.id !== other.tribe.id) {
+      if (this.tribe.atWar.includes(other.tribe.id)) return;
+      if (random() < 0.003 && this.tribe.members.length + other.tribe.members.length < 50) {
+        let smaller = this.tribe.members.length < other.tribe.members.length ? this.tribe : other.tribe;
+        let larger = smaller === this.tribe ? other.tribe : this.tribe;
+        for (let m of [...smaller.members]) larger.addMember(m);
+      }
+    }
+  }
+
+  reproduce() {
+    this.inv.food -= 14;
+    this.reproCooldown = 220;
+    let mate = null;
+    let nearby = getNearby(this.x, this.y, 4);
+    for (let a of nearby) {
+      if (a === this || !a.alive) continue;
+      if (a.tribe && a.tribe === this.tribe && a.age > 130) { mate = a; break; }
+    }
+    let g = {};
+    for (let k of ['intelligence','aggression','cooperation','mobility','foodPref','woodPref','orePref']) {
+      let base = mate ? (this.genome[k] + mate.genome[k]) * 0.5 : this.genome[k];
+      g[k] = constrain(base + random(-0.07, 0.07), 0.05, 1.5);
+    }
+    if (unlockedTechs.has('medicine')) g.intelligence += 0.01;
+    let baby = new Agent(this.x + random(-1,1), this.y + random(-1,1), g);
+    if (this.tribe) this.tribe.addMember(baby);
+    agents.push(baby);
+  }
+
+  die(violent = false) {
+    this.alive = false;
+    totalDeaths++;
+    if (violent && this.tribe) {
+      for (let w of wars) {
+        if (((w.a === this.tribe.id) || (w.b === this.tribe.id)) && w.end === undefined) w.deaths++;
+      }
+    }
+    if (this.tribe) this.tribe.removeMember(this);
+  }
+}
+
+class Tribe {
+  constructor(leader) {
+    this.id = nextId++;
+    this.leader = leader;
+    this.members = [];
+    this.atWar = [];
+    this.settlement = null;
+    this.colorH = floor(random(360));
+    this.foundedYear = currentYear;
+    this.centerX = leader.x; this.centerY = leader.y;
+  }
+  addMember(a) {
+    if (a.tribe === this) return;
+    if (a.tribe) a.tribe.removeMember(a);
+    a.tribe = this;
+    this.members.push(a);
+  }
+  removeMember(a) {
+    let i = this.members.indexOf(a);
+    if (i >= 0) this.members.splice(i, 1);
+    if (a.tribe === this) a.tribe = null;
+    if (this.leader === a) {
+      let best = null, bestC = -1;
+      for (let m of this.members) if (m.alive && m.charisma > bestC) { bestC = m.charisma; best = m; }
+      this.leader = best;
+    }
+  }
+  update() {
+    if (this.members.length === 0) return;
+
+    let cx = 0, cy = 0;
+    for (let m of this.members) { cx += m.x; cy += m.y; }
+    cx /= this.members.length; cy /= this.members.length;
+    this.centerX = cx; this.centerY = cy;
+
+    let spread = 0;
+    for (let m of this.members) spread = max(spread, dist(m.x, m.y, cx, cy));
+
+    let coopAvg = 0, intAvg = 0;
+    for (let m of this.members) { coopAvg += m.genome.cooperation; intAvg += m.genome.intelligence; }
+    coopAvg /= this.members.length; intAvg /= this.members.length;
+    let kRate = this.members.length * intAvg * coopAvg * 0.0035;
+    if (this.settlement) kRate *= 1.6;
+    if (unlockedTechs.has('writing')) kRate *= 1.4;
+    if (unlockedTechs.has('math')) kRate *= 1.3;
+    addKnowledge(kRate);
+
+    if (!this.settlement && this.members.length >= 5 && spread < 11) {
+      let tx = floor(cx), ty = floor(cy);
+      tx = constrain(tx, 2, W-3); ty = constrain(ty, 2, H-3);
+      let resScore = 0;
+      let resTypes = new Set();
+      for (let dx = -3; dx <= 3; dx++) for (let dy = -3; dy <= 3; dy++) {
+        let t = tiles[tx+dx]?.[ty+dy];
+        if (!t || t.biome === BIOME.OCEAN) continue;
+        for (let r of RES) {
+          if (t.maxRes[r] > 5) { resScore += t.maxRes[r]; resTypes.add(r); }
+        }
+      }
+      if (resScore > 100 && resTypes.size >= 2 && tiles[tx][ty].biome !== BIOME.OCEAN) {
+        let s = new Settlement(tx + 0.5, ty + 0.5, this);
+        settlements.push(s);
+        this.settlement = s;
+      }
+    }
+
+    let warBias = modActive('pushWar') ? 0.0015 : 0;
+    if (this.leader && this.leader.alive && this.atWar.length === 0 &&
+        this.members.length > 6 && random() < 0.0008 + warBias) {
+      if (this.leader.genome.aggression + (modActive('pushWar') ? 0.2 : 0) > 0.5) {
+        let target = null, bestScore = 0;
+        for (let other of tribes) {
+          if (other === this || other.members.length === 0) continue;
+          let dt = dist(cx, cy, other.centerX || cx, other.centerY || cy);
+          if (dt > 45) continue;
+          let score = (this.members.length - other.members.length * 0.7) / max(1, dt);
+          if (score > bestScore) { bestScore = score; target = other; }
+        }
+        if (target && this.members.length > target.members.length * 0.6) {
+          this.atWar.push(target.id);
+          target.atWar.push(this.id);
+          wars.push({ a: this.id, b: target.id, start: yearTick, deaths: 0 });
+        }
+      }
+    }
+
+    let peaceBias = modActive('pushTrade') ? 0.003 : 0;
+    for (let i = this.atWar.length - 1; i >= 0; i--) {
+      let enemyId = this.atWar[i];
+      let other = tribes.find(t => t.id === enemyId);
+      if (!other || other.members.length === 0) {
+        this.atWar.splice(i, 1);
+        for (let w of wars) {
+          if (((w.a === this.id && w.b === enemyId) || (w.b === this.id && w.a === enemyId)) && w.end === undefined) w.end = yearTick;
+        }
+        continue;
+      }
+      if (random() < 0.0012 + peaceBias) {
+        this.atWar.splice(i, 1);
+        let oi = other.atWar.indexOf(this.id);
+        if (oi >= 0) other.atWar.splice(oi, 1);
+        for (let w of wars) {
+          if (((w.a === this.id && w.b === other.id) || (w.b === this.id && w.a === other.id)) && w.end === undefined) w.end = yearTick;
+        }
+      }
+    }
+  }
+}
+
+class Settlement {
+  constructor(x, y, tribe) {
+    this.id = nextId++;
+    this.x = x; this.y = y;
+    this.tribe = tribe;
+    this.foundedYear = currentYear;
+    this.size = 1; this.gdp = 0;
+  }
+  update() {
+    if (!this.tribe || this.tribe.members.length === 0) return;
+    let pop = this.tribe.members.length;
+    if (pop >= 25 && this.size < 3) this.size = 3;
+    else if (pop >= 12 && this.size < 2) this.size = 2;
+
+    let totalRes = 0;
+    for (let m of this.tribe.members) totalRes += m.inv.food + m.inv.wood + m.inv.ore * 1.4;
+    let techMult = 1 + unlockedTechs.size * 0.18;
+    let tradeBonus = 0;
+    for (let r of tradeRoutes) if (r.a === this.id || r.b === this.id) tradeBonus += r.volume * 0.5;
+    this.gdp = totalRes * 0.1 + pop * techMult + tradeBonus;
+  }
+}
+
+function addKnowledge(amount) {
+  totalKnowledge += amount;
+  for (let t of TECHS) {
+    if (unlockedTechs.has(t.id)) continue;
+    if (!t.prereq.every(p => unlockedTechs.has(p))) continue;
+    techProgress[t.id] = (techProgress[t.id] || 0) + amount;
+    if (techProgress[t.id] >= t.cost) unlockedTechs.add(t.id);
+  }
+}
+
+function maybeStartPlague() {
+  if (random() > 0.00008) return;
+  triggerEpidemic();
+}
+function triggerEpidemic() {
+  let candidates = settlements.filter(s => s.tribe && s.tribe.members.length > 8);
+  if (candidates.length === 0) {
+    let healthy = agents.filter(a => a.alive && a.diseased === 0);
+    if (healthy.length === 0) return;
+    let count = min(3, healthy.length);
+    for (let i = 0; i < count; i++) random(healthy).diseased = 1;
+    return;
+  }
+  let s = random(candidates);
+  let healthy = s.tribe.members.filter(m => m.alive && m.diseased === 0);
+  if (healthy.length === 0) return;
+  let infect = min(3, healthy.length);
+  for (let i = 0; i < infect; i++) random(healthy).diseased = 0.5;
+  plagues.push({ settlement: s.id, start: yearTick });
+}
+
+function triggerFlood() {
+  for (let s of settlements) {
+    let near = false;
+    for (let dx = -5; dx <= 5; dx++) for (let dy = -5; dy <= 5; dy++) {
+      let t = tiles[constrain(floor(s.x+dx),0,W-1)]?.[constrain(floor(s.y+dy),0,H-1)];
+      if (t && (t.biome === BIOME.OCEAN || t.biome === BIOME.RIVER)) near = true;
+    }
+    if (near && s.tribe) {
+      for (let m of [...s.tribe.members]) {
+        if (random() < 0.18) m.health -= 60;
+        else m.inv.food *= 0.4;
+      }
+    }
+  }
+  for (let a of agents) {
+    if (!a.alive) continue;
+    let t = a.currentTile();
+    if (t.elev < 0.28 && random() < 0.06) a.health -= 30;
+  }
+}
+
+function triggerBugs() {
+  for (let i = 0; i < 5; i++) {
+    let bx, by, attempts = 0, t;
+    do { bx = floor(random(W)); by = floor(random(H)); t = tiles[bx][by]; attempts++; }
+    while (attempts < 80 && (t.biome === BIOME.OCEAN || t.maxRes.food < 20));
+    if (attempts >= 80) continue;
+    bugs.push({
+      x: bx + 0.5, y: by + 0.5,
+      vx: random(-0.08, 0.08), vy: random(-0.08, 0.08),
+      ttl: 1500 + floor(random(800))
+    });
+  }
+}
+
+function updateBugs() {
+  for (let b of bugs) {
+    b.ttl--;
+    b.vx += random(-0.04, 0.04);
+    b.vy += random(-0.04, 0.04);
+    let mag = sqrt(b.vx*b.vx + b.vy*b.vy);
+    if (mag > 0.18) { b.vx *= 0.18/mag; b.vy *= 0.18/mag; }
+    b.x += b.vx; b.y += b.vy;
+    if (b.x < 1 || b.x > W-1) b.vx *= -1;
+    if (b.y < 1 || b.y > H-1) b.vy *= -1;
+    b.x = constrain(b.x, 1, W-1); b.y = constrain(b.y, 1, H-1);
+
+    let t = tiles[floor(b.x)][floor(b.y)];
+    if (t.res.food > 0) t.res.food = max(0, t.res.food - 0.4);
+
+    let near = getNearby(b.x, b.y, 1.5);
+    for (let a of near) {
+      if (!a.alive) continue;
+      if (dist(a.x, a.y, b.x, b.y) < 1.2) a.health -= 0.3;
+    }
+  }
+  bugs = bugs.filter(b => b.ttl > 0);
+}
+
+function spawnStrangers(kind) {
+  let count = 8 + floor(random(7));
+  let edge = floor(random(4));
+  let baseX, baseY, dirX, dirY;
+  if (edge === 0) { baseX = random(W*0.2, W*0.8); baseY = 1.5; dirX = 0; dirY = 1; }
+  else if (edge === 1) { baseX = W - 1.5; baseY = random(H*0.2, H*0.8); dirX = -1; dirY = 0; }
+  else if (edge === 2) { baseX = random(W*0.2, W*0.8); baseY = H - 1.5; dirX = 0; dirY = -1; }
+  else { baseX = 1.5; baseY = random(H*0.2, H*0.8); dirX = 1; dirY = 0; }
+
+  let attempts = 0;
+  while (tiles[constrain(floor(baseX),0,W-1)][constrain(floor(baseY),0,H-1)].biome === BIOME.OCEAN && attempts < 30) {
+    baseX += dirX; baseY += dirY; attempts++;
+  }
+
+  let founder = null;
+  let placed = [];
+
+  for (let i = 0; i < count; i++) {
+    let g;
+    if (kind === 'traders') {
+      g = { intelligence: random(0.7, 1.0), aggression: random(0.05, 0.2),
+            cooperation: random(0.7, 1.0), mobility: random(1.2, 1.5),
+            foodPref: random(), woodPref: random(), orePref: random() };
+    } else if (kind === 'raiders') {
+      g = { intelligence: random(0.4, 0.7), aggression: random(0.7, 1.0),
+            cooperation: random(0.1, 0.3), mobility: random(1.3, 1.6),
+            foodPref: random(), woodPref: random(), orePref: random() };
+    } else if (kind === 'scholars') {
+      g = { intelligence: random(0.85, 1.1), aggression: random(0.05, 0.25),
+            cooperation: random(0.5, 0.8), mobility: random(0.6, 1.0),
+            foodPref: random(), woodPref: random(), orePref: random() };
+    } else {
+      g = { intelligence: random(0.3, 1.0), aggression: random(0.2, 0.8),
+            cooperation: random(0.3, 0.9), mobility: random(1.4, 1.8),
+            foodPref: random(), woodPref: random(), orePref: random() };
+    }
+    let ax = baseX + random(-2, 2), ay = baseY + random(-2, 2);
+    let tt = tiles[constrain(floor(ax),0,W-1)][constrain(floor(ay),0,H-1)];
+    if (tt.biome === BIOME.OCEAN) { ax = baseX; ay = baseY; }
+    let a = new Agent(ax, ay, g, { stranger: 600 });
+    a.inv.food = 50; a.inv.wood = 10; a.inv.ore = 8; a.inv.water = 30;
+    if (kind === 'scholars') addKnowledge(40);
+    agents.push(a);
+    placed.push(a);
+    if (i === 0) founder = a;
+  }
+
+  if (founder) {
+    let firstTribe = new Tribe(founder);
+    tribes.push(firstTribe);
+    for (let a of placed) firstTribe.addMember(a);
+  }
+}
+
+function updateSim() {
+  yearTick++;
+  if (yearTick % TICKS_PER_YEAR === 0) currentYear++;
+
+  for (let m of modifiers) m.ttl--;
+  modifiers = modifiers.filter(m => m.ttl > 0);
+
+  if (yearTick % 25 === 0) {
+    let regenScale = modActive('drought') ? 0.05 : 1;
+    for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
+      let t = tiles[x][y];
+      for (let r of RES) {
+        if (t.res[r] < t.maxRes[r]) {
+          let regen = 0.4 * regenScale;
+          if (r === 'food' && unlockedTechs.has('agri')) regen += 0.6 * regenScale;
+          if (r === 'water' && modActive('drought')) regen *= 0.2;
+          t.res[r] = min(t.maxRes[r], t.res[r] + regen);
+        }
+      }
+    }
+  }
+
+  if (modActive('heat') && yearTick % 8 === 0) {
+    for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
+      let t = tiles[x][y];
+      if (t.res.water > 0 && t.biome !== BIOME.OCEAN && t.biome !== BIOME.RIVER) {
+        t.res.water = max(0, t.res.water - 0.3);
+      }
+    }
+  }
+
+  rebuildSpatialHash();
+  for (let a of agents) a.update();
+  agents = agents.filter(a => a.alive);
+
+  for (let t of tribes) t.update();
+  tribes = tribes.filter(t => t.members.length > 0);
+
+  for (let s of settlements) s.update();
+  settlements = settlements.filter(s => s.tribe && s.tribe.members.length > 0);
+
+  for (let w of wars) {
+    if (w.end !== undefined) continue;
+    let ta = tribes.find(t => t.id === w.a);
+    let tb = tribes.find(t => t.id === w.b);
+    if (!ta || !tb || ta.members.length === 0 || tb.members.length === 0) w.end = yearTick;
+  }
+  wars = wars.filter(w => yearTick - w.start < 1500);
+
+  for (let r of tradeRoutes) r.volume *= 0.998;
+  tradeRoutes = tradeRoutes.filter(r => r.volume > 0.5 && settlements.find(s => s.id === r.a) && settlements.find(s => s.id === r.b));
+
+  plagues = plagues.filter(p => yearTick - p.start < 600);
+  maybeStartPlague();
+  updateBugs();
+
+  if (yearTick % 5 === 0) {
+    popHistory.push(agents.length);
+    gdpHistory.push(settlements.reduce((s, x) => s + x.gdp, 0));
+    warHistory.push(wars.filter(w => w.end === undefined).length);
+    if (popHistory.length > MAX_HISTORY) popHistory.shift();
+    if (gdpHistory.length > MAX_HISTORY) gdpHistory.shift();
+    if (warHistory.length > MAX_HISTORY) warHistory.shift();
+  }
+
+  if (agents.length < 12 && currentYear < 8) for (let i = 0; i < 15; i++) spawnAgent();
+}
+
+function spawnAgent() {
+  let x, y, attempts = 0;
+  do { x = random(W); y = random(H); attempts++; }
+  while (attempts < 80 && tiles[floor(x)][floor(y)].biome === BIOME.OCEAN);
+  agents.push(new Agent(x, y));
+}
+
+function drawSim() {
+  image(worldGfx, 0, 0);
+
+  let tintR = 0, tintG = 0, tintB = 0, tintA = 0;
+  if (modActive('drought')) { tintR += 180; tintG += 130; tintB += 40; tintA += 30; }
+  if (modActive('cold'))    { tintR += 120; tintG += 180; tintB += 230; tintA += 35; }
+  if (modActive('heat'))    { tintR += 230; tintG += 110; tintB += 40; tintA += 28; }
+  if (modActive('flood'))   { tintR += 60;  tintG += 100; tintB += 200; tintA += 35; }
+  if (tintA > 0) {
+    noStroke();
+    fill(min(255,tintR), min(255,tintG), min(255,tintB), min(110, tintA));
+    rect(0, 0, CW, CH);
+  }
+
+  strokeWeight(1.5);
+  for (let r of tradeRoutes) {
+    let sa = settlements.find(s => s.id === r.a);
+    let sb = settlements.find(s => s.id === r.b);
+    if (!sa || !sb) continue;
+    let alpha = constrain(r.volume * 5, 30, 220);
+    stroke(255, 215, 100, alpha);
+    line(sa.x * TS, sa.y * TS, sb.x * TS, sb.y * TS);
+  }
+
+  noFill();
+  for (let w of wars) {
+    if (w.end !== undefined) continue;
+    let ta = tribes.find(t => t.id === w.a);
+    let tb = tribes.find(t => t.id === w.b);
+    if (!ta || !tb || !ta.settlement || !tb.settlement) continue;
+    stroke(255, 60, 60, 130);
+    strokeWeight(2);
+    drawingContext.setLineDash([4, 3]);
+    line(ta.settlement.x * TS, ta.settlement.y * TS, tb.settlement.x * TS, tb.settlement.y * TS);
+    drawingContext.setLineDash([]);
+  }
+
+  noStroke();
+  for (let a of agents) {
+    if (!a.alive) continue;
+    if (a.diseased > 0) fill(192, 90, 255, 230);
+    else if (a.tribe) fill(`hsla(${a.tribe.colorH}, 70%, 65%, 0.85)`);
+    else fill(220, 200, 180, 160);
+    let r = a.tribe?.leader === a ? 4 : 2.5;
+    let px = a.x * TS, py = a.y * TS;
+    if (a.stranger > 0) {
+      stroke(255, 255, 255, 220);
+      strokeWeight(1);
+      ellipse(px, py, r + 2, r + 2);
+      noStroke();
+    }
+    ellipse(px, py, r, r);
+  }
+
+  if (bugs.length > 0) {
+    noStroke();
+    for (let b of bugs) {
+      for (let i = 0; i < 8; i++) {
+        let ox = random(-2, 2), oy = random(-2, 2);
+        fill(20, 30, 10, 180);
+        ellipse(b.x * TS + ox, b.y * TS + oy, 1.2, 1.2);
+      }
+      fill(40, 60, 20, 150);
+      ellipse(b.x * TS, b.y * TS, 5, 5);
+    }
+  }
+
+  for (let s of settlements) {
+    let pop = s.tribe.members.length;
+    let r = 7 + s.size * 3;
+    if (s.size >= 2) {
+      noStroke();
+      for (let g = 4; g > 0; g--) {
+        fill(255, 200, 50, 8 * g);
+        ellipse(s.x * TS, s.y * TS, r + g * 3, r + g * 3);
+      }
+    }
+    fill(`hsla(${s.tribe.colorH}, 80%, 55%, 0.9)`);
+    stroke(40, 30, 10);
+    strokeWeight(1);
+    ellipse(s.x * TS, s.y * TS, r, r);
+    if (s.size === 3) {
+      stroke(255, 230, 130); strokeWeight(1);
+      line(s.x * TS - r/3, s.y * TS, s.x * TS + r/3, s.y * TS);
+      line(s.x * TS, s.y * TS - r/3, s.x * TS, s.y * TS + r/3);
+    } else if (s.size === 2) {
+      noStroke(); fill(255, 230, 130);
+      ellipse(s.x * TS, s.y * TS, r * 0.4, r * 0.4);
+    }
+    if (s.size >= 2) {
+      noStroke();
+      fill(0, 0, 0, 180);
+      rect(s.x * TS - 11, s.y * TS - r/2 - 12, 22, 10);
+      fill(255);
+      textAlign(CENTER, TOP);
+      textSize(9);
+      text(pop, s.x * TS, s.y * TS - r/2 - 11);
+    }
+  }
+
+  noStroke();
+  fill(0, 0, 0, 170);
+  rect(8, 8, 175, 28);
+  fill(255, 200, 130);
+  textAlign(LEFT, TOP);
+  textSize(11);
+  text(`Year ${currentYear}` + (paused ? ' [paused]' : ''), 14, 12);
+  fill(180); textSize(8);
+  text(`${agents.length} agents · ${settlements.length} towns · ${speedMult}×`, 14, 25);
+
+  let badges = [];
+  for (let m of modifiers) {
+    let lbl = { drought:'☀ DROUGHT', flood:'≈ FLOOD', cold:'❄ COLD', heat:'🔥 HEAT',
+                 bugs:'※ BUGS', pushWar:'⚔ WAR FEVER', pushTrade:'⇆ TRADE FEVER',
+                 bored:'~ RESTLESS' }[m.type] || m.type.toUpperCase();
+    badges.push({ lbl, ttl: m.ttl });
+  }
+  if (agents.some(a => a.diseased > 0)) badges.push({ lbl: '✚ EPIDEMIC', ttl: -1 });
+  let by = 8;
+  textSize(9);
+  for (let b of badges) {
+    let bw = textWidth(b.lbl) + 14;
+    fill(0, 0, 0, 180);
+    rect(CW - bw - 8, by, bw, 18);
+    fill(255, 200, 130);
+    textAlign(LEFT, TOP);
+    text(b.lbl, CW - bw - 1, by + 5);
+    by += 22;
+  }
+}
+
+function updatePanel() {
+  document.getElementById('year').textContent = currentYear;
+  let phase = 'Stone Age';
+  if (unlockedTechs.has('industry')) phase = 'Industrial';
+  else if (unlockedTechs.has('eng')) phase = 'Classical';
+  else if (unlockedTechs.has('writing')) phase = 'Bronze Age';
+  else if (unlockedTechs.has('agri')) phase = 'Neolithic';
+  else if (unlockedTechs.has('fire')) phase = 'Paleolithic';
+  document.getElementById('phase').textContent = phase;
+
+  document.getElementById('pop').textContent = agents.length;
+  document.getElementById('tribes').textContent = tribes.length;
+  document.getElementById('setts').textContent = settlements.length;
+
+  let totalGdp = settlements.reduce((s, x) => s + x.gdp, 0);
+  document.getElementById('gdp').textContent = floor(totalGdp);
+  document.getElementById('trade').textContent = tradeRoutes.length;
+
+  let activeWars = wars.filter(w => w.end === undefined).length;
+  document.getElementById('wars').textContent = activeWars;
+  document.getElementById('deaths').textContent = totalDeaths;
+  document.getElementById('plague').textContent = agents.filter(a => a.diseased > 0).length;
+
+  if (agents.length > 0) {
+    let avg = { intelligence:0, aggression:0, cooperation:0, mobility:0 };
+    for (let a of agents) {
+      avg.intelligence += a.genome.intelligence;
+      avg.aggression += a.genome.aggression;
+      avg.cooperation += a.genome.cooperation;
+      avg.mobility += a.genome.mobility;
+    }
+    for (let k in avg) avg[k] /= agents.length;
+    let html = '';
+    for (let k of ['intelligence','aggression','cooperation','mobility']) {
+      let pct = constrain(avg[k] * (k==='mobility'?70:100), 0, 100);
+      html += `<div class="trait-row"><span class="name">${k}</span><div class="bar"><div style="width:${pct}%"></div></div><span class="val">${avg[k].toFixed(2)}</span></div>`;
+    }
+    document.getElementById('traits').innerHTML = html;
+  }
+
+  let techHtml = '';
+  for (let t of TECHS) {
+    let cls = unlockedTechs.has(t.id) ? 'unlocked' :
+              (t.prereq.every(p => unlockedTechs.has(p)) ? 'progress' : 'locked');
+    let prog = '';
+    if (cls === 'progress') {
+      let p = constrain((techProgress[t.id] || 0) / t.cost * 100, 0, 100);
+      prog = `<div class="tech-fill" style="width:${p}%"></div>`;
+    }
+    techHtml += `<div class="tech ${cls}">${t.name}${prog}</div>`;
+  }
+  document.getElementById('techgrid').innerHTML = techHtml;
+
+  drawGraph('popgraph', popHistory, '#6cd3ff');
+  drawGraph('gdpgraph', gdpHistory, '#ffaa66');
+  drawGraph('wargraph', warHistory, '#ff5070');
+}
+
+function drawGraph(id, data, col) {
+  let cv = document.getElementById(id);
+  if (!cv) return;
+  let ctx = cv.getContext('2d');
+  let dpr = window.devicePixelRatio || 1;
+  let w = cv.offsetWidth, h = 38;
+  if (cv.width !== floor(w * dpr)) {
+    cv.width = floor(w * dpr); cv.height = floor(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  ctx.clearRect(0, 0, w, h);
+  if (data.length < 2) return;
+  let mx = max(1, ...data);
+  ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < data.length; i++) {
+    let x = (i / max(1, data.length - 1)) * w;
+    let y = h - (data[i] / mx) * (h - 4) - 2;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
+  ctx.fillStyle = col + '33'; ctx.fill();
+}
+
+function bindControls() {
+  let speedEl = document.getElementById('speed');
+  let speedV  = document.getElementById('speedV');
+  speedEl.addEventListener('input', () => {
+    speedMult = parseInt(speedEl.value);
+    speedV.textContent = speedMult + '×';
+  });
+
+  let maxPopEl = document.getElementById('maxPop');
+  let maxPopV  = document.getElementById('maxPopV');
+  maxPopEl.addEventListener('input', () => {
+    maxPop = parseInt(maxPopEl.value);
+    maxPopV.textContent = maxPop;
+  });
+
+  let pauseBtn = document.getElementById('pauseBtn');
+  pauseBtn.addEventListener('click', () => {
+    paused = !paused;
+    pauseBtn.textContent = paused ? '▶ Resume' : '⏸ Pause';
+  });
+
+  let push = (type, ttl) => {
+    let existing = modActive(type);
+    if (existing) existing.ttl = ttl;
+    else modifiers.push({ type, ttl });
+  };
+
+  document.getElementById('ev_epidemic').onclick = () => triggerEpidemic();
+  document.getElementById('ev_drought').onclick  = () => push('drought', 1500);
+  document.getElementById('ev_flood').onclick    = () => { push('flood', 200); triggerFlood(); };
+  document.getElementById('ev_cold').onclick     = () => push('cold', 1500);
+  document.getElementById('ev_heat').onclick     = () => push('heat', 1500);
+  document.getElementById('ev_bugs').onclick     = () => { push('bugs', 1500); triggerBugs(); };
+
+  document.getElementById('mood_bored').onclick = () => {
+    push('bored', 1200);
+    for (let a of agents) { a.boredTimer = 1200; a.target = null; }
+  };
+  document.getElementById('mood_war').onclick   = () => push('pushWar', 2000);
+  document.getElementById('mood_trade').onclick = () => push('pushTrade', 2000);
+
+  document.getElementById('spawn_traders').onclick  = () => spawnStrangers('traders');
+  document.getElementById('spawn_raiders').onclick  = () => spawnStrangers('raiders');
+  document.getElementById('spawn_nomads').onclick   = () => spawnStrangers('nomads');
+  document.getElementById('spawn_scholars').onclick = () => spawnStrangers('scholars');
+
+  window.addEventListener('resize', () => { handleResize(); });
+}
+
+function setup() {
+  computeCanvasSize();
+  let cv = createCanvas(CW, CH);
+  cv.parent('sim');
+  generateWorld();
+  preRenderWorld();
+  for (let i = 0; i < NUM_AGENTS; i++) spawnAgent();
+  bindControls();
+  frameRate(30);
+}
+
+let panelTick = 0;
+function draw() {
+  if (!paused) {
+    let steps = max(1, speedMult);
+    for (let i = 0; i < steps; i++) updateSim();
+  }
+  drawSim();
+  panelTick++;
+  if (panelTick % 4 === 0) updatePanel();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Japan Seismic Simulation — MMI Scale</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --red:#d41c2a;--rg:rgba(212,28,42,.28);
+  --bg:#070c14;--card:#0d1523;--border:#19283a;
+  --text:#cfc8b6;--text2:#a09888;--dim:#3d5570;
+  --white:#f0ece2;--paper:#ebe5d2;
+  --tip-bg:#0a1828;
+}
+body{background:var(--bg);font-family:'DM Sans','Helvetica Neue',sans-serif;color:var(--text);height:100vh;display:flex;overflow:hidden}
+
+/* ── SIDEBAR ── */
+#sb{width:296px;min-width:296px;background:linear-gradient(168deg,#0b1322 0%,#070c14 100%);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sbh{padding:18px 16px 15px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sbh-ey{font-size:7px;letter-spacing:4.5px;color:var(--red);text-transform:uppercase;margin-bottom:5px;font-family:'DM Mono',monospace;opacity:.9}
+.sbh-t{font-size:28px;font-weight:700;color:var(--white);letter-spacing:5px;line-height:1;font-family:'DM Sans',sans-serif}
+.sbh-t .dot{color:var(--red)}
+.sbh-sub{font-size:7.5px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;margin-top:6px;line-height:1.5}
+.sbb{flex:1;overflow-y:auto;padding:11px 13px;display:flex;flex-direction:column;gap:9px;scrollbar-width:thin;scrollbar-color:#1e3248 transparent}
+.sbb::-webkit-scrollbar{width:3px}.sbb::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ── CARDS ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:12px}
+.chd{font-size:6.5px;letter-spacing:3.5px;text-transform:uppercase;color:var(--red);margin-bottom:12px;display:flex;align-items:center;gap:7px;font-family:'DM Mono',monospace;opacity:.9}
+.chd::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ── CONTROLS ── */
+.ctrl{margin-bottom:12px;position:relative}.ctrl:last-child{margin-bottom:0}
+.ctrl-r{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:4px}
+.ctrl-label-wrap{display:flex;align-items:center;gap:5px}
+.ctrl-l{font-size:9px;color:var(--text2);line-height:1;font-weight:500}
+.ctrl-n{font-size:20px;font-weight:700;color:var(--white);font-family:'DM Mono',monospace;line-height:1;letter-spacing:-0.5px}
+.ctrl-u{font-size:8.5px;color:var(--dim);margin-left:2px;font-family:'DM Mono',monospace}
+input[type=range]{-webkit-appearance:none;width:100%;height:2px;background:#162232;border-radius:1px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;background:var(--red);border-radius:50%;cursor:pointer;box-shadow:0 0 8px var(--rg);transition:transform .15s}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+.fault-select{width:100%;background:#0a1520;border:1px solid #1e3048;color:var(--text);font-size:9px;padding:6px 9px;border-radius:3px;outline:none;cursor:pointer;font-family:'DM Mono',monospace;margin-top:5px;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%233d5570'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center}
+
+/* ── HELP BTN ── */
+.help-btn{width:15px;height:15px;border-radius:50%;background:rgba(61,85,112,.25);border:1px solid var(--dim);color:var(--dim);font-size:7.5px;cursor:help;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;font-family:'DM Mono',monospace}
+.help-btn:hover{background:rgba(212,28,42,.15);border-color:var(--red);color:var(--red)}
+
+/* ── PARAM TIP ── */
+.param-tip{position:absolute;left:0;top:calc(100% + 7px);width:226px;background:var(--tip-bg);border:1px solid #1e3a54;border-radius:5px;padding:10px 12px;z-index:300;display:none;box-shadow:0 8px 28px rgba(0,0,0,.75)}
+.param-tip.show{display:block}
+.param-tip-title{font-size:7.5px;letter-spacing:2.5px;text-transform:uppercase;color:var(--red);margin-bottom:6px;font-family:'DM Mono',monospace}
+.param-tip-body{font-size:9px;color:#7a9ab4;line-height:1.7}
+.param-tip-range{font-size:8px;color:var(--dim);margin-top:6px;font-family:'DM Mono',monospace;border-top:1px solid var(--border);padding-top:5px}
+
+/* ── BTN ── */
+#btn-reset{width:100%;padding:9px 0;background:transparent;border:1px solid rgba(212,28,42,.32);color:var(--red);font-size:7.5px;letter-spacing:3.5px;text-transform:uppercase;cursor:pointer;border-radius:4px;transition:all .2s;font-family:'DM Mono',monospace}
+#btn-reset:hover{background:rgba(212,28,42,.09);border-color:var(--red)}
+
+/* ── QI ROWS ── */
+.qr{display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px solid #09111c;font-size:9.5px}
+.qr:last-child{border-bottom:none}
+.qk{color:var(--text2);font-weight:500}.qv{color:var(--text);font-family:'DM Mono',monospace}
+.qv.big{color:var(--red);font-size:14px;font-weight:500}
+
+/* ── SEISMOGRAPH ── */
+.seis-wrap{position:relative;height:52px;background:#040810;border-radius:4px;border:1px solid #0e1c2c;overflow:hidden;margin-top:9px}
+.seis-lbl{position:absolute;top:4px;left:8px;font-size:6.5px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;font-family:'DM Mono',monospace;z-index:2}
+.seis-lbl span{color:#4a8fa0;margin-left:5px}
+.seis-svg{width:100%;height:52px;display:block}
+
+/* ── CITY TABLE ── */
+.ctbl{width:100%;border-collapse:collapse}
+.ctbl th{font-size:6.5px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);padding:0 0 7px;text-align:left;border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;font-weight:400}
+.ctbl th.r{text-align:right}
+.ctbl td{padding:4px 0;border-bottom:1px solid #09111c;vertical-align:middle}
+.ctbl tr:last-child td{border-bottom:none}
+.ctbl tr.sel td{background:rgba(212,28,42,.06)}
+.ctbl tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
+.ct-n{color:var(--text);font-size:9.5px;font-weight:500}
+.ct-pop{color:var(--dim);font-size:7.5px;font-family:'DM Mono',monospace;text-align:right;padding-right:4px}
+.ct-d{color:var(--dim);font-size:8px;text-align:right;padding-right:4px;font-family:'DM Mono',monospace}
+.mmi-badge{display:inline-block;font-size:7px;font-weight:500;padding:2px 5px;border-radius:2px;font-family:'DM Mono',monospace;min-width:28px;text-align:center;float:right}
+.no-sim{font-size:9px;color:var(--dim);text-align:center;padding:18px 6px;line-height:2;opacity:.8}
+
+/* ── MMI REFERENCE ── */
+.mmi-ref{display:flex;flex-direction:column;gap:2px}
+.mmi-row{display:flex;align-items:center;gap:8px;padding:3.5px 0;border-bottom:1px solid #08101a}
+.mmi-row:last-child{border-bottom:none}
+.mmi-num{font-size:8.5px;font-weight:500;font-family:'DM Mono',monospace;width:24px;text-align:center;padding:2px 0;border-radius:2px;flex-shrink:0}
+.mmi-info{flex:1}
+.mmi-title{font-size:8px;font-weight:700;line-height:1}
+.mmi-desc{font-size:7px;color:var(--dim);margin-top:1px;line-height:1.4}
+
+/* ── CITY PANEL ── */
+#cpanel{position:absolute;top:0;right:-385px;width:376px;height:100%;background:rgba(5,10,18,.98);border-left:1px solid var(--border);display:flex;flex-direction:column;transition:right .32s cubic-bezier(.4,0,.2,1);z-index:50;overflow:hidden}
+#cpanel.open{right:0}
+.cp-head{padding:15px 16px 13px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative}
+.cp-close{position:absolute;top:13px;right:13px;background:none;border:1px solid var(--border);color:var(--dim);width:24px;height:24px;border-radius:3px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.cp-close:hover{border-color:var(--red);color:var(--red)}
+.cp-ey{font-size:7px;letter-spacing:3px;color:var(--dim);text-transform:uppercase;font-family:'DM Mono',monospace;margin-bottom:4px}
+.cp-name{font-size:22px;font-weight:700;color:var(--white);letter-spacing:2px}
+.cp-pop{font-size:9px;color:var(--dim);margin-top:3px;font-family:'DM Mono',monospace}
+.cp-body{flex:1;overflow-y:auto;padding:13px 14px;display:flex;flex-direction:column;gap:11px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.cp-body::-webkit-scrollbar{width:3px}.cp-body::-webkit-scrollbar-thumb{background:var(--border)}
+
+.mmi-display{display:flex;align-items:center;gap:14px;padding:12px;background:#07101c;border-radius:5px;border:1px solid var(--border)}
+.mmi-big-num{font-size:42px;font-weight:700;line-height:1;min-width:58px;text-align:center;font-family:'DM Mono',monospace}
+.mbi-lv{font-size:8.5px;letter-spacing:2.5px;text-transform:uppercase;font-family:'DM Mono',monospace;margin-bottom:4px}
+.mbi-title{font-size:15px;font-weight:700;color:var(--white);margin-bottom:4px}
+.mbi-desc{font-size:8.5px;color:#7a9ab4;line-height:1.65}
+.stats-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px}
+.stat-box{background:#07101c;border:1px solid var(--border);border-radius:4px;padding:8px;text-align:center}
+.stat-v{font-size:13px;font-weight:700;color:var(--white);font-family:'DM Mono',monospace;line-height:1}
+.stat-u{font-size:6.5px;color:var(--dim);margin-top:3px;line-height:1.3}
+.dmg-list{display:flex;flex-direction:column;gap:5px}
+.dmg-item{display:flex;gap:8px;align-items:flex-start;font-size:9px;color:#7a9ab4;line-height:1.5}
+.dmg-icon{color:var(--red);flex-shrink:0;margin-top:1px}
+.wa-row{display:flex;align-items:center;gap:8px;padding:5px 8px;background:#07101c;border-radius:3px;border:1px solid var(--border);font-size:9px;margin-bottom:5px}
+.wa-row:last-child{margin-bottom:0}
+.wa-type{font-family:'DM Mono',monospace;font-weight:500;width:44px;flex-shrink:0}
+.wa-bar{flex:1;height:3px;background:#0f1d2e;border-radius:2px;overflow:hidden}
+.wa-fill{height:100%;border-radius:2px}
+.wa-time{font-family:'DM Mono',monospace;color:var(--white);width:44px;text-align:right;flex-shrink:0}
+.wa-speed{color:var(--dim);font-size:7.5px;width:50px;text-align:right;flex-shrink:0}
+.city-seis{position:relative;height:70px;background:#030810;border-radius:4px;border:1px solid #0e1c2c;overflow:hidden}
+.cs-lbl{position:absolute;top:4px;left:8px;font-size:6.5px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;font-family:'DM Mono',monospace;z-index:2}
+.cs-svg{width:100%;height:70px;display:block}
+.pop-bar-bg{height:4px;background:#0f1d2e;border-radius:3px;overflow:hidden;margin-top:4px}
+.pop-bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#2a4060,var(--red))}
+.pop-bar-label{display:flex;justify-content:space-between;font-size:7px;color:var(--dim);margin-top:3px;font-family:'DM Mono',monospace}
+
+/* ── MAP ── */
+#map-w{flex:1;background:var(--paper);position:relative;overflow:hidden;display:flex}
+#map{width:100%;height:100%;user-select:none;display:block}
+#map.panning{cursor:grabbing}
+#map.default-cur{cursor:crosshair}
+
+/* ── ZOOM CONTROLS ── */
+#zoom-btns{position:absolute;bottom:50px;left:14px;display:flex;flex-direction:column;gap:4px;z-index:20}
+.zoom-btn{width:28px;height:28px;background:rgba(5,10,18,.85);border:1px solid var(--border);color:var(--text2);font-size:16px;cursor:pointer;border-radius:4px;display:flex;align-items:center;justify-content:center;transition:all .2s;line-height:1}
+.zoom-btn:hover{border-color:var(--red);color:var(--white)}
+
+/* ── SVG ELEMENTS ── */
+.island{fill:#1c2338;stroke:#0e1828;stroke-width:.6;stroke-linejoin:round}
+.island-m{fill:#202840;stroke:#0e1828;stroke-width:.5;stroke-linejoin:round}
+.city-grp{cursor:pointer}
+.c-outer{transition:fill .35s,stroke .35s}
+.c-dot{transition:fill .35s}
+/* Clean labels — NO stroke, use SVG filter for readability */
+.c-lbl{font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;font-size:6.5px;font-weight:700;letter-spacing:.8px;fill:#1a2132;text-transform:uppercase;pointer-events:none;filter:url(#lbl-shadow)}
+.c-mmi{font-family:'DM Mono',monospace;font-size:8px;font-weight:500;pointer-events:none;opacity:0;transition:opacity .4s;filter:url(#mmi-shadow)}
+.c-mmi.show{opacity:1}
+
+/* ── OVERLAYS ── */
+#timer{position:absolute;top:14px;left:14px;background:rgba(5,10,18,.92);border:1px solid var(--red);padding:8px 13px;border-radius:5px;display:none;box-shadow:0 0 16px rgba(212,28,42,.18)}
+.t-lb{font-size:7px;color:var(--red);letter-spacing:3px;display:block;margin-bottom:1px;font-family:'DM Mono',monospace;text-transform:uppercase}
+#t-val{font-size:14px;font-weight:500;font-family:'DM Mono',monospace;color:var(--white);letter-spacing:.5px}
+#map-title{position:absolute;top:14px;right:14px;text-align:right;pointer-events:none}
+.mt-e{font-size:22px;font-weight:700;color:#1a2132;letter-spacing:6px;opacity:.75}
+.mt-j{font-size:10px;color:var(--red);letter-spacing:4px;font-weight:700;opacity:.55;margin-top:2px;font-family:'DM Mono',monospace}
+.mt-s{font-size:7px;color:#a09688;letter-spacing:2.5px;text-transform:uppercase;margin-top:3px;font-family:'DM Mono',monospace}
+#legend{position:absolute;bottom:14px;right:14px;background:rgba(5,10,18,.88);border:1px solid var(--border);border-radius:5px;padding:10px 13px}
+.leg-h{font-size:7px;letter-spacing:3px;text-transform:uppercase;color:var(--red);margin-bottom:9px;font-family:'DM Mono',monospace}
+.leg-r{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+.leg-r:last-child{margin-bottom:0}
+.leg-d{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.leg-t{font-size:8px;color:#7a9ab4;font-family:'DM Mono',monospace}
+#infobar{position:absolute;bottom:14px;left:50px;background:rgba(5,10,18,.78);border:1px solid var(--border);border-radius:4px;padding:6px 12px;font-size:8.5px;color:var(--dim);pointer-events:none;font-family:'DM Mono',monospace}
+#tt{position:absolute;background:rgba(5,10,18,.97);border:1px solid var(--red);color:var(--text);padding:9px 12px;border-radius:5px;font-size:9.5px;pointer-events:none;display:none;line-height:1.8;max-width:190px;z-index:70;box-shadow:0 4px 20px rgba(0,0,0,.7)}
+#tt strong{color:var(--white);font-size:11px;display:block;margin-bottom:2px;font-weight:700}
+</style>
+</head>
+<body>
+
+<!-- ══════ SIDEBAR ══════ -->
+<div id="sb">
+  <div class="sbh">
+    <div class="sbh-ey">Seismic Simulation System</div>
+    <div class="sbh-t">JAPAN<span class="dot">·</span></div>
+    <div class="sbh-sub">Click map to set epicenter<br>Click city for seismogram report</div>
+  </div>
+  <div class="sbb">
+
+    <div class="card">
+      <div class="chd">Source Parameters</div>
+      <div class="ctrl" id="ctrl-mag">
+        <div class="ctrl-r">
+          <div class="ctrl-label-wrap"><span class="ctrl-l">Magnitude</span><button class="help-btn" data-param="mag">?</button></div>
+          <span><span class="ctrl-n" id="v-mag">7.0</span><span class="ctrl-u">M</span></span>
+        </div>
+        <input type="range" id="s-mag" min="4.0" max="9.5" step="0.1" value="7.0">
+        <div class="param-tip" id="tip-mag">
+          <div class="param-tip-title">Richter Magnitude (M)</div>
+          <div class="param-tip-body">Logarithmic measure of total seismic energy released. Each +1.0 unit = ~31× more energy. Governs wave amplitude and maximum possible intensity at all distances.<br><br><b style="color:#c0d4e8">M4</b> — Light &nbsp;·&nbsp; <b style="color:#c0d4e8">M6</b> — Strong &nbsp;·&nbsp; <b style="color:#c0d4e8">M8</b> — Great &nbsp;·&nbsp; <b style="color:#c0d4e8">M9+</b> — Mega</div>
+          <div class="param-tip-range">Range: 4.0 – 9.5 M</div>
+        </div>
+      </div>
+      <div class="ctrl" id="ctrl-dep">
+        <div class="ctrl-r">
+          <div class="ctrl-label-wrap"><span class="ctrl-l">Focal Depth</span><button class="help-btn" data-param="dep">?</button></div>
+          <span><span class="ctrl-n" id="v-dep">30</span><span class="ctrl-u">km</span></span>
+        </div>
+        <input type="range" id="s-dep" min="5" max="300" step="5" value="30">
+        <div class="param-tip" id="tip-dep">
+          <div class="param-tip-title">Focal (Hypocentral) Depth</div>
+          <div class="param-tip-body">Vertical distance from surface to the rupture point. Shallow quakes (&lt;70 km) concentrate energy near the surface → higher local intensity. Deep quakes spread energy wider but feel weaker nearby.<br><br><b style="color:#c0d4e8">&lt;70 km</b> — Shallow (most destructive)<br><b style="color:#c0d4e8">70–300 km</b> — Intermediate depth<br><b style="color:#c0d4e8">&gt;300 km</b> — Deep (less surface damage)</div>
+          <div class="param-tip-range">Range: 5 – 300 km</div>
+        </div>
+      </div>
+      <div class="ctrl" id="ctrl-att">
+        <div class="ctrl-r">
+          <div class="ctrl-label-wrap"><span class="ctrl-l">Attenuation Factor k</span><button class="help-btn" data-param="att">?</button></div>
+          <span><span class="ctrl-n" id="v-att">1.66</span></span>
+        </div>
+        <input type="range" id="s-att" min="0.5" max="3.0" step="0.02" value="1.66">
+        <div class="param-tip" id="tip-att">
+          <div class="param-tip-title">Geometric Attenuation Factor (k)</div>
+          <div class="param-tip-body">Controls how fast wave amplitude decays with distance. Formula: <b style="color:#c0d4e8">I = M − k·log₁₀(R)</b>. Higher k = faster decay. Reflects crustal rigidity and scattering properties.<br><br><b style="color:#c0d4e8">Low k (0.5–1.2)</b> — Efficient propagation, rigid crust<br><b style="color:#c0d4e8">Standard (1.6–1.8)</b> — Typical Japan crust<br><b style="color:#c0d4e8">High k (2.5–3.0)</b> — Highly attenuating crust</div>
+          <div class="param-tip-range">Range: 0.5 – 3.0</div>
+        </div>
+      </div>
+      <div class="ctrl" id="ctrl-soil">
+        <div class="ctrl-r">
+          <div class="ctrl-label-wrap"><span class="ctrl-l">Soil Amplification</span><button class="help-btn" data-param="soil">?</button></div>
+          <span><span class="ctrl-n" id="v-soil">1.0</span><span class="ctrl-u">×</span></span>
+        </div>
+        <input type="range" id="s-soil" min="0.5" max="4.0" step="0.1" value="1.0">
+        <div class="param-tip" id="tip-soil">
+          <div class="param-tip-title">Local Soil Amplification Factor</div>
+          <div class="param-tip-body">Soft sediment and reclaimed land amplify ground shaking by 2–4×. Tokyo's Kanto plain and coastal Osaka sit on thick sediment layers prone to amplification and liquefaction.<br><br><b style="color:#c0d4e8">0.5–0.8</b> — Hard rock (mountain bedrock)<br><b style="color:#c0d4e8">1.0</b> — Reference bedrock<br><b style="color:#c0d4e8">1.5–2.5</b> — Stiff soil / shallow sediment<br><b style="color:#c0d4e8">3.0–4.0</b> — Soft alluvial / reclaimed land</div>
+          <div class="param-tip-range">Range: 0.5 – 4.0 ×</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd">Fault Parameters</div>
+      <div class="ctrl" id="ctrl-fault">
+        <div class="ctrl-r">
+          <div class="ctrl-label-wrap"><span class="ctrl-l">Fault Type</span><button class="help-btn" data-param="fault">?</button></div>
+        </div>
+        <select class="fault-select" id="s-fault">
+          <option value="reverse">Reverse / Thrust Fault</option>
+          <option value="normal">Normal Fault</option>
+          <option value="strike">Strike-Slip Fault</option>
+          <option value="oblique">Oblique Fault</option>
+        </select>
+        <div class="param-tip" id="tip-fault">
+          <div class="param-tip-title">Fault Mechanism</div>
+          <div class="param-tip-body">Type of tectonic movement along the fault. Affects directivity and vertical motion (tsunami risk).<br><br><b style="color:#c0d4e8">Reverse/Thrust</b> — Plates collide; one overrides the other. Strong vertical motion → tsunamis. Most of Japan's megaquakes.<br><b style="color:#c0d4e8">Normal</b> — Plates pull apart; crust sags and drops.<br><b style="color:#c0d4e8">Strike-Slip</b> — Horizontal sliding. Low tsunami risk.<br><b style="color:#c0d4e8">Oblique</b> — Mixed mechanism.</div>
+        </div>
+      </div>
+      <div class="ctrl" id="ctrl-dir">
+        <div class="ctrl-r">
+          <div class="ctrl-label-wrap"><span class="ctrl-l">Rupture Directivity</span><button class="help-btn" data-param="dir">?</button></div>
+          <span><span class="ctrl-n" id="v-dir">0</span><span class="ctrl-u">°</span></span>
+        </div>
+        <input type="range" id="s-dir" min="0" max="359" step="1" value="0">
+        <div class="param-tip" id="tip-dir">
+          <div class="param-tip-title">Rupture Directivity (Strike Azimuth)</div>
+          <div class="param-tip-body">Compass direction the fault rupture propagates (0°=N, 90°=E, 180°=S). Cities in the forward rupture direction receive amplified shaking — a Doppler-like effect where wave energy piles up ahead of the moving rupture front.</div>
+          <div class="param-tip-range">Range: 0° – 359° (compass bearing)</div>
+        </div>
+      </div>
+      <div class="ctrl" id="ctrl-vrup">
+        <div class="ctrl-r">
+          <div class="ctrl-label-wrap"><span class="ctrl-l">Rupture Velocity</span><button class="help-btn" data-param="vrup">?</button></div>
+          <span><span class="ctrl-n" id="v-vrup">2.8</span><span class="ctrl-u">km/s</span></span>
+        </div>
+        <input type="range" id="s-vrup" min="1.5" max="4.0" step="0.1" value="2.8">
+        <div class="param-tip" id="tip-vrup">
+          <div class="param-tip-title">Fault Rupture Velocity</div>
+          <div class="param-tip-body">Speed at which the rupture front propagates along the fault plane. Faster ruptures create stronger directivity and shorter, sharper shaking. Supershear ruptures (&gt;3.5 km/s) generate anomalously large ground motions.<br><br><b style="color:#c0d4e8">~2.5–2.8 km/s</b> — Typical sub-Rayleigh<br><b style="color:#c0d4e8">3.0–3.5 km/s</b> — Fast rupture<br><b style="color:#c0d4e8">&gt;3.5 km/s</b> — Supershear (rare, extreme)</div>
+          <div class="param-tip-range">Range: 1.5 – 4.0 km/s</div>
+        </div>
+      </div>
+    </div>
+
+    <button id="btn-reset">↺ &nbsp; Reset Simulation</button>
+
+    <div class="card" id="qi-card" style="display:none">
+      <div class="chd">Epicenter Report</div>
+      <div id="qi-rows"></div>
+      <div class="seis-wrap">
+        <div class="seis-lbl">Near-source seismograph <span id="seis-peak"></span></div>
+        <svg class="seis-svg" id="seis-svg" viewBox="0 0 260 52" preserveAspectRatio="none">
+          <line x1="0" y1="26" x2="260" y2="26" stroke="#1a2c3e" stroke-width=".8"/>
+          <path id="seis-path" fill="none" stroke="#d41c2a" stroke-width="1.1" opacity=".9"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1;min-height:130px">
+      <div class="chd">City Impact Rankings — MMI</div>
+      <div id="ctbl-wrap">
+        <div class="no-sim">Click anywhere on the Japan map to place the epicenter.<br>Then click a city for a detailed seismogram report.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd">Modified Mercalli Scale (MMI)</div>
+      <div class="mmi-ref" id="mmi-ref"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════ MAP ══════ -->
+<div id="map-w">
+  <svg id="map" viewBox="0 0 565 610" xmlns="http://www.w3.org/2000/svg" class="default-cur">
+    <defs>
+      <!-- Clean shadow for city labels on map (no ugly stroke halo) -->
+      <filter id="lbl-shadow" x="-20%" y="-40%" width="140%" height="180%">
+        <feDropShadow dx="0" dy="0" stdDeviation="0.6" flood-color="#e8e2d0" flood-opacity="0.95" result="s1"/>
+        <feDropShadow dx="0" dy="0" stdDeviation="0.4" flood-color="#e8e2d0" flood-opacity="0.7"/>
+      </filter>
+      <!-- Shadow for MMI labels on dark island -->
+      <filter id="mmi-shadow" x="-30%" y="-50%" width="160%" height="200%">
+        <feDropShadow dx="0" dy="0" stdDeviation="1" flood-color="#111828" flood-opacity="0.9"/>
+      </filter>
+    </defs>
+    <rect width="565" height="610" fill="#ebe5d2"/>
+    <!-- All zoomable content wrapped here -->
+    <g id="zoom-g">
+      <g id="grid-g" opacity=".48"></g>
+      <g opacity=".36" pointer-events="none">
+        <text x="60" y="298" fill="#b5ad9c" font-family="Georgia,serif" font-size="9" letter-spacing="2.5" text-anchor="middle" transform="rotate(-16,60,298)">SEA OF JAPAN</text>
+        <text x="500" y="302" fill="#b5ad9c" font-family="Georgia,serif" font-size="8.5" letter-spacing="2.5" text-anchor="middle">PACIFIC</text>
+        <text x="500" y="315" fill="#b5ad9c" font-family="Georgia,serif" font-size="8.5" letter-spacing="2.5" text-anchor="middle">OCEAN</text>
+        <text x="115" y="512" fill="#b5ad9c" font-family="Georgia,serif" font-size="8" letter-spacing="1.5" text-anchor="middle">EAST CHINA SEA</text>
+      </g>
+      <g id="islands-g"></g>
+      <g id="waves-g"></g>
+      <g id="cities-g"></g>
+      <g id="epi-g"></g>
+    </g>
+    <!-- Scale (not zoomed) -->
+    <g transform="translate(50,593)" opacity=".48" pointer-events="none">
+      <line x1="0" y1="0" x2="56" y2="0" stroke="#8a7f74" stroke-width="1.5"/>
+      <line x1="0" y1="-4" x2="0" y2="4" stroke="#8a7f74" stroke-width="1.5"/>
+      <line x1="56" y1="-4" x2="56" y2="4" stroke="#8a7f74" stroke-width="1.5"/>
+      <text x="28" y="-7" text-anchor="middle" font-size="7" fill="#8a7f74" font-family="DM Mono,Courier New,monospace">≈ 150 km</text>
+    </g>
+  </svg>
+
+  <!-- Zoom buttons -->
+  <div id="zoom-btns">
+    <button class="zoom-btn" id="btn-zi" title="Zoom in">+</button>
+    <button class="zoom-btn" id="btn-zo" title="Zoom out">−</button>
+    <button class="zoom-btn" id="btn-zr" title="Reset view" style="font-size:11px">⊙</button>
+  </div>
+
+  <!-- City panel -->
+  <div id="cpanel">
+    <div class="cp-head">
+      <button class="cp-close" id="cp-close">✕</button>
+      <div class="cp-ey">Station Report</div>
+      <div class="cp-name" id="cp-name">—</div>
+      <div class="cp-pop" id="cp-pop"></div>
+    </div>
+    <div class="cp-body" id="cp-body"></div>
+  </div>
+
+  <div id="timer"><span class="t-lb">Elapsed Time</span><span id="t-val">T + 0.0 s</span></div>
+  <div id="map-title"><div class="mt-e">NIPPON</div><div class="mt-j">日本列島</div><div class="mt-s">Seismic Risk Simulator</div></div>
+
+  <div id="legend">
+    <div class="leg-h">MMI Impact Level</div>
+    <div class="leg-r"><div class="leg-d" style="background:#4e6480"></div><span class="leg-t">I–II &nbsp; Not felt</span></div>
+    <div class="leg-r"><div class="leg-d" style="background:#4da8c8"></div><span class="leg-t">III–IV &nbsp; Weak</span></div>
+    <div class="leg-r"><div class="leg-d" style="background:#6db852"></div><span class="leg-t">V &nbsp; Moderate</span></div>
+    <div class="leg-r"><div class="leg-d" style="background:#d4a820"></div><span class="leg-t">VI &nbsp; Strong</span></div>
+    <div class="leg-r"><div class="leg-d" style="background:#d46820"></div><span class="leg-t">VII–VIII &nbsp; Heavy</span></div>
+    <div class="leg-r"><div class="leg-d" style="background:#d42828"></div><span class="leg-t">IX–X &nbsp; Violent</span></div>
+    <div class="leg-r"><div class="leg-d" style="background:#7a1818"></div><span class="leg-t">XI–XII &nbsp; Catastrophic</span></div>
+  </div>
+
+  <div id="infobar">Click the map to place an earthquake epicenter · Scroll to zoom · Drag to pan</div>
+  <div id="tt"></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ── Projection  lon 128–147°E  lat 47–30°N → SVG 565×610 ──────────────
+const L0=128,LR=19,W=553, LA=47,LtR=17,H=588;
+function prj(lon,lat){return[(lon-L0)/LR*W,(LA-lat)/LtR*H]}
+function unp(x,y){return[x/W*LR+L0,LA-y/H*LtR]}
+
+// ── MMI Scale ──────────────────────────────────────────────────────────
+const MMI=[
+  {lv:'I',   title:'Not felt',              desc:'Detected only by seismographs.',
+   color:'#6488aa',bg:'rgba(20,36,54,.92)',dot:'#4e6480',
+   damage:['No effects','Instrument registration only']},
+  {lv:'II',  title:'Scarcely perceptible',  desc:'Felt by very few at rest on upper floors.',
+   color:'#6488aa',bg:'rgba(20,36,54,.92)',dot:'#4e6480',
+   damage:['No damage','Isolated reports of sensation']},
+  {lv:'III', title:'Weak',                  desc:'Felt indoors. Vibration like a passing truck.',
+   color:'#4da8c8',bg:'rgba(12,62,90,.92)',dot:'#4da8c8',
+   damage:['No damage','Slight swinging of suspended objects']},
+  {lv:'IV',  title:'Largely observed',      desc:'Felt by many indoors. Rattling of crockery.',
+   color:'#4da8c8',bg:'rgba(12,62,90,.92)',dot:'#4da8c8',
+   damage:['No structural damage','Rattling windows and dishes','Creaking floors']},
+  {lv:'V',   title:'Strong',                desc:'Felt by nearly all. Some windows broken.',
+   color:'#6db852',bg:'rgba(18,68,34,.92)',dot:'#6db852',
+   damage:['Minor non-structural damage','Small objects may fall','Weak plaster cracks','Sleeping people awakened']},
+  {lv:'VI',  title:'Slightly damaging',     desc:'Felt by all. Difficult to stand. Cracks in walls.',
+   color:'#d4a820',bg:'rgba(90,62,10,.92)',dot:'#d4a820',
+   damage:['Light damage','Plaster cracks and falls','Books and china fall off shelves','Slight damage to poorly-built structures']},
+  {lv:'VII', title:'Damaging',              desc:'Damage to poorly built structures.',
+   color:'#d46820',bg:'rgba(100,40,10,.92)',dot:'#d46820',
+   damage:['Moderate damage','Masonry walls crack','Chimneys fall','Poor buildings partially collapse']},
+  {lv:'VIII',title:'Heavily damaging',      desc:'Heavy damage to ordinary masonry buildings.',
+   color:'#d44818',bg:'rgba(110,36,10,.92)',dot:'#d44818',
+   damage:['Heavy damage','Partial collapse of masonry buildings','Monuments and walls fall','Underground pipes break']},
+  {lv:'IX',  title:'Destructive',           desc:'Many ordinary buildings collapse.',
+   color:'#d42828',bg:'rgba(100,20,20,.92)',dot:'#d42828',
+   damage:['General panic','Masonry buildings destroyed','Foundation damage','Railways bent','Landslides and ground fractures']},
+  {lv:'X',   title:'Very destructive',      desc:'Most structures destroyed.',
+   color:'#b81818',bg:'rgba(90,14,14,.92)',dot:'#b81818',
+   damage:['Widespread destruction','Reinforced concrete structures damaged','Rails badly bent','Extensive landslides']},
+  {lv:'XI',  title:'Catastrophic',          desc:'Few structures survive. Bridges destroyed.',
+   color:'#981010',bg:'rgba(72,8,8,.92)',dot:'#981010',
+   damage:['Almost total destruction','Only a few structures survive','Underground infrastructure destroyed']},
+  {lv:'XII', title:'Completely devastating',desc:'Total destruction. Landscape altered.',
+   color:'#7a1818',bg:'rgba(54,6,6,.92)',dot:'#7a1818',
+   damage:['Total devastation','Changes in river courses','Massive landslides','Visible seismic waves on ground surface']},
+];
+function getMMI(i){
+  const th=[0,0.5,1.0,1.8,2.8,4.0,5.3,6.5,7.3,8.0,8.7,9.5];
+  let idx=0;for(let j=th.length-1;j>=0;j--){if(i>=th[j]){idx=j;break}}
+  return MMI[idx];
+}
+
+// ── Island outlines ────────────────────────────────────────────────────
+const GEO={
+honshu:[
+  [130.96,34.0],[131.15,34.15],[131.45,34.2],[131.7,34.32],[132.05,34.35],
+  [132.3,34.4],[132.6,34.45],[133.0,34.45],[133.35,34.42],[133.75,34.5],
+  [134.15,34.15],[134.4,34.1],[134.6,34.25],[134.95,34.35],[135.15,34.02],
+  [135.3,33.72],[135.5,33.55],[135.7,33.48],[136.0,33.9],[136.3,34.1],
+  [136.6,34.35],[136.65,34.5],[136.8,34.6],[137.1,34.65],[137.5,34.82],
+  [137.85,34.73],[138.2,34.72],[138.5,34.72],[138.65,34.63],[138.82,34.38],
+  [138.98,34.62],[139.12,34.92],[139.3,35.05],[139.55,35.2],[139.72,35.3],
+  [139.82,35.22],[139.77,34.98],[140.0,34.9],[140.18,34.98],[140.35,35.08],
+  [140.52,35.4],[140.88,35.72],[141.05,36.08],[141.22,36.5],[141.3,37.05],
+  [141.5,37.78],[141.55,38.45],[141.72,39.0],[141.82,39.5],[141.72,40.0],
+  [141.52,40.58],[141.55,41.1],[141.22,41.52],
+  [140.38,41.28],[139.6,41.32],[139.5,41.12],[139.58,40.88],[139.9,40.35],
+  [140.1,40.05],[139.82,39.65],[139.52,39.15],[139.32,38.92],[139.05,38.48],
+  [138.82,38.15],[138.52,37.95],[138.22,37.72],[137.82,37.62],[137.62,37.52],
+  [137.4,37.6],[137.32,37.52],[137.1,37.28],[136.82,37.22],[136.75,36.92],
+  [136.52,36.72],[136.42,36.55],[136.08,36.15],[135.95,35.85],[135.72,35.65],
+  [135.35,35.52],[135.08,35.62],[134.42,35.55],[133.82,35.55],[133.42,35.52],
+  [132.82,35.52],[132.52,35.35],[132.05,35.05],[131.82,34.85],[131.45,34.45],
+  [131.12,34.25],[130.96,34.0]
+],
+kyushu:[
+  [130.92,33.9],[131.15,33.82],[131.5,33.72],[131.72,33.25],[131.52,32.52],
+  [131.22,32.08],[131.12,31.58],[130.72,31.52],[130.42,31.62],[130.15,31.82],
+  [130.2,32.18],[130.42,32.32],[130.35,32.72],[130.08,33.08],[129.85,33.12],
+  [129.7,33.45],[129.82,33.72],[130.28,34.02],[130.62,34.12],[130.92,33.9]
+],
+shikoku:[
+  [132.38,34.28],[132.65,34.32],[133.08,34.28],[133.5,34.22],[134.18,34.3],
+  [134.52,34.12],[134.85,33.98],[134.68,33.62],[134.08,33.4],[133.52,33.42],
+  [133.08,33.52],[132.52,33.52],[132.28,33.72],[132.32,34.0],[132.38,34.28]
+],
+hokkaido:[
+  [141.42,45.52],[141.85,45.22],[142.45,44.82],[143.02,44.32],
+  [143.52,44.12],[143.9,44.22],[144.52,44.08],[145.08,44.02],
+  [145.52,44.28],[145.32,43.82],[144.72,43.52],[144.22,43.62],
+  [143.52,44.02],[143.08,43.82],[142.52,43.22],[142.08,42.92],
+  [141.72,42.62],[141.35,42.42],[140.92,42.22],[140.35,42.32],
+  [140.12,42.08],[140.42,41.72],[140.72,41.52],[140.85,41.42],
+  [140.62,41.55],[140.32,41.85],[140.02,42.12],[139.72,42.42],
+  [139.52,42.82],[139.82,43.22],[139.92,43.62],[140.22,44.02],
+  [140.32,44.52],[140.72,44.92],[141.08,45.22],[141.42,45.52]
+],
+awaji:[[134.82,34.62],[134.98,34.65],[135.08,34.52],[134.9,34.32],[134.77,34.38],[134.82,34.62]],
+sado:[[138.22,38.38],[138.52,38.42],[138.58,38.28],[138.38,38.08],[138.1,38.12],[138.22,38.38]],
+tsushima:[[129.28,34.7],[129.42,34.58],[129.32,34.35],[129.18,34.42],[129.28,34.7]],
+iki:[[129.68,33.8],[129.78,33.72],[129.72,33.62],[129.62,33.68],[129.68,33.8]],
+okinawa:[[127.65,26.62],[127.88,26.72],[128.02,26.58],[127.92,26.35],[127.72,26.4],[127.65,26.62]],
+tanegashima:[[130.95,30.75],[131.08,30.72],[131.02,30.45],[130.9,30.48],[130.95,30.75]],
+yakushima:[[130.5,30.42],[130.65,30.5],[130.72,30.38],[130.58,30.3],[130.5,30.42]],
+amami:[[129.5,28.42],[129.72,28.55],[129.78,28.45],[129.62,28.32],[129.5,28.42]],
+};
+
+const CITIES=[
+  {name:'Tokyo',    lon:139.69,lat:35.68,pop:13960,dx:7, dy:3,  anc:'start'},
+  {name:'Yokohama', lon:139.64,lat:35.44,pop:3757, dx:7, dy:12, anc:'start'},
+  {name:'Osaka',    lon:135.50,lat:34.69,pop:2754, dx:7, dy:4,  anc:'start'},
+  {name:'Nagoya',   lon:136.91,lat:35.18,pop:2296, dx:7, dy:4,  anc:'start'},
+  {name:'Sapporo',  lon:141.35,lat:43.06,pop:1973, dx:-7,dy:4,  anc:'end'  },
+  {name:'Fukuoka',  lon:130.40,lat:33.59,pop:1612, dx:-7,dy:4,  anc:'end'  },
+  {name:'Kobe',     lon:135.19,lat:34.69,pop:1545, dx:-7,dy:12, anc:'end'  },
+  {name:'Kawasaki', lon:139.70,lat:35.53,pop:1539, dx:-7,dy:-3, anc:'end'  },
+  {name:'Kyoto',    lon:135.77,lat:35.01,pop:1464, dx:7, dy:-3, anc:'start'},
+  {name:'Saitama',  lon:139.65,lat:35.86,pop:1324, dx:-7,dy:-4, anc:'end'  },
+  {name:'Sendai',   lon:140.87,lat:38.27,pop:1097, dx:7, dy:4,  anc:'start'},
+  {name:'Aomori',   lon:140.74,lat:40.82,pop:287,  dx:7, dy:4,  anc:'start'},
+  {name:'Morioka',  lon:141.15,lat:39.70,pop:294,  dx:7, dy:4,  anc:'start'},
+  {name:'Akita',    lon:140.10,lat:39.72,pop:315,  dx:-7,dy:4,  anc:'end'  },
+  {name:'Yamagata', lon:140.34,lat:38.24,pop:249,  dx:-7,dy:4,  anc:'end'  },
+  {name:'Fukushima',lon:140.47,lat:37.75,pop:290,  dx:7, dy:4,  anc:'start'},
+];
+const MAX_POP=Math.max(...CITIES.map(c=>c.pop));
+
+// ── SVG helpers ────────────────────────────────────────────────────────
+const NS='http://www.w3.org/2000/svg';
+function el(tag,a={}){const e=document.createElementNS(NS,tag);for(const[k,v]of Object.entries(a))e.setAttribute(k,v);return e}
+function geoPath(pts){return pts.map(([lo,la],i)=>{const[x,y]=prj(lo,la);return`${i?'L':'M'}${x.toFixed(1)},${y.toFixed(1)}`}).join(' ')+' Z'}
+
+// ── Physics ────────────────────────────────────────────────────────────
+function haversine(lo1,la1,lo2,la2){
+  const R=6371,r=Math.PI/180;
+  const dLa=(la2-la1)*r,dLo=(lo2-lo1)*r;
+  const a=Math.sin(dLa/2)**2+Math.cos(la1*r)*Math.cos(la2*r)*Math.sin(dLo/2)**2;
+  return R*2*Math.asin(Math.sqrt(Math.min(1,a)));
+}
+function bearingTo(lo1,la1,lo2,la2){
+  const r=Math.PI/180,dLo=(lo2-lo1)*r;
+  const y=Math.sin(dLo)*Math.cos(la2*r);
+  const x=Math.cos(la1*r)*Math.sin(la2*r)-Math.sin(la1*r)*Math.cos(la2*r)*Math.cos(dLo);
+  return(Math.atan2(y,x)/r+360)%360;
+}
+function directivityFactor(cityBearing,strike,vrup){
+  const a=(cityBearing-strike)*Math.PI/180,beta=vrup/6.5;
+  return Math.max(0.6,Math.min(2.0,1/(1-beta*Math.cos(a))*0.7+0.3));
+}
+const VP=6.5,VS=3.7,VSRF=3.0;
+function calcIntensity(mag,dep,surf,k,soil,fault,strike,vrup,cLon,cLat,eLon,eLat){
+  const R=Math.sqrt(dep**2+surf**2);
+  let I=R<1?mag:Math.max(0,mag-k*Math.log10(R)-0.0013*R);
+  I+=0.5*Math.log10(soil);
+  const fAdj={reverse:0.3,normal:-0.1,strike:0.0,oblique:0.15};
+  I+=(fAdj[fault]||0);
+  if(surf>10){const bearing=bearingTo(eLon,eLat,cLon,cLat);const df=directivityFactor(bearing,strike,vrup);I+=0.4*(df-1.0);}
+  return Math.max(0,I);
+}
+function buildCitySeismo(mag,distKm,depKm,svgW,svgH){
+  const N=svgW,midY=svgH/2,hypoDist=Math.sqrt(depKm**2+distKm**2);
+  const pT=hypoDist/VP,sT=hypoDist/VS,sfT=distKm/VSRF,totalDur=sfT*1.6+15;
+  const ampP=(mag-3)*0.55*Math.exp(-distKm/1600);
+  const ampS=(mag-3)*2.4*Math.exp(-distKm/900);
+  const ampF=(mag-3)*4.2*Math.exp(-distKm/520);
+  const pts=[];
+  for(let i=0;i<N;i++){
+    const t=i/N*totalDur;let y=0;
+    if(t>=pT){const tau=t-pT;const e=Math.exp(-tau*.85)*Math.min(tau*6,1);y+=ampP*e*(Math.sin(tau*19)+.4*Math.sin(tau*32))}
+    if(t>=sT){const tau=t-sT;const e=Math.exp(-tau*.42)*Math.min(tau*3,1);y+=ampS*e*(Math.sin(tau*12.5)+.55*Math.sin(tau*22)+.3*Math.sin(tau*7.2))}
+    if(t>=sfT){const tau=t-sfT;const e=Math.exp(-tau*.16)*Math.min(tau*1.5,1);y+=ampF*e*(Math.sin(tau*5.2)+.8*Math.sin(tau*8.5)+.45*Math.sin(tau*3.1))}
+    pts.push(`${i},${(midY-y).toFixed(1)}`);
+  }
+  return`M ${pts.join(' L ')}`;
+}
+function buildEpiSeismo(mag){
+  const N=260,pts=[];
+  for(let i=0;i<N;i++){
+    const t=i/N,env=t<0.04?t/0.04:Math.exp(-7.5*(t-.04));
+    const amp=(mag-2.5)*5.5*env;
+    const noise=Math.sin(i*.72)+Math.sin(i*2.3)*.6+Math.sin(i*4.2)*.28+Math.sin(i*7.8)*.12;
+    pts.push(`${i},${(26-amp*noise).toFixed(1)}`);
+  }
+  return`M ${pts.join(' L ')}`;
+}
+
+// ── DOM refs ────────────────────────────────────────────────────────────
+const mapSVG=document.getElementById('map');
+const mapW=document.getElementById('map-w');
+const zoomG=document.getElementById('zoom-g');
+const gridG=document.getElementById('grid-g');
+const islandsG=document.getElementById('islands-g');
+const wavesG=document.getElementById('waves-g');
+const citiesG=document.getElementById('cities-g');
+const epiG=document.getElementById('epi-g');
+const timerEl=document.getElementById('timer');
+const tVal=document.getElementById('t-val');
+const seisPath=document.getElementById('seis-path');
+const seisPeak=document.getElementById('seis-peak');
+const qiCard=document.getElementById('qi-card');
+const qiRows=document.getElementById('qi-rows');
+const ctblWrap=document.getElementById('ctbl-wrap');
+const ttEl=document.getElementById('tt');
+const infobar=document.getElementById('infobar');
+const cpanel=document.getElementById('cpanel');
+const cpName=document.getElementById('cp-name');
+const cpPop=document.getElementById('cp-pop');
+const cpBody=document.getElementById('cp-body');
+
+// ── Zoom / Pan state ────────────────────────────────────────────────────
+let panX=0,panY=0,scale=1;
+const MIN_SCALE=0.6,MAX_SCALE=8;
+
+function applyTransform(){
+  zoomG.setAttribute('transform',`translate(${panX.toFixed(2)},${panY.toFixed(2)}) scale(${scale.toFixed(4)})`);
+}
+
+// Screen coords → SVG viewBox coords → accounting for zoom/pan
+function svgPt(evt){
+  const r=mapSVG.getBoundingClientRect(),vb=mapSVG.viewBox.baseVal;
+  const rawX=(evt.clientX-r.left)/r.width*vb.width;
+  const rawY=(evt.clientY-r.top)/r.height*vb.height;
+  // Invert the zoom/pan transform
+  return[(rawX-panX)/scale,(rawY-panY)/scale];
+}
+
+// Zoom toward a point in SVG viewBox coords
+function zoomToward(svgX,svgY,factor){
+  const newScale=Math.max(MIN_SCALE,Math.min(MAX_SCALE,scale*factor));
+  const f=newScale/scale;
+  panX=svgX-(svgX-panX)*f;
+  panY=svgY-(svgY-panY)*f;
+  scale=newScale;
+  applyTransform();
+}
+
+// Wheel zoom
+mapSVG.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const r=mapSVG.getBoundingClientRect(),vb=mapSVG.viewBox.baseVal;
+  const rawX=(e.clientX-r.left)/r.width*vb.width;
+  const rawY=(e.clientY-r.top)/r.height*vb.height;
+  const factor=e.deltaY<0?1.12:0.89;
+  zoomToward(rawX,rawY,factor);
+},{passive:false});
+
+// Zoom buttons
+document.getElementById('btn-zi').addEventListener('click',()=>{
+  const vb=mapSVG.viewBox.baseVal;zoomToward(vb.width/2,vb.height/2,1.4);});
+document.getElementById('btn-zo').addEventListener('click',()=>{
+  const vb=mapSVG.viewBox.baseVal;zoomToward(vb.width/2,vb.height/2,0.71);});
+document.getElementById('btn-zr').addEventListener('click',()=>{panX=0;panY=0;scale=1;applyTransform();});
+
+// Pan + click detection
+let dragStartX=0,dragStartY=0,dragStartPanX=0,dragStartPanY=0,isDragging=false,dragDist=0;
+mapSVG.addEventListener('mousedown',e=>{
+  if(e.button!==0)return;
+  isDragging=true;dragDist=0;
+  dragStartX=e.clientX;dragStartY=e.clientY;
+  dragStartPanX=panX;dragStartPanY=panY;
+  mapSVG.classList.remove('default-cur');mapSVG.classList.add('panning');
+});
+window.addEventListener('mousemove',e=>{
+  if(!isDragging)return;
+  const dx=e.clientX-dragStartX,dy=e.clientY-dragStartY;
+  dragDist=Math.sqrt(dx*dx+dy*dy);
+  const r=mapSVG.getBoundingClientRect(),vb=mapSVG.viewBox.baseVal;
+  const sx=dx/r.width*vb.width,sy=dy/r.height*vb.height;
+  panX=dragStartPanX+sx;panY=dragStartPanY+sy;
+  applyTransform();
+});
+window.addEventListener('mouseup',e=>{
+  if(!isDragging)return;
+  isDragging=false;
+  mapSVG.classList.remove('panning');mapSVG.classList.add('default-cur');
+  // Only treat as click if barely moved
+  if(dragDist<5&&e.target.closest('#map')){
+    const[sx,sy]=svgPt(e);
+    startSim(sx,sy);
+  }
+});
+
+// ── Grid ────────────────────────────────────────────────────────────────
+for(let lat=32;lat<=46;lat+=2){
+  const[x1,y]=prj(128,lat),[x2]=prj(147,lat);
+  gridG.appendChild(el('line',{x1:x1.toFixed(1),y1:y.toFixed(1),x2:x2.toFixed(1),y2:y.toFixed(1),stroke:'#d5cfc0','stroke-width':.5}));
+  const t=el('text',{x:(x2+3).toFixed(1),y:(y+3.5).toFixed(1),fill:'#b0a898','font-size':'6.5','font-family':'DM Mono,Courier New,monospace',opacity:.65});
+  t.textContent=lat+'°N';gridG.appendChild(t);
+}
+for(let lon=130;lon<=147;lon+=2){
+  const[x,y1]=prj(lon,47),[,y2]=prj(lon,30);
+  gridG.appendChild(el('line',{x1:x.toFixed(1),y1:y1.toFixed(1),x2:x.toFixed(1),y2:y2.toFixed(1),stroke:'#d5cfc0','stroke-width':.5}));
+  const t=el('text',{x:(x-1).toFixed(1),y:(y2+9).toFixed(1),fill:'#b0a898','font-size':'6.5','font-family':'DM Mono,Courier New,monospace','text-anchor':'middle',opacity:.65});
+  t.textContent=lon+'°E';gridG.appendChild(t);
+}
+
+// ── Islands ─────────────────────────────────────────────────────────────
+const MINOR=['awaji','sado','tsushima','iki','okinawa','tanegashima','yakushima','amami'];
+for(const[id,pts]of Object.entries(GEO)){
+  islandsG.appendChild(el('path',{d:geoPath(pts),class:MINOR.includes(id)?'island-m':'island',id:'isl-'+id}));
+}
+
+// ── City elements ────────────────────────────────────────────────────────
+const cityEls=[];
+CITIES.forEach((c,i)=>{
+  const[cx,cy]=prj(c.lon,c.lat);
+  const g=el('g',{class:'city-grp'});
+  const popR=(3.5+5.5*(Math.sqrt(c.pop/MAX_POP))).toFixed(1);
+  const outer=el('circle',{cx:cx.toFixed(1),cy:cy.toFixed(1),r:popR,fill:'rgba(212,28,42,.1)',stroke:'#d41c2a','stroke-width':'.75',class:'c-outer'});
+  const dot=el('circle',{cx:cx.toFixed(1),cy:cy.toFixed(1),r:'2.5',fill:'#d41c2a',class:'c-dot'});
+  // Clean label — NO stroke, just good contrast via shadow filter
+  const lbl=el('text',{x:(cx+c.dx).toFixed(1),y:(cy+c.dy).toFixed(1),class:'c-lbl','text-anchor':c.anc});
+  lbl.textContent=c.name.toUpperCase();
+  const mmiLbl=el('text',{x:cx.toFixed(1),y:(cy-parseFloat(popR)-3).toFixed(1),class:'c-mmi','text-anchor':'middle',fill:'#d41c2a'});
+  g.append(outer,dot,lbl,mmiLbl);
+  citiesG.appendChild(g);
+  g.addEventListener('mouseenter',e=>showTip(e,i));
+  g.addEventListener('mouseleave',hideTip);
+  g.addEventListener('click',e=>{e.stopPropagation();if(dragDist<5)openCityPanel(i)});
+  cityEls.push({c,g,dot,outer,mmiLbl,intensity:0,mmi:null,dist:0,cx,cy});
+});
+
+// ── MMI Reference ───────────────────────────────────────────────────────
+document.getElementById('mmi-ref').innerHTML=MMI.map(m=>`
+  <div class="mmi-row">
+    <div class="mmi-num" style="background:${m.bg};color:${m.color}">${m.lv}</div>
+    <div class="mmi-info">
+      <div class="mmi-title" style="color:${m.color}">${m.title}</div>
+      <div class="mmi-desc">${m.desc}</div>
+    </div>
+  </div>`).join('');
+
+// ── Param tooltips ──────────────────────────────────────────────────────
+document.querySelectorAll('.help-btn').forEach(btn=>{
+  const tip=document.getElementById('tip-'+btn.dataset.param);
+  if(!tip)return;
+  let hoverTip=false,hoverBtn=false;
+  function show(){tip.classList.add('show')}
+  function tryHide(){setTimeout(()=>{if(!hoverTip&&!hoverBtn)tip.classList.remove('show')},80)}
+  btn.addEventListener('mouseenter',()=>{hoverBtn=true;show()});
+  btn.addEventListener('mouseleave',()=>{hoverBtn=false;tryHide()});
+  tip.addEventListener('mouseenter',()=>{hoverTip=true});
+  tip.addEventListener('mouseleave',()=>{hoverTip=false;tryHide()});
+});
+
+// ── State ────────────────────────────────────────────────────────────────
+let mag=7.0,dep=30,att=1.66,soil=1.0,fault='reverse',strike=0,vrup=2.8;
+let simActive=false,epiGeo=[0,0];
+let timerStart=0,timerRAF=null,waveIVs=[];
+let selectedCity=-1;
+
+// slider bindings
+function bind(id,fmt){
+  const sl=document.getElementById('s-'+id);
+  const vEl=document.getElementById('v-'+id);
+  sl.addEventListener('input',function(){
+    const v=fmt==='int'?parseInt(this.value):parseFloat(this.value);
+    if(id==='mag')mag=v;else if(id==='dep')dep=v;else if(id==='att')att=v;
+    else if(id==='soil')soil=v;else if(id==='dir')strike=v;else if(id==='vrup')vrup=v;
+    vEl.textContent=fmt==='int'?v:(fmt==='1f'?v.toFixed(1):v.toFixed(2));
+    if(simActive)updateSim();
+  });
+}
+bind('mag','1f');bind('dep','int');bind('att','2f');bind('soil','1f');bind('dir','int');bind('vrup','1f');
+document.getElementById('s-fault').addEventListener('change',function(){fault=this.value;if(simActive)updateSim()});
+
+// ── Simulation ────────────────────────────────────────────────────────────
+function startSim(sx,sy){
+  resetSim(true);
+  simActive=true;
+  epiGeo=unp(sx,sy);
+  timerEl.style.display='block';timerStart=performance.now();
+  (function tick(){tVal.textContent='T + '+((performance.now()-timerStart)/1000).toFixed(1)+' s';timerRAF=requestAnimationFrame(tick)})();
+  drawEpicenter(sx,sy);
+  launchWaves(sx,sy);
+  seisPath.setAttribute('d',buildEpiSeismo(mag));
+  seisPeak.textContent=`PGA ~${((mag-2.5)*6).toFixed(1)} Gal`;
+  updateSim();
+  qiCard.style.display='block';
+  infobar.textContent=`Epicenter: ${epiGeo[1].toFixed(2)}°N  ${epiGeo[0].toFixed(2)}°E  ·  Click a city for detailed report`;
+}
+
+function drawEpicenter(x,y){
+  epiG.innerHTML='';
+  for(let i=0;i<3;i++){
+    const r=el('circle',{cx:x.toFixed(1),cy:y.toFixed(1),r:3,fill:'none',stroke:'#d41c2a','stroke-width':1.2});
+    const aT=el('animateTransform',{attributeName:'transform',type:'scale',from:'1,1',to:'5,5',begin:`${i*.52}s`,dur:'1.55s',repeatCount:'indefinite',additive:'sum'});
+    const aO=el('animate',{attributeName:'opacity',from:'.8',to:'0',begin:`${i*.52}s`,dur:'1.55s',repeatCount:'indefinite'});
+    r.setAttribute('transform',`translate(${x},${y}) scale(0)`);
+    r.append(aT,aO);epiG.appendChild(r);
+  }
+  epiG.append(
+    el('line',{x1:(x-7).toFixed(1),y1:y.toFixed(1),x2:(x+7).toFixed(1),y2:y.toFixed(1),stroke:'#d41c2a','stroke-width':'1'}),
+    el('line',{x1:x.toFixed(1),y1:(y-7).toFixed(1),x2:x.toFixed(1),y2:(y+7).toFixed(1),stroke:'#d41c2a','stroke-width':'1'}),
+    el('circle',{cx:x.toFixed(1),cy:y.toFixed(1),r:'2.5',fill:'#d41c2a'})
+  );
+  const t=el('text',{x:(x+5).toFixed(1),y:(y-5).toFixed(1),fill:'#d41c2a','font-size':'5.5','font-family':'DM Mono,Courier New,monospace','font-weight':'500','letter-spacing':'1'});
+  t.textContent='EPICENTER';epiG.appendChild(t);
+}
+
+function launchWaves(x,y){
+  let count=0;
+  function addWave(){
+    if(count++>30)return;
+    const start=performance.now(),dur=2600+Math.random()*1200,maxR=90+mag*17+(count%3)*18;
+    const g=el('g');wavesG.appendChild(g);
+    const ring=el('circle',{cx:x.toFixed(1),cy:y.toFixed(1),r:0,fill:'none',stroke:'rgba(212,28,42,.45)','stroke-width':1.2});
+    g.appendChild(ring);
+    function animate(ts){
+      const t=(ts-start)/dur;if(t>1){g.remove();return}
+      ring.setAttribute('r',(maxR*(1-(1-t)**2.3)).toFixed(1));
+      ring.setAttribute('opacity',((1-t)*.45).toFixed(3));
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+  }
+  for(let i=0;i<5;i++)setTimeout(addWave,i*280);
+  const iv=setInterval(()=>{if(count>30){clearInterval(iv);return}addWave();},950);
+  waveIVs.push(iv);
+}
+
+function updateSim(){
+  const[eLon,eLat]=epiGeo;
+  cityEls.forEach(ce=>{
+    const d=haversine(eLon,eLat,ce.c.lon,ce.c.lat);
+    const intens=calcIntensity(mag,dep,d,att,soil,fault,strike,vrup,ce.c.lon,ce.c.lat,eLon,eLat);
+    const mmi=getMMI(intens);
+    ce.intensity=intens;ce.mmi=mmi;ce.dist=d;
+    ce.dot.setAttribute('fill',mmi.dot);
+    ce.outer.setAttribute('stroke',mmi.dot);
+    ce.outer.setAttribute('fill',mmi.dot+'1a');
+    ce.mmiLbl.setAttribute('fill',mmi.dot);
+    ce.mmiLbl.textContent=mmi.lv;
+    ce.mmiLbl.classList.add('show');
+  });
+  updateQI();updateTable();
+  if(selectedCity>=0)updateCityPanel(selectedCity);
+}
+
+function updateQI(){
+  const[lo,la]=epiGeo;
+  const fLabel={reverse:'Reverse/Thrust',normal:'Normal',strike:'Strike-Slip',oblique:'Oblique'};
+  qiRows.innerHTML=`
+    <div class="qr"><span class="qk">Latitude</span><span class="qv">${la.toFixed(3)}°N</span></div>
+    <div class="qr"><span class="qk">Longitude</span><span class="qv">${lo.toFixed(3)}°E</span></div>
+    <div class="qr"><span class="qk">Magnitude</span><span class="qv big">M ${mag.toFixed(1)}</span></div>
+    <div class="qr"><span class="qk">Depth</span><span class="qv">${dep} km</span></div>
+    <div class="qr"><span class="qk">Fault Type</span><span class="qv">${fLabel[fault]}</span></div>
+    <div class="qr"><span class="qk">Strike / Vrup</span><span class="qv">${strike}° · ${vrup.toFixed(1)} km/s</span></div>
+    <div class="qr"><span class="qk">Soil Factor</span><span class="qv">${soil.toFixed(1)}×</span></div>`;
+}
+
+function updateTable(){
+  const sorted=[...cityEls].sort((a,b)=>b.intensity-a.intensity);
+  const rows=sorted.map((ce,i)=>{
+    const m=ce.mmi,idx=cityEls.indexOf(ce),sel=idx===selectedCity;
+    return`<tr class="${sel?'sel':''}" onclick="window.__openCity(${idx})">
+      <td style="color:#253550;font-size:7px;font-family:'DM Mono',monospace;width:14px">${i+1}</td>
+      <td class="ct-n">${ce.c.name}</td>
+      <td class="ct-pop">${ce.c.pop>=1000?(ce.c.pop/1000).toFixed(1)+'M':ce.c.pop+'k'}</td>
+      <td class="ct-d">${ce.dist?ce.dist.toFixed(0)+'km':'—'}</td>
+      <td style="width:44px"><span class="mmi-badge" style="background:${m.bg};color:${m.color}">${m.lv}</span></td>
+    </tr>`;
+  }).join('');
+  ctblWrap.innerHTML=`<table class="ctbl"><thead><tr><th></th><th>City</th><th class="r">Pop.</th><th class="r">Dist.</th><th class="r">MMI</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+window.__openCity=function(i){openCityPanel(i)};
+
+// ── City Panel ─────────────────────────────────────────────────────────
+function openCityPanel(idx){
+  if(!simActive)return;
+  selectedCity=idx;updateCityPanel(idx);cpanel.classList.add('open');updateTable();
+}
+
+function updateCityPanel(idx){
+  const ce=cityEls[idx],m=ce.mmi;
+  cpName.textContent=ce.c.name;cpName.style.color=m.color;
+  cpPop.textContent=`Population: ${ce.c.pop>=1000?(ce.c.pop/1000).toFixed(2)+'M':ce.c.pop+'k'} residents`;
+  const hypoDist=Math.sqrt(dep**2+ce.dist**2);
+  const pT=hypoDist/VP,sT=hypoDist/VS,sfT=ce.dist/VSRF,maxT=sfT*1.65+15;
+  const popPct=Math.round(ce.c.pop/MAX_POP*100);
+  const dmgItems=m.damage.map(d=>`<div class="dmg-item"><span class="dmg-icon">▸</span><span>${d}</span></div>`).join('');
+  const bearing=bearingTo(...epiGeo,ce.c.lon,ce.c.lat);
+  const df=directivityFactor(bearing,strike,vrup);
+  const dirEffect=df>1.05?`+${((df-1)*.4).toFixed(2)} fwd`:(df<0.95?`${((df-1)*.4).toFixed(2)} back`:'neutral');
+
+  cpBody.innerHTML=`
+    <div class="mmi-display">
+      <div class="mmi-big-num" style="color:${m.color}">${m.lv}</div>
+      <div><div class="mbi-lv" style="color:${m.color}">MMI ${m.lv}</div><div class="mbi-title">${m.title}</div><div class="mbi-desc">${m.desc}</div></div>
+    </div>
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-v">${ce.dist.toFixed(0)}</div><div class="stat-u">Surface<br>dist km</div></div>
+      <div class="stat-box"><div class="stat-v">${hypoDist.toFixed(0)}</div><div class="stat-u">Hypo-<br>central km</div></div>
+      <div class="stat-box"><div class="stat-v">${ce.intensity.toFixed(2)}</div><div class="stat-u">Intensity<br>index</div></div>
+      <div class="stat-box"><div class="stat-v" style="font-size:10px">${dirEffect}</div><div class="stat-u">Directivity<br>effect</div></div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:5px;padding:10px 11px">
+      <div class="chd">Population Exposure</div>
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:#7a9ab4;margin-bottom:5px">
+        <span>${ce.c.name}</span><span style="color:var(--white);font-family:'DM Mono',monospace">${ce.c.pop>=1000?(ce.c.pop/1000).toFixed(2)+'M':ce.c.pop+'k'}</span>
+      </div>
+      <div class="pop-bar-bg"><div class="pop-bar-fill" style="width:${popPct}%"></div></div>
+      <div class="pop-bar-label"><span>0</span><span>vs Tokyo (${(MAX_POP/1000).toFixed(1)}M)</span><span>100%</span></div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:5px;padding:10px 11px">
+      <div class="chd">Seismogram — ${ce.c.name}</div>
+      <div class="city-seis">
+        <div class="cs-lbl">Simulated ground motion</div>
+        <svg class="cs-svg" viewBox="0 0 345 70" preserveAspectRatio="none">
+          <line x1="0" y1="35" x2="345" y2="35" stroke="#1a2c3e" stroke-width=".8"/>
+          <line x1="${(pT/maxT*345).toFixed(1)}" y1="0" x2="${(pT/maxT*345).toFixed(1)}" y2="70" stroke="rgba(100,200,255,.28)" stroke-width=".8" stroke-dasharray="3,2"/>
+          <text x="${(pT/maxT*345+2).toFixed(1)}" y="9" font-size="6" fill="#64c8ff" font-family="DM Mono,Courier New,monospace">P  ${pT.toFixed(1)}s</text>
+          <line x1="${(sT/maxT*345).toFixed(1)}" y1="0" x2="${(sT/maxT*345).toFixed(1)}" y2="70" stroke="rgba(255,180,50,.28)" stroke-width=".8" stroke-dasharray="3,2"/>
+          <text x="${(sT/maxT*345+2).toFixed(1)}" y="9" font-size="6" fill="#ffb432" font-family="DM Mono,Courier New,monospace">S  ${sT.toFixed(1)}s</text>
+          <line x1="${(sfT/maxT*345).toFixed(1)}" y1="0" x2="${(sfT/maxT*345).toFixed(1)}" y2="70" stroke="rgba(255,100,100,.28)" stroke-width=".8" stroke-dasharray="3,2"/>
+          <text x="${(sfT/maxT*345+2).toFixed(1)}" y="9" font-size="6" fill="#ff6464" font-family="DM Mono,Courier New,monospace">Rf  ${sfT.toFixed(1)}s</text>
+          <path d="${buildCitySeismo(mag,ce.dist,dep,345,70)}" fill="none" stroke="#d41c2a" stroke-width="1" opacity=".9"/>
+        </svg>
+      </div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:5px;padding:10px 11px">
+      <div class="chd">Wave Arrival Times</div>
+      <div class="wa-row"><span class="wa-type" style="color:#64c8ff">P-wave</span><div class="wa-bar"><div class="wa-fill" style="width:${Math.min(92,pT/sfT*52).toFixed(0)}%;background:#64c8ff"></div></div><span class="wa-time">${pT.toFixed(1)} s</span><span class="wa-speed">${VP} km/s</span></div>
+      <div class="wa-row"><span class="wa-type" style="color:#ffb432">S-wave</span><div class="wa-bar"><div class="wa-fill" style="width:${Math.min(92,sT/sfT*52).toFixed(0)}%;background:#ffb432"></div></div><span class="wa-time">${sT.toFixed(1)} s</span><span class="wa-speed">${VS} km/s</span></div>
+      <div class="wa-row"><span class="wa-type" style="color:#ff6464">Surface</span><div class="wa-bar"><div class="wa-fill" style="width:52%;background:#ff6464"></div></div><span class="wa-time">${sfT.toFixed(1)} s</span><span class="wa-speed">${VSRF} km/s</span></div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:5px;padding:10px 11px">
+      <div class="chd">Expected Effects</div>
+      <div class="dmg-list">${dmgItems}</div>
+    </div>`;
+}
+document.getElementById('cp-close').addEventListener('click',()=>{
+  cpanel.classList.remove('open');selectedCity=-1;if(simActive)updateTable();
+});
+
+// ── Tooltip ─────────────────────────────────────────────────────────────
+function showTip(e,i){
+  const ce=cityEls[i];
+  if(!simActive){
+    ttEl.innerHTML=`<strong>${ce.c.name}</strong><span style="color:var(--dim);font-size:8.5px">Set an epicenter first</span>`;
+  } else {
+    const m=ce.mmi;
+    ttEl.innerHTML=`<strong>${ce.c.name}</strong>
+      Pop: <b style="color:var(--white)">${ce.c.pop>=1000?(ce.c.pop/1000).toFixed(2)+'M':ce.c.pop+'k'}</b><br>
+      Distance: <b style="color:var(--white)">${ce.dist.toFixed(0)} km</b><br>
+      MMI: <b style="color:${m.color}">${m.lv} — ${m.title}</b><br>
+      <span style="color:var(--dim);font-size:8px">Click for full seismogram →</span>`;
+  }
+  ttEl.style.display='block';moveTip(e);
+}
+function moveTip(e){
+  const r=mapW.getBoundingClientRect();
+  let tx=e.clientX-r.left+15,ty=e.clientY-r.top-15;
+  if(tx+195>r.width)tx=e.clientX-r.left-205;
+  if(ty<0)ty=5;
+  ttEl.style.left=tx+'px';ttEl.style.top=ty+'px';
+}
+function hideTip(){ttEl.style.display='none'}
+mapW.addEventListener('mousemove',e=>{if(ttEl.style.display!=='none')moveTip(e)});
+
+// ── Reset ─────────────────────────────────────────────────────────────
+function resetSim(keepPanel=false){
+  simActive=false;epiG.innerHTML='';wavesG.innerHTML='';
+  if(timerRAF)cancelAnimationFrame(timerRAF);
+  timerEl.style.display='none';
+  waveIVs.forEach(clearInterval);waveIVs=[];
+  qiCard.style.display='none';seisPath.setAttribute('d','');
+  ctblWrap.innerHTML='<div class="no-sim">Click anywhere on the Japan map to place the epicenter.<br>Then click a city for a detailed seismogram report.</div>';
+  cityEls.forEach(ce=>{
+    ce.dot.setAttribute('fill','#d41c2a');
+    ce.outer.setAttribute('stroke','#d41c2a');
+    ce.outer.setAttribute('fill','rgba(212,28,42,.1)');
+    ce.mmiLbl.textContent='';ce.mmiLbl.classList.remove('show');
+    ce.intensity=0;ce.mmi=null;ce.dist=0;
+  });
+  if(!keepPanel){cpanel.classList.remove('open');selectedCity=-1;}
+  infobar.textContent='Click the map to place an earthquake epicenter · Scroll to zoom · Drag to pan';
+}
+document.getElementById('btn-reset').addEventListener('click',()=>resetSim(false));
+
+})();
+</script>
+</body>
+</html>
