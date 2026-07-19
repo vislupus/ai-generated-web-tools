@@ -305,8 +305,8 @@ WebGPU battle lab where two tactical lineages evolve unit mixes, bomber behavior
 - Tactical genomes
 - Fitness history
 
-**Source:** `/crystal-wars-v3/`  
-**Live demo:** https://vislupus.github.io/ai-generated-web-tools/crystal-wars-v3/
+**Source:** `/crystal-wars/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/crystal-wars/
 
 ---
 
@@ -440,7 +440,7 @@ Each tool lives in its own folder and opens through that folder’s `index.html`
 ├─ civilization-sim/         # Standalone project (index.html)
 ├─ computational-imaging-lab/ # Standalone project (index.html)
 ├─ crystal-druse-generator/  # Standalone project (index.html)
-├─ crystal-wars-v3/          # Standalone project (index.html)
+├─ crystal-wars/             # Standalone project (index.html)
 ├─ drone-light-show/         # Standalone project (index.html)
 ├─ fireworks/                # Standalone project (index.html)
 ├─ holography/               # Standalone project (index.html)
