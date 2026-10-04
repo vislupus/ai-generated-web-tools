@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Orrery — Million Particle Galaxy Simulator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/regl/2.1.0/regl.min.js"></script>
+<style>
+  :root{
+    --void:#05060d;
+    --panel:rgba(9,12,26,0.82);
+    --edge:rgba(126,164,214,0.18);
+    --ink:#c8d6ec;
+    --ink-dim:#6b7d9c;
+    --amber:#ffb454;
+    --teal:#4fd6c8;
+    --violet:#a78bfa;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:var(--void);color:var(--ink);
+    font-family:var(--mono);font-size:12px;-webkit-font-smoothing:antialiased}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+  /* ---------- console ---------- */
+  #console{
+    position:fixed;top:0;right:0;height:100%;width:296px;z-index:10;
+    background:var(--panel);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border-left:1px solid var(--edge);
+    display:flex;flex-direction:column;
+    transition:transform .35s cubic-bezier(.2,.8,.2,1);
+  }
+  #console.hidden{transform:translateX(100%)}
+  #console header{
+    padding:14px 16px 10px;border-bottom:1px solid var(--edge);flex:0 0 auto;
+  }
+  .wordmark{font-size:15px;letter-spacing:.32em;color:var(--ink);font-weight:500}
+  .wordmark b{color:var(--amber);font-weight:500}
+  .sub{margin-top:3px;font-size:9.5px;letter-spacing:.16em;color:var(--ink-dim);text-transform:uppercase}
+  #scroll{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;padding:4px 0 40px}
+  #scroll::-webkit-scrollbar{width:6px}
+  #scroll::-webkit-scrollbar-thumb{background:rgba(126,164,214,.22)}
+
+  .sec{margin:14px 16px 2px;display:flex;align-items:center;gap:8px;
+    font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--teal)}
+  .sec::after{content:"";flex:1;height:1px;background:var(--edge)}
+
+  .row{padding:5px 16px 6px}
+  .row label{display:flex;justify-content:space-between;align-items:baseline;
+    font-size:10.5px;color:var(--ink-dim);letter-spacing:.04em;margin-bottom:4px}
+  .row label span{color:var(--ink);font-variant-numeric:tabular-nums}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:14px;background:transparent;cursor:ew-resize}
+  input[type=range]::-webkit-slider-runnable-track{height:2px;background:rgba(126,164,214,.22)}
+  input[type=range]::-moz-range-track{height:2px;background:rgba(126,164,214,.22)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;margin-top:-4.5px;
+    border-radius:50%;background:var(--amber);box-shadow:0 0 8px rgba(255,180,84,.55)}
+  input[type=range]::-moz-range-thumb{width:11px;height:11px;border:0;border-radius:50%;background:var(--amber)}
+  input[type=range]:focus-visible{outline:1px solid var(--teal);outline-offset:3px}
+
+  .chips{display:flex;flex-wrap:wrap;gap:5px;padding:2px 16px 6px}
+  button{
+    font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--ink);
+    background:rgba(126,164,214,.07);border:1px solid var(--edge);border-radius:2px;
+    padding:6px 8px;cursor:pointer;transition:.15s;flex:1 1 auto;white-space:nowrap
+  }
+  button:hover{background:rgba(126,164,214,.16);border-color:rgba(126,164,214,.4)}
+  button.on{background:rgba(255,180,84,.14);border-color:rgba(255,180,84,.55);color:var(--amber)}
+  button:focus-visible{outline:1px solid var(--teal);outline-offset:2px}
+  select{width:100%;font-family:var(--mono);font-size:10.5px;color:var(--ink);
+    background:rgba(126,164,214,.07);border:1px solid var(--edge);border-radius:2px;padding:6px}
+
+  /* ---------- telemetry (signature: instrument strip) ---------- */
+  #telemetry{
+    position:fixed;left:0;bottom:0;z-index:10;padding:12px 16px;
+    display:flex;gap:22px;align-items:flex-end;pointer-events:none;
+    text-shadow:0 1px 12px #000;
+  }
+  .gauge{display:flex;flex-direction:column;gap:2px}
+  .gauge .k{font-size:8.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-dim)}
+  .gauge .v{font-size:16px;letter-spacing:.02em;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.05}
+  .gauge .v em{font-style:normal;font-size:10px;color:var(--ink-dim);margin-left:3px}
+  #scalebar{display:flex;flex-direction:column;gap:4px;padding-bottom:2px}
+  #scalebar .bar{width:110px;height:5px;border:1px solid rgba(200,214,236,.5);border-top:0}
+  #zoomline{
+    position:fixed;left:16px;bottom:74px;width:110px;height:1px;background:rgba(126,164,214,.2);z-index:10;pointer-events:none
+  }
+  #zoomdot{position:absolute;top:-2px;width:5px;height:5px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px var(--teal)}
+
+  #brand{position:fixed;left:16px;top:14px;z-index:10;pointer-events:none;text-shadow:0 1px 12px #000}
+  #brand .t{font-size:11px;letter-spacing:.34em;text-transform:uppercase;color:rgba(200,214,236,.72)}
+  #brand .d{font-size:9.5px;letter-spacing:.12em;color:var(--ink-dim);margin-top:3px}
+
+  #showui{position:fixed;top:14px;right:14px;z-index:11;display:none;width:auto;flex:0}
+  #console.hidden ~ #showui{display:block}
+
+  #help{
+    position:fixed;inset:0;z-index:20;background:rgba(4,6,14,.9);backdrop-filter:blur(8px);
+    display:none;align-items:center;justify-content:center;padding:24px
+  }
+  #help.show{display:flex}
+  #help .card{max-width:520px;border:1px solid var(--edge);background:rgba(9,12,26,.9);padding:26px 30px}
+  #help h2{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--amber);font-weight:500;margin-bottom:16px}
+  #help dl{display:grid;grid-template-columns:150px 1fr;gap:7px 16px;font-size:11px;line-height:1.5}
+  #help dt{color:var(--teal)}
+  #help dd{color:var(--ink-dim)}
+  #help p{margin-top:18px;font-size:10.5px;color:var(--ink-dim);line-height:1.6}
+
+  #fatal{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;
+    padding:30px;text-align:center;background:var(--void)}
+  #fatal div{max-width:460px;line-height:1.7;font-size:12px;color:var(--ink)}
+  #fatal b{color:var(--amber);display:block;margin-bottom:10px;letter-spacing:.2em;text-transform:uppercase;font-weight:500}
+
+  @media (max-width:760px){
+    #console{width:100%;height:52%;top:auto;bottom:0;border-left:0;border-top:1px solid var(--edge)}
+    #console.hidden{transform:translateY(100%)}
+    #telemetry{gap:14px;padding:10px 12px;bottom:52%}
+    #zoomline{bottom:calc(52% + 62px)}
+    .gauge .v{font-size:13px}
+  }
+  @media (prefers-reduced-motion:reduce){#console{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="brand">
+  <div class="t">Orrery</div>
+  <div class="d">GPU n-field galaxy laboratory</div>
+</div>
+
+<div id="telemetry">
+  <div class="gauge"><div class="k">Stars</div><div class="v" id="tCount">—</div></div>
+  <div class="gauge"><div class="k">Elapsed</div><div class="v" id="tTime">—<em>Myr</em></div></div>
+  <div class="gauge"><div class="k">Frame</div><div class="v" id="tFps">—<em>fps</em></div></div>
+  <div class="gauge" id="scalebar">
+    <div class="k">Field of view</div>
+    <div class="v" id="tScale">—</div>
+    <div class="bar"></div>
+  </div>
+</div>
+<div id="zoomline"><div id="zoomdot"></div></div>
+
+<button id="showui">Show console</button>
+
+<aside id="console">
+  <header>
+    <div class="wordmark">ORR<b>E</b>RY</div>
+    <div class="sub">regl · webgl · 1,048,576 bodies</div>
+  </header>
+  <div id="scroll"></div>
+</aside>
+
+<div id="help">
+  <div class="card">
+    <h2>Navigation</h2>
+    <dl>
+      <dt>Drag</dt><dd>Orbit the camera</dd>
+      <dt>Shift + drag / right drag</dt><dd>Pan the focus point</dd>
+      <dt>Scroll / pinch</dt><dd>Zoom, from megaparsecs down to the accretion radius of a black hole</dd>
+      <dt>1 – 4</dt><dd>Snap focus to a galaxy core</dd>
+      <dt>F</dt><dd>Lock focus to the nearest core and follow it</dd>
+      <dt>Space</dt><dd>Pause and resume</dd>
+      <dt>R</dt><dd>Reseed the current scene</dd>
+      <dt>B</dt><dd>Drop a wandering black hole at the focus point</dd>
+      <dt>H</dt><dd>Hide the console</dd>
+      <dt>? or /</dt><dd>Close this panel</dd>
+    </dl>
+    <p>Every particle is a texel. Positions and velocities live in floating-point framebuffers and never touch the CPU — only the handful of massive cores are integrated in JavaScript.</p>
+  </div>
+</div>
+
+<div id="fatal"><div><b id="fatalTitle">Cannot start</b><span id="fatalMsg"></span></div></div>
+
+<script>
+"use strict";
+(function(){
+
+/* ==========================================================================
+   0.  Boot: WebGL context + regl, with float render targets (required).
+   ========================================================================== */
+const canvas = document.getElementById('gl');
+
+function fatal(title, msg){
+  document.getElementById('fatalTitle').textContent = title;
+  document.getElementById('fatalMsg').textContent = msg;
+  document.getElementById('fatal').style.display = 'flex';
+  throw new Error(title + ' — ' + msg);
+}
+
+if (typeof createREGL !== 'function')
+  fatal('regl did not load', 'The simulator needs the regl library. Check your network connection and reload.');
+
+const glAttribs = {alpha:false, antialias:false, depth:false, stencil:false,
+                   premultipliedAlpha:false, preserveDrawingBuffer:false,
+                   powerPreference:'high-performance', failIfMajorPerformanceCaveat:false};
+const gl = canvas.getContext('webgl', glAttribs) || canvas.getContext('experimental-webgl', glAttribs);
+if (!gl) fatal('No WebGL', 'This browser or device does not expose a WebGL context.');
+
+let regl;
+try {
+  regl = createREGL({
+    gl: gl,
+    extensions: ['OES_texture_float'],
+    optionalExtensions: ['OES_texture_float_linear','WEBGL_color_buffer_float','EXT_color_buffer_float',
+                         'EXT_float_blend','OES_texture_half_float','EXT_color_buffer_half_float',
+                         'OES_texture_half_float_linear','OES_standard_derivatives']
+  });
+} catch(e){
+  fatal('Float textures unavailable', 'The simulation stores positions and velocities in 32-bit float textures (OES_texture_float). This GPU or browser does not support them.');
+}
+if (gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) < 2)
+  fatal('No vertex texture fetch', 'The renderer reads particle state inside the vertex shader, which this GPU does not allow.');
+
+const MAX_POINT_PX = Math.min(256, (gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)||[1,64])[1] || 64);
+
+/* Simulation state must be 32-bit float (positions are used at kiloparsec and
+   sub-parsec scales in the same frame).  The HDR colour buffers only need
+   half precision, and half float is the safer choice there because additive
+   blending into 32-bit targets needs EXT_float_blend. */
+const hasHalf = !!(gl.getExtension('OES_texture_half_float') &&
+                   gl.getExtension('EXT_color_buffer_half_float'));
+const hasFloatBlend = !!gl.getExtension('EXT_float_blend');
+const RT_TYPE = hasHalf ? 'half float' : 'float';
+if (!hasHalf && !hasFloatBlend)
+  console.warn('Orrery: neither half-float targets nor EXT_float_blend are available; ' +
+               'additive star blending may be clamped.');
+
+/* ==========================================================================
+   1.  Units, constants
+       length  kpc      time  Myr      mass  1e10 Msun      speed kpc/Myr
+       (1 kpc/Myr = 978 km/s;  G = 0.0449823 in these units)
+   ========================================================================== */
+const G0 = 0.0449823;
+const MAXGAL = 4, MAXBH = 8;
+
+/* ==========================================================================
+   2.  Parameters
+   ========================================================================== */
+const P = {
+  texSize: 512,
+  dt: 1.0, gravity: 1.0, halo: 1.0, diskMass: 1.0, drag: 0.005, friction: 0.35,
+  arms: 2, pitch: 16, armAmp: 0.55, pattern: 0.024,
+  sfr: 0.0015, feedback: 0.30, youngLife: 45, snLife: 9,
+  bhMass: 0.0004, bhRadius: 0.02,
+  bound: 900,
+  exposure: 1.0, bloom: 0.75, starSize: 1.0, trails: 0.0, gasVis: 1.0,
+  colorMode: 0, resScale: 1.0,
+  autoRotate: false, paused: false
+};
+
+/* ==========================================================================
+   3.  Scenes.  A galaxy is an analytic Miyamoto–Nagai disk + logarithmic halo
+       + a rotating spiral perturbation, all rigidly attached to a core that
+       is itself integrated on the CPU.  Particles feel every galaxy at once,
+       which is what produces tidal bridges, tails and rings on collision.
+   ========================================================================== */
+function galaxy(o){
+  return Object.assign({
+    pos:[0,0,0], vel:[0,0,0], axis:[0,1,0],
+    diskM:5.0, a:3.6, b:0.30, v0:0.160, rc:6.0, Rd:4.6, thick:0.34,
+    fb:0.16, fg:0.30, bulgeR:1.2, spin:1, bh:0.0004
+  }, o);
+}
+const SCENES = {
+  'milky-way': {
+    label:'Milky Way', dist:46, spiral:{arms:2,pitch:15,amp:0.55,pattern:0.024},
+    gals:[ galaxy({}) ]
+  },
+  'grand-design': {
+    label:'Grand design', dist:44, spiral:{arms:2,pitch:24,amp:0.80,pattern:0.030},
+    gals:[ galaxy({diskM:6.0, Rd:5.2, fg:0.42, thick:0.22, v0:0.150}) ]
+  },
+  'flocculent': {
+    label:'Flocculent', dist:42, spiral:{arms:5,pitch:34,amp:0.42,pattern:0.019},
+    gals:[ galaxy({diskM:4.2, Rd:4.2, fg:0.38, thick:0.30}) ]
+  },
+  'barred': {
+    label:'Barred', dist:44, spiral:{arms:2,pitch:78,amp:0.50,pattern:0.036},
+    gals:[ galaxy({diskM:5.4, Rd:4.4, fb:0.22, fg:0.30, bulgeR:1.8}) ]
+  },
+  'antennae': {
+    label:'Antennae', dist:120, spiral:{arms:2,pitch:20,amp:0.55,pattern:0.022},
+    gals:[
+      galaxy({pos:[-24,0,-8], vel:[0.055,0.004,0.030], axis:norm([0.15,0.95,0.28]), diskM:5.0}),
+      galaxy({pos:[ 24,0, 8], vel:[-0.055,-0.004,-0.030], axis:norm([-0.25,0.86,-0.45]), diskM:4.2, Rd:4.0, spin:-1})
+    ]
+  },
+  'ring': {
+    label:'Ring strike', dist:110, spiral:{arms:2,pitch:18,amp:0.40,pattern:0.020},
+    gals:[
+      galaxy({pos:[0,0,0], vel:[0,0,0], diskM:6.0, Rd:5.0, fg:0.40}),
+      galaxy({pos:[0,-60,0], vel:[0,0.22,0], axis:norm([0.3,0.9,0.2]), diskM:1.6, a:1.2, Rd:1.6,
+              v0:0.085, rc:2.4, bulgeR:0.7, fb:0.5, fg:0.1, thick:0.5})
+    ]
+  },
+  'triple': {
+    label:'Triple merger', dist:150, spiral:{arms:3,pitch:22,amp:0.60,pattern:0.026},
+    gals:[
+      galaxy({pos:[-34,4,-10], vel:[0.048,0,0.020], axis:norm([0.2,0.9,0.3]), diskM:4.6}),
+      galaxy({pos:[ 30,-6,14], vel:[-0.040,0.006,-0.030], axis:norm([-0.4,0.8,0.4]), diskM:4.0, spin:-1, Rd:4.0}),
+      galaxy({pos:[ 6,26,-30], vel:[0.005,-0.052,0.036], axis:norm([0.7,0.4,-0.5]), diskM:3.2, Rd:3.4, rc:5.0})
+    ]
+  },
+  'cluster': {
+    label:'Compact group', dist:210, spiral:{arms:2,pitch:20,amp:0.50,pattern:0.022},
+    gals:[
+      galaxy({pos:[-46,10,-20], vel:[0.030,-0.006,0.024], axis:norm([0.1,0.95,0.3]), diskM:4.4}),
+      galaxy({pos:[ 48,-8, 18], vel:[-0.030,0.004,-0.022], axis:norm([-0.3,0.9,-0.3]), diskM:4.0, spin:-1}),
+      galaxy({pos:[ 10,44,-44], vel:[-0.020,-0.028,0.026], axis:norm([0.6,0.5,0.6]), diskM:3.4, Rd:3.8}),
+      galaxy({pos:[-14,-40, 46], vel:[0.024,0.030,-0.026], axis:norm([-0.5,0.6,-0.6]), diskM:3.0, Rd:3.4, spin:-1})
+    ]
+  },
+  'monster': {
+    label:'Monster core', dist:30, spiral:{arms:2,pitch:20,amp:0.35,pattern:0.028},
+    gals:[ galaxy({diskM:3.5, Rd:4.0, fg:0.34, bh:1.2, thick:0.28}) ]
+  },
+  'cold-gas': {
+    label:'Cold gas disk', dist:40, spiral:{arms:4,pitch:12,amp:0.85,pattern:0.026},
+    gals:[ galaxy({diskM:5.0, Rd:5.0, fg:0.72, fb:0.06, thick:0.16}) ]
+  }
+};
+
+function norm(v){ const l=Math.hypot(v[0],v[1],v[2])||1; return [v[0]/l,v[1]/l,v[2]/l]; }
+
+/* live state */
+let scene = 'milky-way';
+let gals = [];          // working copies (position integrated)
+let freeBH = [];        // wandering black holes {pos,vel,mass,radius}
+let simTime = 0;
+let seed = Math.random()*97;
+
+function loadScene(name){
+  scene = name;
+  const s = SCENES[name];
+  gals = s.gals.map(g => {
+    const c = JSON.parse(JSON.stringify(g));
+    c.base = JSON.parse(JSON.stringify(g));
+    return c;
+  });
+  freeBH = [];
+  P.arms = s.spiral.arms; P.pitch = s.spiral.pitch;
+  P.armAmp = s.spiral.amp; P.pattern = s.spiral.pattern;
+  simTime = 0;
+  seed = Math.random()*97;
+  cam.distTarget = s.dist; cam.dist = s.dist;
+  cam.target = gals[0].pos.slice();
+  cam.targetGoal = gals[0].pos.slice();
+  cam.follow = -1;
+  syncUI();
+  needsInit = true;
+}
+
+/* derived per-frame galaxy values (sliders are multipliers on the scene values) */
+function applyMultipliers(){
+  for (const g of gals){
+    g.diskM = g.base.diskM * P.diskMass;
+    g.v0    = g.base.v0    * P.halo;
+    g.bh    = (g.base.bh > 0.5 ? g.base.bh : P.bhMass);   // "monster" cores keep their own mass
+    g.mEff  = g.diskM + g.v0*g.v0*40.0/(G0*P.gravity + 1e-9);
+  }
+}
+
+/* ==========================================================================
+   4.  Shared GLSL — the physics kernel, used by the init and step passes.
+   ========================================================================== */
+const COMMON = `
+precision highp float;
+
+uniform sampler2D uPos, uVel, uVelNew;
+uniform vec2  uTexRes;
+uniform float uTime, uDt, uSeed, uNumGal, uNumBH, uBound;
+uniform vec3  uCenter;
+uniform vec3  uGalPos[4], uGalVel[4], uGalAxis[4];
+uniform vec4  uGalDisk[4];   // M, a, b, spin
+uniform vec4  uGalHalo[4];   // v0, rc, Rd, thickness
+uniform vec4  uGalMix[4];    // bulgeFrac, gasFrac, bulgeRadius, bhMass
+uniform vec4  uBH[8];        // xyz, mass
+uniform vec2  uBHr[8];       // accretion radius, softening
+uniform vec4  uGalCum;       // cumulative mass share, for assigning particles
+uniform vec4  uSpiral;       // arms, tan(pitch), amplitude, pattern speed
+uniform vec4  uPhys;         // G, gasDrag, sfr, feedback kick
+uniform vec2  uLife;         // young star lifetime, supernova lifetime
+
+/* Hashes take texel coordinates rather than a linear index: at 1024x1024 a
+   linear index reaches ~10^6, where float32 fract() has almost no entropy
+   left.  Texel coordinates stay under 1024 and hash cleanly. */
+float hash12(vec2 p){
+  vec3 q = fract(vec3(p.xyx)*0.1031);
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.x + q.y)*q.z);
+}
+vec3 hash32(vec2 p){
+  vec3 q = fract(vec3(p.xyx)*vec3(0.1031,0.1030,0.0973));
+  q += dot(q, q.yxz + 33.33);
+  return fract((q.xxy + q.yzz)*q.zyx);
+}
+float gaussish(vec3 h){ return (h.x + h.y + h.z - 1.5)*1.1547; }
+
+void basisFromN(vec3 n, out vec3 t, out vec3 b){
+  float s = n.z >= 0.0 ? 1.0 : -1.0;
+  float a = -1.0/(s + n.z);
+  float d = n.x*n.y*a;
+  t = vec3(1.0 + s*n.x*n.x*a, s*d, -s*n.x);
+  b = vec3(d, s + n.y*n.y*a, -n.y);
+}
+
+void getGal(float gi, out vec3 gp, out vec3 gv, out vec3 gn,
+            out vec4 gd, out vec4 gh, out vec4 gm){
+  gp = uGalPos[0]; gv = uGalVel[0]; gn = uGalAxis[0];
+  gd = uGalDisk[0]; gh = uGalHalo[0]; gm = uGalMix[0];
+  for (int i = 1; i < 4; i++){
+    if (float(i) < uNumGal && abs(float(i) - gi) < 0.5){
+      gp = uGalPos[i]; gv = uGalVel[i]; gn = uGalAxis[i];
+      gd = uGalDisk[i]; gh = uGalHalo[i]; gm = uGalMix[i];
+    }
+  }
+}
+
+/* A galaxy ten times lighter should get a tenth of the particles. */
+float pickGal(float h){
+  float gi = 0.0;
+  if (uNumGal > 1.5 && h > uGalCum.x) gi = 1.0;
+  if (uNumGal > 2.5 && h > uGalCum.y) gi = 2.0;
+  if (uNumGal > 3.5 && h > uGalCum.z) gi = 3.0;
+  return min(gi, uNumGal - 1.0);
+}
+
+/* Miyamoto-Nagai disk + logarithmic halo + optional density-wave spiral.
+   Returns acceleration; 'dens' is the arm overdensity used for star formation. */
+vec3 galAccel(vec3 Pw, vec3 gp, vec3 gn, vec4 gd, vec4 gh, float useSpiral, out float dens){
+  dens = 0.0;
+  vec3 r = Pw - gp;
+  float z = dot(r, gn);
+  vec3 rp = r - gn*z;
+  float R = length(rp);
+  float Rs = max(R, 1e-4);
+  vec3 Rh = rp/Rs;
+  float G = uPhys.x;
+
+  float M = gd.x, A = gd.y, B = gd.z;
+  float s = sqrt(z*z + B*B);
+  float D = A + s;
+  float q = R*R + D*D;
+  float den = q*sqrt(q) + 1e-9;
+  vec3 a = (-G*M*R/den)*Rh + (-G*M*z*D/(s*den))*gn;
+
+  float v0 = gh.x, rc = gh.y;
+  a += -(v0*v0)*r/(dot(r,r) + rc*rc);
+
+  if (useSpiral > 0.5 && uSpiral.x > 0.5 && uSpiral.z > 0.0001){
+    vec3 t, b; basisFromN(gn, t, b);
+    float phi  = atan(dot(rp,b), dot(rp,t));
+    float m    = uSpiral.x;
+    float spin = gd.w;
+    float Rd   = gh.z;
+    float psi  = m*spin*(phi - uSpiral.w*uTime) + m*log(max(Rs,0.08)/Rd)/uSpiral.y;
+    float c = cos(psi), sn = sin(psi);
+    /* Perturbing potential  -As * R e^(-R/Rd) T(R) cos(psi), with T tapering
+       the arms out of the centre where the axisymmetric force is weakest.
+       The tan(pitch)/(m+tan(pitch)) factor cancels the 1/tan(pitch) blow-up
+       that tight winding puts into the radial force, so "arm strength" means
+       the same thing at every pitch angle. */
+    float e  = exp(-Rs/Rd);
+    float R0 = 0.35*Rd;
+    float dn = Rs*Rs + R0*R0;
+    float T  = Rs*Rs/dn;
+    float Tp = 2.0*Rs*R0*R0/(dn*dn);
+    float gr = e*T;                                  // g(R)/R
+    float dg = e*((1.0 - Rs/Rd)*T + Rs*Tp);          // dg/dR
+    float As = uSpiral.z*0.35*(v0*v0 + G*gd.x/(Rd*8.0 + 1.0))
+             * uSpiral.y/(m + uSpiral.y);
+    float aR   =  As*(dg*c - m*gr*sn/uSpiral.y);
+    float aPhi = -As*m*gr*sn*spin;
+    a += aR*Rh + aPhi*normalize(cross(gn, Rh));
+    dens = max(c, 0.0)*gr*3.0*exp(-abs(z)/(gh.w*2.0 + 0.05));
+  }
+  return a;
+}
+
+float circSpeed(vec3 Pw, vec3 gp, vec3 gn, vec4 gd, vec4 gh, float bhm){
+  vec3 r = Pw - gp;
+  float z = dot(r, gn);
+  vec3 rp = r - gn*z;
+  float R = max(length(rp), 1e-3);
+  vec3 Rh = rp/R;
+  float dum;
+  vec3 a = galAccel(Pw, gp, gn, gd, gh, 0.0, dum);
+  float rr = dot(r,r) + 2.5e-5;
+  a -= uPhys.x*bhm*r/(rr*sqrt(rr));
+  return sqrt(max(0.0, -dot(a, Rh)*R));
+}
+
+/* Deterministic spawn used by both the initialiser and by recycling,
+   so the position and velocity passes always agree. */
+void spawn(vec2 sd, float gi, out vec3 Pw, out vec3 Vw, out float cls){
+  vec3 gp, gv, gn; vec4 gd, gh, gm;
+  getGal(gi, gp, gv, gn, gd, gh, gm);
+  vec3 t, b; basisFromN(gn, t, b);
+
+  vec3 h1 = hash32(sd + vec2(0.71, 2.13));
+  vec3 h2 = hash32(sd*1.317 + vec2(11.31, 5.07));
+  vec3 h3 = hash32(sd*0.713 + vec2(5.27, 19.41));
+
+  float u   = clamp(h1.x, 1e-4, 0.9994);
+  float phi = 6.2831853*h1.y;
+  float fb = gm.x, fg = gm.y;
+  vec3 pos, vel;
+
+  if (h1.z < fb){
+    /* spheroid */
+    cls = 2.0;
+    float rr = gm.z*pow(u, 0.62)/(1.0 - 0.62*u);
+    rr = min(rr, gm.z*7.0);
+    float ct = 2.0*h2.x - 1.0;
+    float st = sqrt(max(0.0, 1.0 - ct*ct));
+    float ph = 6.2831853*h2.y;
+    vec3 dir = t*(st*cos(ph)) + b*(st*sin(ph)) + gn*ct;
+    pos = gp + dir*rr;
+    float vc = circSpeed(pos, gp, gn, gd, gh, gm.w);
+    vel = gv + 0.36*vc*vec3(gaussish(h3),
+                            gaussish(fract(h3.yzx*7.31 + h2)),
+                            gaussish(fract(h2.zxy*3.17)))
+            + 0.25*vc*normalize(cross(gn, pos - gp) + 1e-6)*gd.w;
+  } else {
+    float isGas = (h1.z < fb + fg) ? 1.0 : 0.0;
+    float Rd = gh.z*(isGas > 0.5 ? 1.45 : 1.0);
+    float R  = min(-Rd*log(1.0 - u), Rd*5.5);
+    float th = gh.w*(isGas > 0.5 ? 0.26 : 1.0);
+    float z  = th*gaussish(h2);
+    pos = gp + t*(R*cos(phi)) + b*(R*sin(phi)) + gn*z;
+    float vc = circSpeed(pos, gp, gn, gd, gh, gm.w);
+    vec3 Rh  = normalize(pos - gp - gn*dot(pos - gp, gn) + 1e-7);
+    vec3 ph  = normalize(cross(gn, Rh));
+    float sR = vc*(isGas > 0.5 ? 0.030 : 0.115);
+    float sZ = vc*(isGas > 0.5 ? 0.018 : 0.070);
+    vel = gv + gd.w*vc*ph + Rh*(sR*gaussish(h3)) + gn*(sZ*gaussish(fract(h3.zxy*2.7 + h2)));
+    if (isGas > 0.5) cls = 0.0;
+    else cls = (h2.z < 0.035) ? 1.0 : 2.0;
+  }
+  Pw = pos; Vw = vel;
+}
+
+vec2 respawnSeed(vec2 fc){
+  float t = fract(floor(uTime*4.0)*0.137)*37.0;
+  return fc*0.6180339 + vec2(t + uSeed*7.77, uSeed*3.31 + fract(t*0.31)*11.0);
+}
+
+/* class transitions: 0 gas, 1 young star, 2 evolved star, 3 supernova remnant */
+float evolve(inout vec3 V, float cls, float age, float dens, float shock, float r1, float r2){
+  if (cls < 0.5){
+    /* collapse is fastest inside the arms and during a tidal encounter */
+    float p = uPhys.z*uDt*(dens*4.0 + 0.03)*(1.0 + shock*6.0);
+    return (r1 < p) ? 1.0 : 0.0;
+  } else if (cls < 1.5){
+    if (age > uLife.x) return (r2 < 0.24) ? 3.0 : 2.0;
+    return 1.0;
+  } else if (cls < 2.5){
+    /* slow mass return keeps a gas reservoir alive over gigayears */
+    return (r1 < 0.0004*uDt) ? 0.0 : 2.0;
+  }
+  if (age > uLife.y){
+    V += (hash32(vec2(r1, r2)*97.3)*2.0 - 1.0)*uPhys.w*0.06;
+    return 0.0;
+  }
+  return 3.0;
+}
+`;
+
+const QUAD_VERT = `
+precision highp float;
+attribute vec2 aPos;
+varying vec2 vUv;
+void main(){ vUv = aPos*0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }
+`;
+
+/* ---- initialise position ---- */
+const INIT_POS_FRAG = COMMON + `
+void main(){
+  vec2 fc = floor(gl_FragCoord.xy);
+  vec2 sd = fc + vec2(uSeed*13.7, uSeed*7.3);
+  float gi = pickGal(hash12(fc*1.031 + uSeed));
+  vec3 Pw, Vw; float cls;
+  spawn(sd, gi, Pw, Vw, cls);
+  gl_FragColor = vec4(Pw, hash12(fc*0.77 + 9.1)*uLife.x);
+}
+`;
+
+/* ---- initialise velocity + class code ---- */
+const INIT_VEL_FRAG = COMMON + `
+void main(){
+  vec2 fc = floor(gl_FragCoord.xy);
+  vec2 sd = fc + vec2(uSeed*13.7, uSeed*7.3);
+  float gi = pickGal(hash12(fc*1.031 + uSeed));
+  vec3 Pw, Vw; float cls;
+  spawn(sd, gi, Pw, Vw, cls);
+  gl_FragColor = vec4(Vw, gi*4.0 + cls);
+}
+`;
+
+/* ---- velocity step ---- */
+const VEL_FRAG = COMMON + `
+void main(){
+  vec2 fc = floor(gl_FragCoord.xy);
+  vec2 uv = (fc + 0.5)/uTexRes;
+
+  vec4 Pt = texture2D(uPos, uv);
+  vec4 Vt = texture2D(uVel, uv);
+  vec3 Pw = Pt.xyz, V = Vt.xyz;
+  float age = Pt.w;
+  float code = Vt.w;
+  float gi  = floor(code*0.25 + 0.001);
+  float cls = code - gi*4.0;
+
+  /* ---- gravity ---- */
+  vec3 a = vec3(0.0);
+  float dens = 0.0, shock = 0.0, eaten = 0.0;
+
+  for (int i = 0; i < 4; i++){
+    if (float(i) < uNumGal){
+      float d;
+      vec3 ag = galAccel(Pw, uGalPos[i], uGalAxis[i], uGalDisk[i], uGalHalo[i], 1.0, d);
+      a += ag;
+      if (abs(float(i) - gi) < 0.5) dens = max(dens, d);
+      else shock += length(ag)*26.0;
+    }
+  }
+  for (int i = 0; i < 8; i++){
+    if (float(i) < uNumBH){
+      vec3 d = Pw - uBH[i].xyz;
+      float sf = uBHr[i].y;
+      float rr = dot(d,d) + sf*sf;
+      a -= uPhys.x*uBH[i].w*d/(rr*sqrt(rr));
+      if (dot(d,d) < uBHr[i].x*uBHr[i].x) eaten = 1.0;
+    }
+  }
+
+  /* ---- gas is dissipative: it relaxes toward the local circular flow ---- */
+  if (cls < 0.5 && uPhys.y > 0.0){
+    vec3 gp, gv, gn; vec4 gd, gh, gm;
+    getGal(gi, gp, gv, gn, gd, gh, gm);
+    vec3 r = Pw - gp;
+    float z = dot(r, gn);
+    vec3 rp = r - gn*z;
+    float R = max(length(rp), 1e-3);
+    vec3 Rh = rp/R;
+    float vc = circSpeed(Pw, gp, gn, gd, gh, gm.w);
+    vec3 vloc = gv + gd.w*vc*normalize(cross(gn, Rh));
+    a += -uPhys.y*(V - vloc)*exp(-R/(gh.z*3.0));
+  }
+
+  if (length(Pw - uCenter) > uBound) eaten = 1.0;
+
+  V += a*uDt;
+
+  /* ---- stellar life cycle ---- */
+  float r1 = hash12(fc*0.7351 + vec2(fract(uTime*0.317)*23.0, uSeed*3.13));
+  float r2 = hash12(fc*1.2917 + vec2(uSeed*9.71, fract(uTime*0.113)*31.0));
+  float newCls = evolve(V, cls, age, dens, shock, r1, r2);
+  float newCode = gi*4.0 + newCls;
+
+  if (eaten > 0.5){
+    vec3 sp, sv; float sc;
+    spawn(respawnSeed(fc), gi, sp, sv, sc);
+    V = sv;
+    newCode = gi*4.0;         /* recycled as cold gas */
+  }
+  gl_FragColor = vec4(V, newCode);
+}
+`;
+
+/* ---- position step (reads the freshly written velocity) ---- */
+const POS_FRAG = COMMON + `
+void main(){
+  vec2 fc = floor(gl_FragCoord.xy);
+  vec2 uv = (fc + 0.5)/uTexRes;
+
+  vec4 Pt = texture2D(uPos, uv);
+  vec4 Vo = texture2D(uVel, uv);
+  vec4 Vn = texture2D(uVelNew, uv);
+  float gi = floor(Vn.w*0.25 + 0.001);
+
+  float eaten = 0.0;
+  for (int i = 0; i < 8; i++){
+    if (float(i) < uNumBH){
+      vec3 d = Pt.xyz - uBH[i].xyz;
+      if (dot(d,d) < uBHr[i].x*uBHr[i].x) eaten = 1.0;
+    }
+  }
+  if (length(Pt.xyz - uCenter) > uBound) eaten = 1.0;
+
+  vec3 np; float age;
+  if (eaten > 0.5){
+    vec3 sv; float sc;
+    spawn(respawnSeed(fc), gi, np, sv, sc);
+    age = 0.0;
+  } else {
+    np = Pt.xyz + Vn.xyz*uDt;
+    age = (abs(Vn.w - Vo.w) > 0.001) ? 0.0 : Pt.w + uDt;
+  }
+  gl_FragColor = vec4(np, age);
+}
+`;
+
+/* ==========================================================================
+   5.  Rendering shaders
+   ========================================================================== */
+const STAR_VERT = `
+precision highp float;
+attribute float aIndex;
+uniform sampler2D uPos, uVel;
+uniform vec2  uTexRes;
+uniform mat4  uProjView;
+uniform vec3  uCamTarget;
+uniform float uPixPerUnit, uStarRadius, uMinPx, uMaxPoint, uGasVis, uExposure;
+uniform float uColorMode, uYoungLife, uSnLife, uNumGal;
+varying vec3  vCol;
+varying float vBright;
+
+float h12(vec2 p){
+  vec3 q = fract(vec3(p.xyx)*0.1031);
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.x + q.y)*q.z);
+}
+vec3 ramp(float t){
+  t = clamp(t, 0.0, 1.0);
+  vec3 c1 = vec3(0.10,0.25,0.85), c2 = vec3(0.15,0.85,0.80),
+       c3 = vec3(0.95,0.90,0.35), c4 = vec3(1.00,0.25,0.18);
+  return t < 0.33 ? mix(c1,c2,t/0.33)
+       : t < 0.66 ? mix(c2,c3,(t-0.33)/0.33)
+                  : mix(c3,c4,(t-0.66)/0.34);
+}
+void main(){
+  float x = mod(aIndex, uTexRes.x);
+  float y = floor(aIndex/uTexRes.x);
+  vec2 uv = (vec2(x,y) + 0.5)/uTexRes;
+  vec4 Pt = texture2D(uPos, uv);
+  vec4 Vt = texture2D(uVel, uv);
+
+  float code = Vt.w;
+  float gi   = floor(code*0.25 + 0.001);
+  float cls  = code - gi*4.0;
+  float age  = Pt.w;
+
+  vec4 clip = uProjView*vec4(Pt.xyz - uCamTarget, 1.0);
+  gl_Position = clip;
+  float dist = max(clip.w, 1e-6);
+
+  vec3 col; float lum, rad;
+  if (cls < 0.5){
+    col = vec3(0.86,0.30,0.44); lum = 0.30*uGasVis; rad = 2.4;
+  } else if (cls < 1.5){
+    float f = clamp(age/uYoungLife, 0.0, 1.0);
+    col = mix(vec3(0.52,0.68,1.00), vec3(0.86,0.90,1.00), f);
+    lum = 7.5; rad = 1.15;
+  } else if (cls < 2.5){
+    col = vec3(1.00,0.74,0.44); lum = 1.0; rad = 1.0;
+  } else {
+    float f = clamp(age/uSnLife, 0.0, 1.0);
+    col = mix(vec3(0.92,1.00,0.96), vec3(0.35,0.95,0.62), f);
+    lum = 40.0*(1.0 - f)*(1.0 - f); rad = 3.2;
+  }
+
+  if (uColorMode > 0.5 && uColorMode < 1.5){
+    col = ramp(length(Vt.xyz)/0.32);
+  } else if (uColorMode > 1.5 && uColorMode < 2.5){
+    col = cls < 0.5 ? vec3(0.95,0.25,0.45)
+        : cls < 1.5 ? vec3(0.35,0.65,1.00)
+        : cls < 2.5 ? vec3(1.00,0.78,0.40) : vec3(0.40,1.00,0.60);
+  } else if (uColorMode > 2.5 && uColorMode < 3.5){
+    col = ramp(1.0 - clamp(age/(uYoungLife*8.0), 0.0, 1.0));
+  } else if (uColorMode > 3.5){
+    col = ramp(gi/max(uNumGal - 1.0, 1.0));
+  }
+
+  float jitter = 0.45 + 1.35*h12(vec2(x, y) + 1.7);
+
+  /* Photometry.  'ideal' is the sprite's true angular size in pixels, so
+     intensity per pixel goes as ideal^2/size^2: while the sprite is resolved
+     that is constant, which is the correct invariance of surface brightness
+     under distance, and it holds all the way down to the accretion radius of
+     a black hole.  The floor on the numerator is the one deliberate lie: it
+     stops a galaxy from fading to nothing when the camera pulls back to
+     megaparsec range, where it should merely become small. */
+  float minPx  = clamp(uMinPx, 0.6, 12.0);
+  float ideal  = uPixPerUnit*uStarRadius*rad/dist;
+  float size   = clamp(ideal, minPx, uMaxPoint);
+  float e      = max(ideal, minPx*0.55);
+  gl_PointSize = size;
+  vBright = lum*jitter*uExposure*(e*e)/(size*size);
+  vCol = col;
+}
+`;
+
+const STAR_FRAG = `
+precision highp float;
+varying vec3 vCol;
+varying float vBright;
+void main(){
+  vec2 d = gl_PointCoord - 0.5;
+  float r = length(d)*2.0;
+  if (r > 1.0) discard;
+  float core = exp(-5.0*r*r);
+  float halo = 0.14*pow(max(0.0, 1.0 - r), 3.0);
+  float spike = 0.10*max(0.0, 1.0 - abs(d.x)*14.0)*max(0.0, 1.0 - abs(d.y)*2.4)
+              + 0.10*max(0.0, 1.0 - abs(d.y)*14.0)*max(0.0, 1.0 - abs(d.x)*2.4);
+  gl_FragColor = vec4(vCol*vBright*(core + halo + spike), 1.0);
+}
+`;
+
+const FADE_FRAG = `
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D uSrc;
+uniform float uDecay;
+void main(){ gl_FragColor = vec4(texture2D(uSrc, vUv).rgb*uDecay, 1.0); }
+`;
+
+const BRIGHT_FRAG = `
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D uSrc;
+uniform vec2 uTexel;
+uniform float uThreshold;
+void main(){
+  vec3 s = vec3(0.0);
+  s += texture2D(uSrc, vUv + uTexel*vec2(-1.0,-1.0)).rgb;
+  s += texture2D(uSrc, vUv + uTexel*vec2( 1.0,-1.0)).rgb;
+  s += texture2D(uSrc, vUv + uTexel*vec2(-1.0, 1.0)).rgb;
+  s += texture2D(uSrc, vUv + uTexel*vec2( 1.0, 1.0)).rgb;
+  s *= 0.25;
+  float l = max(max(s.r, s.g), s.b);
+  float k = max(0.0, l - uThreshold)/max(l, 1e-5);
+  gl_FragColor = vec4(s*k, 1.0);
+}
+`;
+
+const BLUR_FRAG = `
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D uSrc;
+uniform vec2 uDir;
+void main(){
+  vec3 s = texture2D(uSrc, vUv).rgb*0.2270270;
+  s += (texture2D(uSrc, vUv + uDir*1.0).rgb + texture2D(uSrc, vUv - uDir*1.0).rgb)*0.1945946;
+  s += (texture2D(uSrc, vUv + uDir*2.0).rgb + texture2D(uSrc, vUv - uDir*2.0).rgb)*0.1216216;
+  s += (texture2D(uSrc, vUv + uDir*3.0).rgb + texture2D(uSrc, vUv - uDir*3.0).rgb)*0.0540540;
+  s += (texture2D(uSrc, vUv + uDir*4.0).rgb + texture2D(uSrc, vUv - uDir*4.0).rgb)*0.0162162;
+  gl_FragColor = vec4(s, 1.0);
+}
+`;
+
+const COMPOSITE_FRAG = `
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D uScene, uBloomA, uBloomB;
+uniform vec2 uResA, uResB;
+uniform float uBloom, uVignette;
+
+vec3 bilerp(sampler2D t, vec2 uv, vec2 res){
+  vec2 p = uv*res - 0.5;
+  vec2 f = fract(p);
+  vec2 base = (floor(p) + 0.5)/res;
+  vec2 tx = 1.0/res;
+  vec3 a = texture2D(t, base).rgb;
+  vec3 b = texture2D(t, base + vec2(tx.x, 0.0)).rgb;
+  vec3 c = texture2D(t, base + vec2(0.0, tx.y)).rgb;
+  vec3 d = texture2D(t, base + tx).rgb;
+  return mix(mix(a,b,f.x), mix(c,d,f.x), f.y);
+}
+vec3 aces(vec3 x){
+  return clamp((x*(2.51*x + 0.03))/(x*(2.43*x + 0.59) + 0.14), 0.0, 1.0);
+}
+void main(){
+  vec3 col = texture2D(uScene, vUv).rgb;
+  col += (bilerp(uBloomA, vUv, uResA)*0.65 + bilerp(uBloomB, vUv, uResB)*1.05)*uBloom;
+  vec2 q = vUv - 0.5;
+  col *= mix(1.0, 1.0 - dot(q,q)*1.05, uVignette);
+  col = aces(col);
+  gl_FragColor = vec4(pow(col, vec3(1.0/2.2)), 1.0);
+}
+`;
+
+/* ==========================================================================
+   6.  Resources
+   ========================================================================== */
+const quadBuf = regl.buffer([-1,-1, 3,-1, -1,3]);
+
+function floatTex(w, h, type){
+  return regl.texture({
+    width:w, height:h, type:type || 'float', format:'rgba',
+    min:'nearest', mag:'nearest', wrapS:'clamp', wrapT:'clamp'
+  });
+}
+function floatFbo(w, h){
+  return regl.framebuffer({color: floatTex(w,h,'float'), depth:false, stencil:false, depthStencil:false});
+}
+function hdrFbo(w, h){
+  return regl.framebuffer({color: floatTex(w,h,RT_TYPE), depth:false, stencil:false, depthStencil:false});
+}
+
+let N = P.texSize, COUNT = N*N;
+let posFbo = [], velFbo = [], cur = 0, needsInit = true;
+let indexBuf = null, indexCapacity = 0;
+
+function allocState(n){
+  N = n; COUNT = n*n;
+  for (const f of posFbo) f.destroy();
+  for (const f of velFbo) f.destroy();
+  posFbo = [floatFbo(n,n), floatFbo(n,n)];
+  velFbo = [floatFbo(n,n), floatFbo(n,n)];
+  cur = 0;
+  if (COUNT > indexCapacity){
+    const arr = new Float32Array(COUNT);
+    for (let i = 0; i < COUNT; i++) arr[i] = i;
+    if (indexBuf) indexBuf.destroy();
+    indexBuf = regl.buffer({data:arr, usage:'static'});
+    indexCapacity = COUNT;
+  }
+  needsInit = true;
+}
+
+/* the state textures must be renderable, otherwise there is no simulation */
+allocState(P.texSize);
+{
+  let complete = false;
+  try {
+    posFbo[0].use(function(){
+      complete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    });
+  } catch(e){ complete = false; }
+  if (!complete) fatal('Float framebuffers unsupported',
+    'This GPU accepts float textures but cannot render into them, so the particle state has nowhere to live. Try a desktop browser with hardware acceleration enabled.');
+}
+
+/* post-process targets */
+let sceneFbo = [], bloomA = null, bloomB = null, bloomC = null, bloomD = null;
+let RW = 1, RH = 1, BW = 1, BH2 = 1, CW = 1, CH = 1;
+
+function allocTargets(w, h){
+  RW = Math.max(2, w); RH = Math.max(2, h);
+  BW = Math.max(2, RW >> 2); BH2 = Math.max(2, RH >> 2);
+  CW = Math.max(2, RW >> 4); CH  = Math.max(2, RH >> 4);
+  for (const f of sceneFbo) f.destroy();
+  if (bloomA){ bloomA.destroy(); bloomB.destroy(); bloomC.destroy(); bloomD.destroy(); }
+  sceneFbo = [hdrFbo(RW,RH), hdrFbo(RW,RH)];
+  bloomA = hdrFbo(BW,BH2); bloomB = hdrFbo(BW,BH2);
+  bloomC = hdrFbo(CW,CH);  bloomD = hdrFbo(CW,CH);
+}
+
+/* ==========================================================================
+   7.  Uniform plumbing
+   ========================================================================== */
+const uf = {};   // shared uniform descriptors for every physics pass
+uf.uTexRes  = () => [N, N];
+uf.uTime    = () => simTime;
+uf.uDt      = () => stepDt;
+uf.uSeed    = () => seed;
+uf.uNumGal  = () => gals.length;
+uf.uNumBH   = () => bhList.length;
+uf.uBound   = () => P.bound;
+uf.uCenter  = () => centroid;
+uf.uGalCum  = () => {
+  const w = gals.map(g => Math.max(0.05, g.base.diskM));
+  const tot = w.reduce((a,b) => a + b, 0);
+  const c = [1,1,1,1];
+  let acc = 0;
+  for (let i = 0; i < gals.length; i++){ acc += w[i]/tot; c[i] = acc; }
+  return c;
+};
+uf.uSpiral  = () => [P.arms, Math.tan(P.pitch*Math.PI/180), P.armAmp, P.pattern];
+uf.uPhys    = () => [G0*P.gravity, P.drag, P.sfr, P.feedback];
+uf.uLife    = () => [P.youngLife, P.snLife];
+
+for (let i = 0; i < MAXGAL; i++){
+  const k = i;
+  uf['uGalPos['+k+']']  = () => gals[k] ? gals[k].pos  : [0,0,0];
+  uf['uGalVel['+k+']']  = () => gals[k] ? gals[k].vel  : [0,0,0];
+  uf['uGalAxis['+k+']'] = () => gals[k] ? gals[k].axis : [0,1,0];
+  uf['uGalDisk['+k+']'] = () => gals[k] ? [gals[k].diskM, gals[k].a, gals[k].b, gals[k].spin] : [1,1,1,1];
+  uf['uGalHalo['+k+']'] = () => gals[k] ? [gals[k].v0, gals[k].rc, gals[k].Rd, gals[k].thick] : [0.1,4,4,0.3];
+  uf['uGalMix['+k+']']  = () => gals[k] ? [gals[k].fb, gals[k].fg, gals[k].bulgeR, gals[k].bh] : [0.2,0.3,1,0];
+}
+for (let i = 0; i < MAXBH; i++){
+  const k = i;
+  uf['uBH['+k+']'] = () => {
+    const b = bhList[k];
+    return b ? [b.pos[0], b.pos[1], b.pos[2], b.mass] : [0,0,0,0];
+  };
+  uf['uBHr['+k+']'] = () => {
+    const b = bhList[k];
+    return b ? [b.radius, b.soft] : [0,1];
+  };
+}
+
+let bhList = [], centroid = [0,0,0], stepDt = 0;
+
+function simPass(frag, extra){
+  const u = Object.assign({}, uf, extra || {});
+  return regl({
+    vert: QUAD_VERT, frag: frag,
+    attributes:{aPos: quadBuf}, count:3,
+    uniforms: u,
+    depth:{enable:false, mask:false},
+    blend:{enable:false},
+    framebuffer: regl.prop('dst')
+  });
+}
+
+const initPosPass = simPass(INIT_POS_FRAG);
+const initVelPass = simPass(INIT_VEL_FRAG);
+const velPass = simPass(VEL_FRAG, {
+  uPos: regl.prop('pos'), uVel: regl.prop('vel')
+});
+const posPass = simPass(POS_FRAG, {
+  uPos: regl.prop('pos'), uVel: regl.prop('vel'), uVelNew: regl.prop('velNew')
+});
+
+const drawStars = regl({
+  vert: STAR_VERT, frag: STAR_FRAG,
+  attributes:{aIndex: () => indexBuf},
+  count: () => COUNT,
+  primitive: 'points',
+  uniforms:{
+    uPos: regl.prop('pos'), uVel: regl.prop('vel'),
+    uTexRes: () => [N, N],
+    uProjView: () => projView,
+    uCamTarget: () => cam.target,
+    uPixPerUnit: () => pixPerUnit,
+    uStarRadius: 0.0016,
+    uMinPx: () => P.starSize,
+    uMaxPoint: MAX_POINT_PX,
+    uGasVis: () => P.gasVis,
+    uExposure: () => 0.52*P.exposure,
+    uColorMode: () => P.colorMode,
+    uYoungLife: () => P.youngLife,
+    uSnLife: () => P.snLife,
+    uNumGal: () => gals.length
+  },
+  depth:{enable:false, mask:false},
+  blend:{enable:true, func:{src:'one', dst:'one'}, equation:'add'},
+  framebuffer: regl.prop('dst')
+});
+
+function postPass(frag, uniforms){
+  return regl({
+    vert: QUAD_VERT, frag: frag,
+    attributes:{aPos: quadBuf}, count:3,
+    uniforms: uniforms,
+    depth:{enable:false, mask:false},
+    blend:{enable:false},
+    framebuffer: regl.prop('dst')
+  });
+}
+const fadePass = postPass(FADE_FRAG, {uSrc: regl.prop('src'), uDecay: regl.prop('decay')});
+const brightPass = postPass(BRIGHT_FRAG, {
+  uSrc: regl.prop('src'), uTexel: regl.prop('texel'), uThreshold: regl.prop('threshold')
+});
+const blurPass = postPass(BLUR_FRAG, {uSrc: regl.prop('src'), uDir: regl.prop('dir')});
+const compositePass = regl({
+  vert: QUAD_VERT, frag: COMPOSITE_FRAG,
+  attributes:{aPos: quadBuf}, count:3,
+  uniforms:{
+    uScene: regl.prop('scene'), uBloomA: regl.prop('a'), uBloomB: regl.prop('b'),
+    uResA: () => [BW, BH2], uResB: () => [CW, CH],
+    uBloom: () => P.bloom, uVignette: 0.55
+  },
+  depth:{enable:false, mask:false},
+  blend:{enable:false}
+});
+
+/* ==========================================================================
+   8.  CPU side: the massive cores (galaxies + wandering black holes)
+   ========================================================================== */
+function jsGalAccel(p, g, G){
+  const rx = p[0]-g.pos[0], ry = p[1]-g.pos[1], rz = p[2]-g.pos[2];
+  const n = g.axis;
+  const z = rx*n[0] + ry*n[1] + rz*n[2];
+  const px = rx - n[0]*z, py = ry - n[1]*z, pz = rz - n[2]*z;
+  const R = Math.hypot(px, py, pz), Rs = Math.max(R, 1e-4);
+  const s = Math.sqrt(z*z + g.b*g.b), D = g.a + s;
+  const q = R*R + D*D, den = q*Math.sqrt(q) + 1e-9;
+  const cR = -G*g.diskM*R/den, cZ = -G*g.diskM*z*D/(s*den);
+  const hh = -(g.v0*g.v0)/(rx*rx + ry*ry + rz*rz + g.rc*g.rc);
+  const bb = -G*g.bh/Math.pow(rx*rx + ry*ry + rz*rz + 0.0025, 1.5);
+  return [ cR*px/Rs + cZ*n[0] + hh*rx + bb*rx,
+           cR*py/Rs + cZ*n[1] + hh*ry + bb*ry,
+           cR*pz/Rs + cZ*n[2] + hh*rz + bb*rz ];
+}
+
+function stepCores(dt){
+  const G = G0*P.gravity;
+  const acc = gals.map(() => [0,0,0]);
+
+  for (let i = 0; i < gals.length; i++){
+    for (let j = 0; j < gals.length; j++){
+      if (i === j) continue;
+      const A = gals[i], B = gals[j];
+      const dx = A.pos[0]-B.pos[0], dy = A.pos[1]-B.pos[1], dz = A.pos[2]-B.pos[2];
+      const r2 = dx*dx + dy*dy + dz*dz;
+      const s2 = B.rc*B.rc*0.85;
+      const f = -G*B.mEff/Math.pow(r2 + s2, 1.5);
+      acc[i][0] += f*dx; acc[i][1] += f*dy; acc[i][2] += f*dz;
+      /* dynamical friction: cores that interpenetrate must sink and merge */
+      const x = Math.sqrt(r2)/(B.rc*2.2 + 1e-6);
+      if (x < 1.0){
+        const k = P.friction*0.06*(1.0 - x)*(1.0 - x);
+        acc[i][0] -= k*(A.vel[0]-B.vel[0]);
+        acc[i][1] -= k*(A.vel[1]-B.vel[1]);
+        acc[i][2] -= k*(A.vel[2]-B.vel[2]);
+      }
+    }
+    for (const bh of freeBH){
+      const dx = gals[i].pos[0]-bh.pos[0], dy = gals[i].pos[1]-bh.pos[1], dz = gals[i].pos[2]-bh.pos[2];
+      const f = -G*bh.mass/Math.pow(dx*dx + dy*dy + dz*dz + 0.25, 1.5);
+      acc[i][0] += f*dx; acc[i][1] += f*dy; acc[i][2] += f*dz;
+    }
+  }
+  for (let i = 0; i < gals.length; i++){
+    const g = gals[i];
+    for (let k = 0; k < 3; k++){ g.vel[k] += acc[i][k]*dt; g.pos[k] += g.vel[k]*dt; }
+  }
+  for (const bh of freeBH){
+    const a = [0,0,0];
+    for (const g of gals){
+      const ag = jsGalAccel(bh.pos, g, G);
+      a[0] += ag[0]; a[1] += ag[1]; a[2] += ag[2];
+    }
+    for (let k = 0; k < 3; k++){ bh.vel[k] += a[k]*dt; bh.pos[k] += bh.vel[k]*dt; }
+  }
+}
+
+function rebuildBHList(){
+  bhList = [];
+  for (const g of gals)
+    bhList.push({pos:g.pos, mass:g.bh, radius:P.bhRadius*(g.bh > 0.5 ? 6 : 1), soft:Math.max(P.bhRadius*0.9, 0.004)});
+  for (const b of freeBH)
+    bhList.push({pos:b.pos, mass:b.mass, radius:b.radius, soft:Math.max(b.radius*0.9, 0.004)});
+  bhList = bhList.slice(0, MAXBH);
+  centroid = [0,0,0];
+  for (const g of gals){ centroid[0]+=g.pos[0]; centroid[1]+=g.pos[1]; centroid[2]+=g.pos[2]; }
+  const n = Math.max(1, gals.length);
+  centroid = [centroid[0]/n, centroid[1]/n, centroid[2]/n];
+}
+
+function dropBlackHole(){
+  if (gals.length + freeBH.length >= MAXBH) return;
+  const p = cam.target.slice();
+  /* give it a roughly circular orbit around whichever galaxy dominates here */
+  let best = null, bestD = Infinity;
+  for (const g of gals){
+    const d = Math.hypot(p[0]-g.pos[0], p[1]-g.pos[1], p[2]-g.pos[2]);
+    if (d < bestD){ bestD = d; best = g; }
+  }
+  let vel = [0,0,0];
+  if (best && bestD > 0.05){
+    const a = jsGalAccel(p, best, G0*P.gravity);
+    const vc = Math.sqrt(Math.max(0, Math.hypot(a[0],a[1],a[2])*bestD));
+    const r = [p[0]-best.pos[0], p[1]-best.pos[1], p[2]-best.pos[2]];
+    const n = best.axis;
+    let t = [n[1]*r[2]-n[2]*r[1], n[2]*r[0]-n[0]*r[2], n[0]*r[1]-n[1]*r[0]];
+    const l = Math.hypot(t[0],t[1],t[2]) || 1;
+    vel = [best.vel[0] + best.spin*vc*t[0]/l,
+           best.vel[1] + best.spin*vc*t[1]/l,
+           best.vel[2] + best.spin*vc*t[2]/l];
+  }
+  freeBH.push({pos:p, vel:vel, mass:Math.max(P.bhMass*50, 0.02), radius:Math.max(P.bhRadius*2, 0.02)});
+  flash('Black hole released');
+}
+
+/* ==========================================================================
+   9.  Camera
+   ========================================================================== */
+const cam = {
+  theta: 0.9, phi: 0.42, dist: 46, distTarget: 46,
+  target: [0,0,0], targetGoal: [0,0,0], follow: -1, fov: 45*Math.PI/180
+};
+let projView = new Float32Array(16), pixPerUnit = 600;
+
+function mat4Perspective(out, fovy, aspect, near, far){
+  const f = 1/Math.tan(fovy/2), nf = 1/(near - far);
+  out[0]=f/aspect; out[1]=0; out[2]=0; out[3]=0;
+  out[4]=0; out[5]=f; out[6]=0; out[7]=0;
+  out[8]=0; out[9]=0; out[10]=(far+near)*nf; out[11]=-1;
+  out[12]=0; out[13]=0; out[14]=2*far*near*nf; out[15]=0;
+  return out;
+}
+function mat4LookAt(out, eye, center, up){
+  let z0=eye[0]-center[0], z1=eye[1]-center[1], z2=eye[2]-center[2];
+  let l = 1/Math.hypot(z0,z1,z2); z0*=l; z1*=l; z2*=l;
+  let x0 = up[1]*z2 - up[2]*z1, x1 = up[2]*z0 - up[0]*z2, x2 = up[0]*z1 - up[1]*z0;
+  l = Math.hypot(x0,x1,x2);
+  if (!l){ x0=1; x1=0; x2=0; } else { l=1/l; x0*=l; x1*=l; x2*=l; }
+  const y0 = z1*x2 - z2*x1, y1 = z2*x0 - z0*x2, y2 = z0*x1 - z1*x0;
+  out[0]=x0; out[1]=y0; out[2]=z0; out[3]=0;
+  out[4]=x1; out[5]=y1; out[6]=z1; out[7]=0;
+  out[8]=x2; out[9]=y2; out[10]=z2; out[11]=0;
+  out[12]=-(x0*eye[0]+x1*eye[1]+x2*eye[2]);
+  out[13]=-(y0*eye[0]+y1*eye[1]+y2*eye[2]);
+  out[14]=-(z0*eye[0]+z1*eye[1]+z2*eye[2]);
+  out[15]=1;
+  return out;
+}
+function mat4Mul(out, a, b){
+  for (let i = 0; i < 4; i++){
+    const b0=b[i*4], b1=b[i*4+1], b2=b[i*4+2], b3=b[i*4+3];
+    out[i*4]   = b0*a[0] + b1*a[4] + b2*a[8]  + b3*a[12];
+    out[i*4+1] = b0*a[1] + b1*a[5] + b2*a[9]  + b3*a[13];
+    out[i*4+2] = b0*a[2] + b1*a[6] + b2*a[10] + b3*a[14];
+    out[i*4+3] = b0*a[3] + b1*a[7] + b2*a[11] + b3*a[15];
+  }
+  return out;
+}
+const _proj = new Float32Array(16), _view = new Float32Array(16);
+
+function updateCamera(dtms){
+  const k = Math.min(1, dtms/90);
+  cam.dist += (cam.distTarget - cam.dist)*k;
+  if (cam.follow >= 0 && cam.follow < gals.length)
+    cam.targetGoal = gals[cam.follow].pos.slice();
+  for (let i = 0; i < 3; i++) cam.target[i] += (cam.targetGoal[i] - cam.target[i])*k;
+  if (P.autoRotate) cam.theta += 0.00012*dtms*(60/60);
+
+  const cp = Math.cos(cam.phi), sp = Math.sin(cam.phi);
+  const eye = [Math.cos(cam.theta)*cp*cam.dist, sp*cam.dist, Math.sin(cam.theta)*cp*cam.dist];
+  const near = Math.max(cam.dist*1e-4, 1e-6);
+  const far  = cam.dist*400 + 4000;
+  mat4Perspective(_proj, cam.fov, RW/RH, near, far);
+  mat4LookAt(_view, eye, [0,0,0], [0,1,0]);
+  mat4Mul(projView, _proj, _view);
+  pixPerUnit = 0.5*RH/Math.tan(cam.fov/2);
+}
+
+/* ---- input ---- */
+let drag = null;
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('pointerdown', e => {
+  canvas.setPointerCapture(e.pointerId);
+  drag = {x:e.clientX, y:e.clientY, pan:(e.button === 2 || e.button === 1 || e.shiftKey)};
+});
+canvas.addEventListener('pointerup', e => { drag = null; });
+canvas.addEventListener('pointercancel', e => { drag = null; });
+canvas.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  drag.x = e.clientX; drag.y = e.clientY;
+  if (drag.pan){
+    /* screen right and screen up, in world space, so the sky follows the cursor */
+    const scale = cam.dist*2*Math.tan(cam.fov/2)/Math.max(1, canvas.clientHeight);
+    const cp = Math.cos(cam.phi), sp = Math.sin(cam.phi);
+    const z = [Math.cos(cam.theta)*cp, sp, Math.sin(cam.theta)*cp];   // target -> eye
+    const right = [Math.sin(cam.theta), 0, -Math.cos(cam.theta)];
+    const up = [z[1]*right[2] - z[2]*right[1],
+                z[2]*right[0] - z[0]*right[2],
+                z[0]*right[1] - z[1]*right[0]];
+    for (let i = 0; i < 3; i++)
+      cam.targetGoal[i] -= (right[i]*dx - up[i]*dy)*scale;
+    cam.follow = -1;
+  } else {
+    cam.theta -= dx*0.005;
+    cam.phi = Math.max(-1.5533, Math.min(1.5533, cam.phi + dy*0.005));
+  }
+});
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const f = Math.exp((e.deltaMode === 1 ? e.deltaY*16 : e.deltaY)*0.0016);
+  cam.distTarget = Math.max(2e-5, Math.min(4e4, cam.distTarget*f));
+}, {passive:false});
+
+/* pinch */
+const touches = new Map();
+canvas.addEventListener('pointerdown', e => touches.set(e.pointerId, [e.clientX, e.clientY]));
+canvas.addEventListener('pointermove', e => {
+  if (touches.has(e.pointerId)) touches.set(e.pointerId, [e.clientX, e.clientY]);
+  if (touches.size === 2){
+    const [a, b] = [...touches.values()];
+    const d = Math.hypot(a[0]-b[0], a[1]-b[1]);
+    if (pinchPrev > 0) cam.distTarget = Math.max(2e-5, Math.min(4e4, cam.distTarget*pinchPrev/d));
+    pinchPrev = d;
+    drag = null;
+  }
+});
+let pinchPrev = 0;
+function endTouch(e){ touches.delete(e.pointerId); if (touches.size < 2) pinchPrev = 0; }
+canvas.addEventListener('pointerup', endTouch);
+canvas.addEventListener('pointercancel', endTouch);
+
+window.addEventListener('keydown', e => {
+  const t = e.target && e.target.tagName;
+  if (t === 'INPUT' || t === 'SELECT') return;
+  const k = e.key.toLowerCase();
+  if (k === ' '){ e.preventDefault(); P.paused = !P.paused; syncUI(); flash(P.paused ? 'Paused' : 'Running'); }
+  else if (k === 'r'){ seed = Math.random()*97; needsInit = true; flash('Reseeded'); }
+  else if (k === 'h'){ toggleConsole(); }
+  else if (k === 'b'){ dropBlackHole(); }
+  else if (k === 'f'){ focusNearest(); }
+  else if (k === '?' || k === '/'){ document.getElementById('help').classList.toggle('show'); }
+  else if (k >= '1' && k <= '4'){
+    const i = +k - 1;
+    if (i < gals.length){ cam.follow = i; cam.targetGoal = gals[i].pos.slice(); flash('Following core ' + k); }
+  }
+});
+function focusNearest(){
+  let best = -1, bd = Infinity;
+  for (let i = 0; i < gals.length; i++){
+    const d = Math.hypot(gals[i].pos[0]-cam.target[0], gals[i].pos[1]-cam.target[1], gals[i].pos[2]-cam.target[2]);
+    if (d < bd){ bd = d; best = i; }
+  }
+  cam.follow = (cam.follow === best) ? -1 : best;
+  flash(cam.follow >= 0 ? 'Following nearest core' : 'Focus released');
+}
+
+/* ==========================================================================
+   10.  Console UI
+   ========================================================================== */
+const CONTROLS = [
+  {sec:'Scene'},
+  {type:'scenes'},
+  {type:'buttons', items:[
+    {t:'Reseed', fn:() => { seed = Math.random()*97; needsInit = true; }},
+    {t:'Pause', key:'paused', fn:() => { P.paused = !P.paused; }},
+    {t:'Drop black hole', fn:dropBlackHole},
+    {t:'Clear wanderers', fn:() => { freeBH = []; }}
+  ]},
+  {type:'select', k:'texSize', l:'Particles', opts:[
+    [128,'16,384'], [256,'65,536'], [384,'147,456'], [512,'262,144'],
+    [768,'589,824'], [1024,'1,048,576']
+  ], onChange:v => allocState(v)},
+
+  {sec:'Dynamics'},
+  {k:'dt', l:'Time step', min:0, max:4, step:0.02, u:'Myr'},
+  {k:'gravity', l:'Gravity', min:0.1, max:3, step:0.01, u:'×'},
+  {k:'halo', l:'Dark halo', min:0, max:2, step:0.01, u:'×'},
+  {k:'diskMass', l:'Disk mass', min:0.1, max:3, step:0.01, u:'×'},
+  {k:'drag', l:'Gas dissipation', min:0, max:0.06, step:0.0005, prec:4},
+  {k:'friction', l:'Dynamical friction', min:0, max:1.5, step:0.01},
+  {k:'bound', l:'Escape radius', min:120, max:3000, step:10, u:'kpc'},
+
+  {sec:'Spiral structure'},
+  {k:'arms', l:'Arms', min:0, max:8, step:1, int:true},
+  {k:'pitch', l:'Pitch angle', min:5, max:85, step:0.5, u:'°'},
+  {k:'armAmp', l:'Arm strength', min:0, max:2, step:0.01},
+  {k:'pattern', l:'Pattern speed', min:-0.06, max:0.06, step:0.001, u:'rad/Myr', prec:3},
+
+  {sec:'Stellar populations'},
+  {k:'sfr', l:'Star formation', min:0, max:0.02, step:0.0002, prec:4},
+  {k:'youngLife', l:'Young star life', min:5, max:400, step:1, u:'Myr'},
+  {k:'feedback', l:'Supernova kick', min:0, max:2, step:0.01},
+
+  {sec:'Black holes'},
+  {k:'bhMass', l:'Core mass', min:0, max:3, step:0.0002, u:'×10¹⁰ M☉', prec:4},
+  {k:'bhRadius', l:'Accretion radius', min:0.001, max:1.5, step:0.001, u:'kpc', prec:3},
+
+  {sec:'Optics'},
+  {k:'exposure', l:'Exposure', min:0.05, max:4, step:0.01},
+  {k:'bloom', l:'Bloom', min:0, max:2, step:0.01},
+  {k:'starSize', l:'Star size', min:0.6, max:8, step:0.05, u:'px'},
+  {k:'trails', l:'Trails', min:0, max:0.97, step:0.01},
+  {k:'gasVis', l:'Gas brightness', min:0, max:3, step:0.01},
+  {k:'resScale', l:'Resolution', min:0.4, max:1.5, step:0.05, onChange:() => resize(true)},
+  {type:'select', k:'colorMode', l:'Colour', opts:[
+    [0,'Astrophysical'], [1,'Speed'], [2,'Population'], [3,'Age'], [4,'Galaxy']
+  ]},
+  {type:'buttons', items:[
+    {t:'Auto-orbit', key:'autoRotate', fn:() => { P.autoRotate = !P.autoRotate; }},
+    {t:'Navigation help', fn:() => document.getElementById('help').classList.toggle('show')}
+  ]}
+];
+
+const scrollEl = document.getElementById('scroll');
+const sliderEls = {}, buttonEls = [];
+
+function buildUI(){
+  for (const c of CONTROLS){
+    if (c.sec){
+      const d = document.createElement('div'); d.className = 'sec'; d.textContent = c.sec;
+      scrollEl.appendChild(d); continue;
+    }
+    if (c.type === 'scenes'){
+      const wrap = document.createElement('div'); wrap.className = 'chips';
+      for (const key of Object.keys(SCENES)){
+        const b = document.createElement('button');
+        b.textContent = SCENES[key].label;
+        b.onclick = () => { loadScene(key); markScene(); };
+        b.dataset.scene = key;
+        wrap.appendChild(b);
+      }
+      scrollEl.appendChild(wrap); continue;
+    }
+    if (c.type === 'buttons'){
+      const wrap = document.createElement('div'); wrap.className = 'chips';
+      for (const it of c.items){
+        const b = document.createElement('button');
+        b.textContent = it.t;
+        b.onclick = () => { it.fn(); syncUI(); };
+        if (it.key) buttonEls.push({el:b, key:it.key});
+        wrap.appendChild(b);
+      }
+      scrollEl.appendChild(wrap); continue;
+    }
+    if (c.type === 'select'){
+      const row = document.createElement('div'); row.className = 'row';
+      const lab = document.createElement('label');
+      lab.innerHTML = '<span style="color:var(--ink-dim)">' + c.l + '</span>';
+      const sel = document.createElement('select');
+      for (const [v, t] of c.opts){
+        const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o);
+      }
+      sel.value = P[c.k];
+      sel.onchange = () => { P[c.k] = +sel.value; if (c.onChange) c.onChange(+sel.value); };
+      row.appendChild(lab); row.appendChild(sel); scrollEl.appendChild(row);
+      continue;
+    }
+    const row = document.createElement('div'); row.className = 'row';
+    const lab = document.createElement('label');
+    const nm = document.createElement('span'); nm.style.color = 'var(--ink-dim)'; nm.textContent = c.l;
+    const val = document.createElement('span');
+    lab.appendChild(nm); lab.appendChild(val);
+    const inp = document.createElement('input');
+    inp.type = 'range'; inp.min = c.min; inp.max = c.max; inp.step = c.step; inp.value = P[c.k];
+    inp.oninput = () => {
+      P[c.k] = c.int ? Math.round(+inp.value) : +inp.value;
+      val.textContent = fmt(c, P[c.k]);
+      if (c.onChange) c.onChange(P[c.k]);
+    };
+    val.textContent = fmt(c, P[c.k]);
+    row.appendChild(lab); row.appendChild(inp); scrollEl.appendChild(row);
+    sliderEls[c.k] = {inp, val, c};
+  }
+}
+function fmt(c, v){
+  const p = c.prec !== undefined ? c.prec : (c.int ? 0 : 2);
+  return v.toFixed(p) + (c.u ? ' ' + c.u : '');
+}
+function markScene(){
+  for (const b of scrollEl.querySelectorAll('[data-scene]'))
+    b.classList.toggle('on', b.dataset.scene === scene);
+}
+function syncUI(){
+  for (const k in sliderEls){
+    const s = sliderEls[k];
+    s.inp.value = P[k]; s.val.textContent = fmt(s.c, P[k]);
+  }
+  for (const b of buttonEls) b.el.classList.toggle('on', !!P[b.key]);
+  markScene();
+}
+function toggleConsole(){
+  const c = document.getElementById('console');
+  c.classList.toggle('hidden');
+  document.getElementById('showui').style.display = c.classList.contains('hidden') ? 'block' : 'none';
+}
+document.getElementById('showui').onclick = toggleConsole;
+document.getElementById('help').onclick = e => {
+  if (e.target.id === 'help') e.currentTarget.classList.remove('show');
+};
+
+/* transient status line reuses the elapsed gauge label */
+let flashText = '', flashUntil = 0;
+function flash(t){ flashText = t; flashUntil = performance.now() + 1600; }
+
+buildUI();
+
+/* ==========================================================================
+   11.  Resize
+   ========================================================================== */
+function resize(force){
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+  let w = Math.round(canvas.clientWidth*dpr*P.resScale);
+  let h = Math.round(canvas.clientHeight*dpr*P.resScale);
+  const cap = 2600;
+  if (w > cap){ h = Math.round(h*cap/w); w = cap; }
+  w = Math.max(2, w); h = Math.max(2, h);
+  if (!force && w === RW && h === RH) return;
+  canvas.width = w; canvas.height = h;
+  allocTargets(w, h);
+}
+window.addEventListener('resize', () => resize(false));
+resize(true);
+loadScene('milky-way');
+markScene();
+
+/* ==========================================================================
+   12.  Frame loop
+   ========================================================================== */
+const tCount = document.getElementById('tCount'), tTime = document.getElementById('tTime'),
+      tFps = document.getElementById('tFps'), tScale = document.getElementById('tScale'),
+      zoomdot = document.getElementById('zoomdot');
+let fps = 60, lastHud = 0;
+
+function fmtLength(kpc){
+  if (kpc >= 1000) return (kpc/1000).toFixed(kpc >= 10000 ? 0 : 2) + ' Mpc';
+  if (kpc >= 1)    return kpc.toFixed(kpc >= 100 ? 0 : 1) + ' kpc';
+  if (kpc >= 1e-3) return (kpc*1000).toFixed(kpc >= 1e-2 ? 0 : 1) + ' pc';
+  return (kpc*2.06265e8).toFixed(0) + ' AU';
+}
+
+regl.frame(function(ctx){
+  const dtms = Math.min(64, ctx.time && ctx.deltaTime ? ctx.deltaTime*1000 : 16);
+  fps += ((1000/Math.max(1, dtms)) - fps)*0.08;
+
+  resize(false);
+  applyMultipliers();
+  rebuildBHList();
+
+  stepDt = P.paused ? 0 : P.dt;
+
+  /* --- state --- */
+  if (needsInit){
+    stepDt = 0;
+    initPosPass({dst: posFbo[cur]});
+    initVelPass({dst: velFbo[cur]});
+    needsInit = false;
+  } else if (stepDt > 0){
+    stepCores(stepDt);
+    rebuildBHList();
+    const nxt = 1 - cur;
+    velPass({dst: velFbo[nxt], pos: posFbo[cur].color[0], vel: velFbo[cur].color[0]});
+    posPass({dst: posFbo[nxt], pos: posFbo[cur].color[0], vel: velFbo[cur].color[0],
+             velNew: velFbo[nxt].color[0]});
+    cur = nxt;
+    simTime += stepDt;
+  }
+
+  updateCamera(dtms);
+
+  /* --- draw --- */
+  const src = sceneFbo[0], dst = sceneFbo[1];
+  if (P.trails > 0.001){
+    fadePass({dst: dst, src: src.color[0], decay: P.trails});
+  } else {
+    regl.clear({color:[0,0,0,1], framebuffer: dst});
+  }
+  drawStars({dst: dst, pos: posFbo[cur].color[0], vel: velFbo[cur].color[0]});
+  sceneFbo[0] = dst; sceneFbo[1] = src;
+
+  const scn = sceneFbo[0];
+  brightPass({dst: bloomA, src: scn.color[0], texel:[1/RW, 1/RH], threshold: 0.32});
+  blurPass({dst: bloomB, src: bloomA.color[0], dir:[1.4/BW, 0]});
+  blurPass({dst: bloomA, src: bloomB.color[0], dir:[0, 1.4/BH2]});
+  brightPass({dst: bloomC, src: bloomA.color[0], texel:[1/BW, 1/BH2], threshold: 0.0});
+  blurPass({dst: bloomD, src: bloomC.color[0], dir:[1.6/CW, 0]});
+  blurPass({dst: bloomC, src: bloomD.color[0], dir:[0, 1.6/CH]});
+
+  regl.clear({color:[0,0,0,1]});
+  compositePass({scene: scn.color[0], a: bloomA.color[0], b: bloomC.color[0]});
+
+  /* --- telemetry --- */
+  const now = performance.now();
+  if (now - lastHud > 120){
+    lastHud = now;
+    tCount.textContent = COUNT.toLocaleString();
+    tFps.innerHTML = fps.toFixed(0) + '<em>fps</em>';
+    if (now < flashUntil) tTime.innerHTML = flashText;
+    else tTime.innerHTML = simTime < 1000
+        ? simTime.toFixed(0) + '<em>Myr</em>'
+        : (simTime/1000).toFixed(2) + '<em>Gyr</em>';
+    const fovWorld = 2*cam.dist*Math.tan(cam.fov/2);
+    tScale.textContent = fmtLength(fovWorld);
+    const t = (Math.log10(cam.dist) + 5)/(Math.log10(4e4) + 5);
+    zoomdot.style.left = (Math.max(0, Math.min(1, t))*105) + 'px';
+  }
+});
+
+})();
+</script>
+</body>
+</html>

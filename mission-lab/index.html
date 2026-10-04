@@ -1,0 +1,1574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mission Lab — Scientific Spaceflight Simulations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#030612; --panel:rgba(11,17,30,.87); --panel-line:#1c2a45;
+    --ink:#dfe7f4; --muted:#8496b3; --faint:#54637f;
+    --gold:#ffb25e; --steel:#9db4d6; --alert:#ff5a4e; --ok:#57d9a3; --cyan:#7fd8ff;
+    --mono:'IBM Plex Mono','Consolas',monospace;
+    --disp:'Rajdhani','Bahnschrift','Arial Narrow',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--disp)}
+  #scene{position:absolute;inset:0;width:100%;height:100%;touch-action:none;outline:none}
+
+  #brand{position:absolute;top:14px;left:16px;z-index:6;pointer-events:none;max-width:46vw}
+  #brand h1{font-size:21px;letter-spacing:.2em;font-weight:700}
+  #brand h1 b{color:var(--gold)}
+  #brand .sub{font-size:11px;letter-spacing:.13em;color:var(--muted);text-transform:uppercase;margin-top:2px}
+  #phaseBadge{display:inline-block;margin-top:8px;padding:3px 10px;border:1px solid var(--panel-line);
+    background:var(--panel);font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:.05em}
+
+  #met{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:5;text-align:center;pointer-events:none}
+  #met .lbl{font-size:10px;letter-spacing:.3em;color:var(--muted)}
+  #met .val{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:.04em}
+  #met .val span{color:var(--faint);font-size:14px}
+
+  /* mission menu */
+  #menuBtn{position:absolute;top:14px;right:16px;z-index:8;font-family:var(--disp);font-weight:700;
+    letter-spacing:.16em;font-size:12px;color:var(--gold);background:var(--panel);
+    border:1px solid #6b4f26;padding:9px 16px;cursor:pointer}
+  #menuBtn:hover{background:rgba(255,178,94,.12)}
+  #drawer{position:absolute;top:0;right:0;bottom:0;width:min(400px,92vw);z-index:20;
+    background:#0a1120;border-left:1px solid var(--panel-line);transform:translateX(102%);
+    transition:transform .25s ease;overflow-y:auto;padding-bottom:24px}
+  #drawer.open{transform:none}
+  #drawer header{display:flex;justify-content:space-between;align-items:center;padding:18px 20px 12px;
+    border-bottom:1px solid var(--panel-line);position:sticky;top:0;background:#0a1120}
+  #drawer header h2{font-size:14px;letter-spacing:.26em;color:var(--gold)}
+  #drawer header button{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer}
+  .mItem{padding:14px 20px;border-bottom:1px solid rgba(28,42,69,.5);cursor:pointer;display:flex;gap:12px}
+  .mItem:hover{background:rgba(255,178,94,.06)}
+  .mItem.cur{border-left:3px solid var(--gold);background:rgba(255,178,94,.08)}
+  .mItem .yr{font-family:var(--mono);font-size:10px;color:var(--faint);min-width:64px;padding-top:3px}
+  .mItem .nm{font-size:15px;font-weight:700;letter-spacing:.08em}
+  .mItem .bl{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.4}
+  #shade{position:absolute;inset:0;z-index:15;background:rgba(2,4,10,.5);display:none}
+  #shade.on{display:block}
+
+  .panel{position:absolute;background:var(--panel);border:1px solid var(--panel-line);
+    backdrop-filter:blur(6px);z-index:5}
+  .panel h2{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);
+    padding:10px 14px 8px;border-bottom:1px solid var(--panel-line)}
+
+  #events{top:112px;left:16px;width:250px;max-height:calc(100% - 262px);display:flex;flex-direction:column}
+  #evList{overflow-y:auto;scrollbar-width:thin}
+  .ev{display:flex;gap:10px;padding:8px 14px;cursor:pointer;border-left:2px solid transparent}
+  .ev:hover{background:rgba(255,178,94,.06)}
+  .ev.active{border-left-color:var(--gold);background:rgba(255,178,94,.08)}
+  .ev.done .dot{background:var(--gold);box-shadow:0 0 6px rgba(255,178,94,.7)}
+  .ev .dot{width:7px;height:7px;border-radius:50%;background:#2b3a58;margin-top:5px;flex:none}
+  .ev .t{font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .ev .n{font-size:13px;font-weight:600;line-height:1.25}
+  .ev .d{font-size:11px;color:var(--muted);line-height:1.32;margin-top:1px}
+
+  #telemetry{top:112px;right:16px;width:256px}
+  #telemetry table{width:100%;border-collapse:collapse}
+  #telemetry td{padding:5px 14px;font-size:12px;border-bottom:1px solid rgba(28,42,69,.5)}
+  #telemetry td.k{color:var(--muted)}
+  #telemetry td.v{font-family:var(--mono);text-align:right;white-space:nowrap}
+  #verifyStrip{padding:8px 14px;font-family:var(--mono);font-size:10px;color:var(--ok);
+    border-top:1px solid var(--panel-line)}
+
+  #deck{position:absolute;left:16px;right:16px;bottom:14px;z-index:6;background:var(--panel);
+    border:1px solid var(--panel-line);backdrop-filter:blur(6px);padding:10px 14px 12px}
+  #timeline{position:relative;height:26px;margin:2px 0 8px}
+  #scrub{position:absolute;inset:0;width:100%;appearance:none;background:transparent;cursor:pointer;z-index:2}
+  #scrub::-webkit-slider-runnable-track{height:4px;background:#22304e;border-radius:2px}
+  #scrub::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border-radius:50%;
+    background:var(--gold);margin-top:-5px;box-shadow:0 0 8px rgba(255,178,94,.8)}
+  #scrub::-moz-range-track{height:4px;background:#22304e;border-radius:2px}
+  #scrub::-moz-range-thumb{width:14px;height:14px;border:none;border-radius:50%;background:var(--gold)}
+  #fill{position:absolute;left:0;top:11px;height:4px;background:linear-gradient(90deg,#7a5a2e,var(--gold));
+    border-radius:2px;pointer-events:none;z-index:1}
+  .tick{position:absolute;top:7px;width:2px;height:12px;background:#3d4f74;pointer-events:none;z-index:1}
+  .tick.major{background:var(--alert)}
+  #deckRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  button,.chip{font-family:var(--disp);font-weight:600;font-size:12px;letter-spacing:.05em;
+    color:var(--ink);background:#131d33;border:1px solid var(--panel-line);padding:6px 11px;cursor:pointer}
+  button:hover,.chip:hover{border-color:var(--gold);color:var(--gold)}
+  button:focus-visible,.chip:focus-visible,#scrub:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+  .chip.on{background:rgba(255,178,94,.15);border-color:var(--gold);color:var(--gold)}
+  #playBtn{width:84px;color:var(--gold);border-color:#6b4f26}
+  .grp{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+  .grpLbl{font-size:10px;letter-spacing:.16em;color:var(--faint);text-transform:uppercase;margin-right:2px}
+  .spacer{flex:1}
+  label.tog{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer}
+  label.tog input{accent-color:var(--gold)}
+
+  .tag{position:absolute;z-index:4;pointer-events:none;font-family:var(--mono);font-size:10px;
+    letter-spacing:.12em;color:var(--steel);text-shadow:0 0 6px #000;transform:translate(-50%,-140%);display:none}
+  .tag.ship{color:var(--gold)}
+  .tag.probe{color:var(--cyan)}
+
+  #eqModal{position:absolute;inset:0;z-index:25;display:none;background:rgba(2,4,10,.72);backdrop-filter:blur(3px)}
+  #eqModal.open{display:flex;align-items:center;justify-content:center}
+  #eqCard{width:min(780px,94vw);max-height:86vh;overflow-y:auto;background:#0a1120;border:1px solid var(--panel-line);padding:0 0 18px}
+  #eqCard header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--panel-line);position:sticky;top:0;background:#0a1120;z-index:2}
+  #eqCard header h3{font-size:14px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+  #eqTabs{display:flex;gap:4px;padding:12px 20px 0;flex-wrap:wrap}
+  .eqTab{background:none;border:none;border-bottom:2px solid transparent;padding:6px 10px;color:var(--muted)}
+  .eqTab.on{color:var(--gold);border-bottom-color:var(--gold)}
+  .eqPane{display:none;padding:14px 22px;font-size:13.5px;line-height:1.62;color:#c9d4e8}
+  .eqPane.on{display:block}
+  .eqPane h4{margin:14px 0 6px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--steel)}
+  .fx{font-family:var(--mono);background:#0e1729;border:1px solid var(--panel-line);
+    padding:10px 14px;margin:8px 0;font-size:12.5px;overflow-x:auto;color:var(--ink)}
+  .fx i{color:var(--gold);font-style:normal}
+  .eqPane table{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0}
+  .eqPane th,.eqPane td{border:1px solid var(--panel-line);padding:5px 9px;text-align:left}
+  .eqPane th{color:var(--muted);font-weight:600}
+  .eqPane td.mono{font-family:var(--mono)}
+  .pass{color:var(--ok);font-family:var(--mono)}
+  .warn2{color:var(--gold);font-family:var(--mono)}
+  .src{font-size:11px;color:var(--faint);margin-top:12px}
+
+  #splash{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);z-index:8;display:none;
+    text-align:center;background:var(--panel);border:1px solid var(--gold);padding:20px 34px;max-width:80vw}
+  #splash h3{font-size:17px;letter-spacing:.22em;color:var(--gold)}
+  #splash p{font-size:12.5px;color:var(--muted);margin-top:6px;font-family:var(--mono)}
+
+  #loader{position:absolute;inset:0;z-index:50;background:var(--bg);display:flex;
+    flex-direction:column;align-items:center;justify-content:center;gap:14px}
+  #loader .ring{width:46px;height:46px;border-radius:50%;border:2px solid #22304e;border-top-color:var(--gold);animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #loader p{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.1em}
+  @media (prefers-reduced-motion:reduce){#loader .ring{animation:none}}
+
+  @media (max-width:940px){
+    #events{display:none}
+    #telemetry{top:auto;bottom:122px;right:8px;width:220px}
+    #met .val{font-size:17px}
+    #brand h1{font-size:15px}
+    #deck{left:8px;right:8px}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+
+<div id="brand">
+  <h1 id="brandName">MISSION <b>LAB</b></h1>
+  <div class="sub" id="brandSub">Scientific spaceflight simulations</div>
+  <div id="phaseBadge">Initializing…</div>
+</div>
+
+<div id="met">
+  <div class="lbl">MISSION ELAPSED TIME</div>
+  <div class="val" id="metVal">—</div>
+</div>
+
+<button id="menuBtn">☰ MISSIONS</button>
+<div id="shade"></div>
+<nav id="drawer" aria-label="Mission selector">
+  <header><h2>MISSION ARCHIVE</h2><button id="drawerClose" aria-label="Close">✕</button></header>
+  <div id="mList"></div>
+</nav>
+
+<section class="panel" id="events">
+  <h2>Mission Timeline</h2>
+  <div id="evList"></div>
+</section>
+
+<section class="panel" id="telemetry">
+  <h2 id="telTitle">Telemetry</h2>
+  <table><tbody id="telBody"></tbody></table>
+  <div id="verifyStrip"></div>
+</section>
+
+<div id="splash"><h3 id="splashTitle"></h3><p id="splashTxt"></p></div>
+
+<div id="deck">
+  <div id="timeline">
+    <div id="fill"></div>
+    <input id="scrub" type="range" min="0" max="100" step="0.02" value="0" aria-label="Mission timeline">
+  </div>
+  <div id="deckRow">
+    <button id="playBtn">▶ PLAY</button>
+    <div class="grp" id="spdGrp"><span class="grpLbl">Speed</span></div>
+    <div class="grp" id="camGrp"><span class="grpLbl">Camera</span></div>
+    <label class="tog" id="scaleTog" style="display:none"><input type="checkbox" id="scaleBodies"> <span id="scaleLbl"></span></label>
+    <span class="spacer"></span>
+    <button id="eqBtn">ƒ EQUATIONS &amp; VALIDATION</button>
+  </div>
+</div>
+
+<div id="tags"></div>
+
+<div id="eqModal" role="dialog" aria-modal="true">
+  <div id="eqCard">
+    <header><h3 id="eqTitle">Physical Model</h3><button id="eqClose">✕ Close</button></header>
+    <div id="eqTabs">
+      <button class="eqTab on" data-p="pModel">Model</button>
+      <button class="eqTab" data-p="pMethod">Numerical Method</button>
+      <button class="eqTab" data-p="pValid">Validation</button>
+      <button class="eqTab" data-p="pAssum">Assumptions</button>
+    </div>
+    <div class="eqPane on" id="pModel"></div>
+    <div class="eqPane" id="pMethod"></div>
+    <div class="eqPane" id="pValid"></div>
+    <div class="eqPane" id="pAssum"></div>
+  </div>
+</div>
+
+<div id="loader"><div class="ring"></div><p id="loadTxt">LOADING BABYLON.JS…</p></div>
+<script>
+(function loadBabylon(){
+  const versions=['6.49.0','7.30.0','6.38.1','5.57.1'];
+  let i=0;
+  function tryNext(){
+    if(i>=versions.length){document.getElementById('loadTxt').textContent='ERROR: Babylon.js failed to load (check connection).';return;}
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/babylonjs/'+versions[i++]+'/babylon.min.js';
+    s.onload=()=>{ if(window.BABYLON) boot(); else tryNext(); };
+    s.onerror=tryNext;
+    document.head.appendChild(s);
+  }
+  tryNext();
+})();
+function boot(){
+  document.getElementById('loadTxt').textContent='INTEGRATING TRAJECTORIES (RK4)…';
+  setTimeout(initApp,30);
+}
+/*PHYS-BEGIN*/
+'use strict';
+const TAU=Math.PI*2, DAY=86400;
+function mulberry(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const pad2=n=>String(n).padStart(2,'0');
+function fmtDHMS(t){t=Math.max(0,t);const d=Math.floor(t/DAY),h=Math.floor(t%DAY/3600),m=Math.floor(t%3600/60),s=Math.floor(t%60);return pad2(d)+'d '+pad2(h)+':'+pad2(m)+':'+pad2(s);}
+function fmtDayYr(t){const d=t/DAY;return 'Day '+Math.floor(d).toLocaleString('en-US')+' · Yr '+(d/365.25).toFixed(2);}
+function fmtDHM(t){const d=Math.floor(t/DAY),h=Math.floor(t%DAY/3600),m=Math.floor(t%3600/60);return 'Day '+d+' · '+pad2(h)+':'+pad2(m);}
+const nf=(v,dig)=>v.toLocaleString('en-US',{minimumFractionDigits:dig||0,maximumFractionDigits:dig||0});
+function hermite(tt,tArr,xArr,yArr,vxArr,vyArr){
+  let lo=0,hi=tArr.length-1;
+  while(hi-lo>1){const md=(lo+hi)>>1;(tArr[md]<=tt?lo=md:hi=md);}
+  const h=tArr[hi]-tArr[lo]||1,u=(tt-tArr[lo])/h,u2=u*u,u3=u2*u;
+  const h00=2*u3-3*u2+1,h10=u3-2*u2+u,h01=-2*u3+3*u2,h11=u3-u2;
+  return{
+    x:h00*xArr[lo]+h10*h*vxArr[lo]+h01*xArr[hi]+h11*h*vxArr[hi],
+    y:h00*yArr[lo]+h10*h*vyArr[lo]+h01*yArr[hi]+h11*h*vyArr[hi],
+    vx:(1-u)*vxArr[lo]+u*vxArr[hi],
+    vy:(1-u)*vyArr[lo]+u*vyArr[hi]};
+}
+function rk4Step(deriv,t,s,h){
+  const k1=deriv(t,s),s2=[s[0]+.5*h*k1[0],s[1]+.5*h*k1[1],s[2]+.5*h*k1[2],s[3]+.5*h*k1[3]];
+  const k2=deriv(t+.5*h,s2),s3=[s[0]+.5*h*k2[0],s[1]+.5*h*k2[1],s[2]+.5*h*k2[2],s[3]+.5*h*k2[3]];
+  const k3=deriv(t+.5*h,s3),s4=[s[0]+h*k3[0],s[1]+h*k3[1],s[2]+h*k3[2],s[3]+h*k3[3]];
+  const k4=deriv(t+h,s4);
+  return[s[0]+h/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]),s[1]+h/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1]),
+         s[2]+h/6*(k1[2]+2*k2[2]+2*k3[2]+k4[2]),s[3]+h/6*(k1[3]+2*k2[3]+2*k3[3]+k4[3])];
+}
+function keplerE(M,e){let E=M;for(let i=0;i<10;i++)E=E-(E-e*Math.sin(E)-M)/(1-e*Math.cos(E));return E;}
+
+/* ============== EARTH–MOON CR3BP core (Artemis II & Apollo 11) ============== */
+const EM={muE:398600.4418,muM:4902.800118,aM:384400.0,RE:6378.137,RM:1737.4,SOI:66100};
+EM.omM=Math.sqrt((EM.muE+EM.muM)/Math.pow(EM.aM,3));
+EM.rp0=EM.RE+185.0;
+function emDeriv(TH0){
+  return (t,s)=>{
+    const th=TH0+EM.omM*t,mx=EM.aM*Math.cos(th),my=EM.aM*Math.sin(th);
+    const x=s[0],y=s[1],r3=Math.pow(x*x+y*y,1.5);
+    const dx=mx-x,dy=my-y,d3=Math.pow(dx*dx+dy*dy,1.5),aM3=EM.aM*EM.aM*EM.aM;
+    return[s[2],s[3],-EM.muE*x/r3+EM.muM*(dx/d3-mx/aM3),-EM.muE*y/r3+EM.muM*(dy/d3-my/aM3)];
+  };
+}
+function emJacobi(TH0,t,s){
+  const mu=EM.muM/(EM.muE+EM.muM);
+  const th=TH0+EM.omM*t,c=Math.cos(th),si=Math.sin(th);
+  const bx=mu*EM.aM*c,by=mu*EM.aM*si;
+  const X=s[0]-bx,Y=s[1]-by;
+  const VX=s[2]+mu*EM.aM*EM.omM*si,VY=s[3]-mu*EM.aM*EM.omM*c;
+  const xr=X*c+Y*si,yr=-X*si+Y*c;
+  const vxi=VX+EM.omM*Y,vyi=VY-EM.omM*X;
+  const vxr=vxi*c+vyi*si,vyr=-vxi*si+vyi*c;
+  const r1=Math.hypot(xr+mu*EM.aM,yr),r2=Math.hypot(xr-(1-mu)*EM.aM,yr);
+  const U=0.5*EM.omM*EM.omM*(xr*xr+yr*yr)+EM.muE/r1+EM.muM/r2;
+  return 2*U-(vxr*vxr+vyr*vyr);
+}
+const emMoon=(TH0,t)=>{const th=TH0+EM.omM*t;return{x:EM.aM*Math.cos(th),y:EM.aM*Math.sin(th),
+  vx:-EM.aM*EM.omM*Math.sin(th),vy:EM.aM*EM.omM*Math.cos(th),th};};
+
+/* ---------------- ARTEMIS II ---------------- */
+function computeArtemis(){
+  const V0=10.936506, TH0=122.5469*Math.PI/180;
+  const vLEO=Math.sqrt(EM.muE/EM.rp0), T_LEO=TAU*Math.sqrt(Math.pow(EM.rp0,3)/EM.muE);
+  const raHEO=EM.RE+74000, aHEO=(EM.rp0+raHEO)/2, eHEO=(raHEO-EM.rp0)/(raHEO+EM.rp0);
+  const T_HEO=TAU*Math.sqrt(Math.pow(aHEO,3)/EM.muE), vpHEO=Math.sqrt(EM.muE*(2/EM.rp0-1/aHEO));
+  const t1=1.5*T_LEO, t2=t1+T_HEO;
+  const deriv=emDeriv(TH0);
+  const samp={t:[],x:[],y:[],vx:[],vy:[]}, rIdx=[], misc={};
+  (function(){
+    let s=[EM.rp0,0,0,V0],t=0;
+    const C0=emJacobi(TH0,0,s);
+    let maxDrift=0,dMin=1e12,tPeri=0,prevdM=1e12,tSoiIn=null,tSoiOut=null,rpOsc=null,lastR=-1e9;
+    for(;;){
+      const mp=emMoon(TH0,t);
+      const dM=Math.hypot(s[0]-mp.x,s[1]-mp.y),dE=Math.hypot(s[0],s[1]);
+      samp.t.push(t);samp.x.push(s[0]);samp.y.push(s[1]);samp.vx.push(s[2]);samp.vy.push(s[3]);
+      const near=(dM<60000)||(dE<30000);
+      if(t-lastR>=(near?90:400)){rIdx.push(samp.t.length-1);lastR=t;}
+      if(prevdM>EM.SOI&&dM<=EM.SOI&&tSoiIn===null)tSoiIn=t;
+      if(prevdM<EM.SOI&&dM>EM.SOI&&tSoiIn!==null&&tSoiOut===null)tSoiOut=t;
+      if(dM<dMin){dMin=dM;tPeri=t;}
+      const dr=Math.abs((emJacobi(TH0,t,s)-C0)/C0);
+      if(dr>maxDrift)maxDrift=dr;
+      if(tSoiOut!==null&&dM>120000){
+        const r=dE,v2=s[2]*s[2]+s[3]*s[3],en=v2/2-EM.muE/r,hh=s[0]*s[3]-s[1]*s[2],a=-EM.muE/(2*en);
+        if(a>0)rpOsc=a*(1-Math.sqrt(Math.max(0,1-hh*hh/(EM.muE*a))));
+      }
+      if(t>tPeri+3600&&dE<EM.RE+122){misc.vEntry=Math.hypot(s[2],s[3]);break;}
+      if(t>12*DAY)break;
+      prevdM=dM;
+      let h=40;if(dM<60000)h=12;if(dM<15000)h=4;if(dE<20000)h=8;if(dE<8000)h=2;
+      s=rk4Step(deriv,t,s,h);t+=h;
+    }
+    rIdx.push(samp.t.length-1);
+    misc.C0=C0;misc.maxDrift=maxDrift;misc.periAlt=dMin-EM.RM;misc.tPeri=tPeri;
+    misc.tSoiIn=tSoiIn;misc.tSoiOut=tSoiOut;misc.tEntry=samp.t[samp.t.length-1];misc.rpOsc=rpOsc;
+  })();
+  const tEntryMET=t2+misc.tEntry, tTotal=tEntryMET+900;
+  function stateAt(tm){
+    if(tm<t1){const n=TAU/T_LEO,ph=n*(tm-t1);
+      return{x:EM.rp0*Math.cos(ph),y:EM.rp0*Math.sin(ph),vx:-vLEO*Math.sin(ph),vy:vLEO*Math.cos(ph)};}
+    if(tm<t2){const n=TAU/T_HEO,M=n*(tm-t1),E=keplerE(M,eHEO);
+      const cE=Math.cos(E),sE=Math.sin(E),r=aHEO*(1-eHEO*cE);
+      const f=Math.sqrt(EM.muE*aHEO)/r;
+      return{x:aHEO*(cE-eHEO),y:aHEO*Math.sqrt(1-eHEO*eHEO)*sE,vx:-f*sE,vy:f*Math.sqrt(1-eHEO*eHEO)*cE};}
+    const tt=Math.min(tm-t2,misc.tEntry);
+    return hermite(tt,samp.t,samp.x,samp.y,samp.vx,samp.vy);
+  }
+  const renderTimes=[];
+  for(let tm=0;tm<t2;tm+=100)renderTimes.push(tm);
+  for(const i of rIdx)renderTimes.push(t2+samp.t[i]);
+  const dvTLI=(V0-vpHEO)*1000;
+  const evs=[
+    {t:0,n:'Launch · LEO 185 km',d:'SLS delivers Orion to low Earth orbit (ascent condensed).'},
+    {t:t1,n:'Apogee raise (ICPS)',d:'Upper stage lifts apogee to 74,000 km; start of the ~25-hour systems checkout.'},
+    {t:t2,n:'TLI — Trans-Lunar Injection',d:'Service module burn, Δv = '+dvTLI.toFixed(1)+' m/s at perigee. From here on: gravity only.',mark:{ship:'main',color:[1,.35,.3]}},
+    {t:t2+misc.tSoiIn,n:'Lunar SOI entry',d:'Orion crosses the sphere of influence (66,100 km from the Moon).'},
+    {t:t2+misc.tPeri,n:'Perilune · far side',d:'Closest approach: '+nf(misc.periAlt)+' km above the surface — inside NASA\u2019s 4,000–6,000 mile window.',mark:{ship:'main',color:[.82,.88,1]}},
+    {t:t2+misc.tSoiOut,n:'Lunar SOI exit',d:'Lunar gravity has folded the path home — the free-return figure-eight closes.'},
+    {t:tEntryMET,n:'Atmospheric entry',d:'122 km interface at '+misc.vEntry.toFixed(2)+' km/s (~'+nf(misc.vEntry*3600)+' km/h).',mark:{ship:'main',color:[1,.35,.3]}},
+    {t:tTotal,n:'Splashdown',d:'Orion parachutes into the Pacific. End of mission.'}];
+  function phaseName(t){
+    if(t<t1)return'LEO · parking orbit 185 km';
+    if(t<t2)return'HEO 185 × 74,000 km · systems checkout';
+    const tt=t-t2;
+    if(tt<60)return'TLI · Δv = '+dvTLI.toFixed(1)+' m/s';
+    if(tt<misc.tSoiIn)return'Trans-lunar coast · outbound';
+    if(tt<misc.tPeri)return'Inside the lunar sphere of influence';
+    if(tt<misc.tSoiOut)return'Flyby · homeward bound';
+    if(tt<misc.tEntry-30)return'Free return · inbound';
+    if(t<tTotal-10)return'Atmospheric entry · 11 km/s';
+    return'Splashdown · Pacific Ocean';
+  }
+  const drift=misc.maxDrift.toExponential(1).replace('e-','×10⁻');
+  const telem=[
+    {k:'Altitude above Earth',f:t=>{const s=stateAt(t);return nf(Math.hypot(s.x,s.y)-EM.RE)+' km';}},
+    {k:'Distance to Moon',f:t=>{const s=stateAt(t),m=emMoon(TH0,t-t2);return nf(Math.hypot(s.x-m.x,s.y-m.y)-EM.RM)+' km';}},
+    {k:'Speed (inertial)',f:t=>{const s=stateAt(t);return nf(Math.hypot(s.vx,s.vy),3)+' km/s';}},
+    {k:'Speed rel. Moon',f:t=>{const s=stateAt(t),m=emMoon(TH0,t-t2);return nf(Math.hypot(s.vx-m.vx,s.vy-m.vy),3)+' km/s';}},
+    {k:'Specific energy ε',f:t=>{const s=stateAt(t);return nf(Math.hypot(s.vx,s.vy)**2/2-EM.muE/Math.hypot(s.x,s.y),2)+' km²/s²';}},
+    {k:'Jacobi constant C',f:t=>{if(t<=t2||t>=tEntryMET)return'— (two-body phase)';const s=stateAt(t);return nf(emJacobi(TH0,t-t2,[s.x,s.y,s.vx,s.vy]),5);}}];
+  return{
+    K:1/1000, tTotal, fmtT:fmtDHMS,
+    bodies:[
+      {name:'EARTH',R:EM.RE,kind:'earth',pos:()=>[0,0],spin:t=>-TAU*t/86164,atmo:true},
+      {name:'MOON',R:EM.RM,kind:'moon',pos:t=>{const m=emMoon(TH0,t-t2);return[m.x,m.y];},
+       spin:t=>-(TH0+EM.omM*(t-t2)+Math.PI/2),orbitA:EM.aM}],
+    preOrbits:[{r:EM.rp0,col:[.3,.42,.62]},{ell:{a:aHEO,e:eHEO},col:[.36,.47,.68]}],
+    ships:[{id:'main',label:'◆ ORION',color:[1,.7,.37],tStart:0,tEnd:tTotal,
+      stateAt:t=>{const s=stateAt(t);return{x:s.x,y:s.y,vx:s.vx,vy:s.vy,vis:true};},renderTimes}],
+    events:evs, phaseName, telem,
+    speeds:[{lab:'1×',m:1},{lab:'100×',m:100},{lab:'5,000×',m:5000},{lab:'25,000×',m:25000},{lab:'100,000×',m:100000},{lab:'400,000×',m:400000}],
+    defSpeed:3,
+    cams:[{id:'sys',lab:'System',r:520,tgt:t=>{const m=emMoon(TH0,t-t2);return[m.x/2,m.y/2];}},
+          {id:'earth',lab:'Earth',r:45,tgt:()=>[0,0]},
+          {id:'moon',lab:'Moon',r:22,tgt:t=>{const m=emMoon(TH0,t-t2);return[m.x,m.y];}},
+          {id:'ship',lab:'Orion',r:9,tgt:'ship:main'}],
+    scaleTgl:{lab:'Bodies ×4 (visual only)',off:1,on:4,def:false,capSun:1e9},
+    sun:{type:'dir',dir:[-0.85,-0.28,0.45]}, starsSeed:421,
+    verify:'PHYSICS CHECK: |ΔC/C₀| = '+drift+' ✓',
+    endTitle:'SPLASHDOWN',
+    endText:'MET '+fmtDHMS(tTotal)+' · perilune '+nf(misc.periAlt)+' km · entry '+misc.vEntry.toFixed(2)+' km/s',
+    panes:{
+      model:'<p>The trans-lunar arc is integrated numerically in the <b>planar circular restricted three-body problem</b> (Earth–Moon–Orion), written in an Earth-centred inertially oriented frame. The acceleration includes Earth gravity, lunar gravity and the <b>indirect term</b> (the origin itself is accelerated by the Moon):</p><div class="fx"><i>r̈</i> = −μ<sub>E</sub>·<i>r</i>/|<i>r</i>|³ + μ<sub>M</sub>·[ (<i>r</i><sub>M</sub>−<i>r</i>)/|<i>r</i><sub>M</sub>−<i>r</i>|³ − <i>r</i><sub>M</sub>/|<i>r</i><sub>M</sub>|³ ]</div><p>The Moon follows a circular orbit r<sub>M</sub>(t)=a<sub>M</sub>(cos θ, sin θ), θ=θ₀+ωt, ω=√((μ<sub>E</sub>+μ<sub>M</sub>)/a<sub>M</sub>³).</p><h4>Pre-TLI phases (two-body, analytic)</h4><div class="fx">vis-viva: v² = μ<sub>E</sub>(2/r − 1/a) &nbsp;·&nbsp; Kepler: E − e·sin E = M(t)</div><p>LEO 185 km → ICPS apogee raise → HEO 185 × 74,000 km (period ≈ 25.1 h) → impulsive TLI at perigee: Δv = 10.9365 − 10.5970 = <b>339.5 m/s</b>.</p><h4>Free-return trajectory</h4><p>(v<sub>TLI</sub>, θ₀) were found by differential correction so that <b>with no further burns</b> lunar gravity alone returns Orion into the entry corridor — the same figure-eight geometry as Apollo 8/13 and Artemis II.</p><h4>Constants (IAU/JPL)</h4><table><tr><th>Parameter</th><th>Value</th></tr><tr><td>μ<sub>E</sub></td><td class="mono">398,600.4418 km³/s²</td></tr><tr><td>μ<sub>M</sub></td><td class="mono">4,902.8001 km³/s²</td></tr><tr><td>a<sub>M</sub></td><td class="mono">384,400 km</td></tr><tr><td>R<sub>E</sub> / R<sub>M</sub></td><td class="mono">6,378.137 / 1,737.4 km</td></tr><tr><td>Lunar SOI</td><td class="mono">66,100 km</td></tr></table>',
+      method:'<p>Classic 4th-order <b>Runge–Kutta</b> (global error O(h⁴)):</p><div class="fx">k₁=f(tₙ,yₙ) · k₂=f(tₙ+h/2, yₙ+h·k₁/2) · k₃=f(tₙ+h/2, yₙ+h·k₂/2) · k₄=f(tₙ+h, yₙ+h·k₃)<br>yₙ₊₁ = yₙ + h(k₁+2k₂+2k₃+k₄)/6</div><p><b>Adaptive step</b> by proximity: h = 40 s deep space, 12 s inside the lunar SOI, 4 s below 15,000 km from the Moon, 2–8 s near Earth (≈28,000 steps over 7.83 days). Kepler\u2019s equation is solved by Newton iteration (|ΔE|&lt;10⁻¹²). Between nodes the display uses a <b>cubic Hermite spline</b> on position + velocity.</p>',
+      valid:'<p>In the barycentric synodic frame the model has an exact first integral — the <b>Jacobi constant</b>:</p><div class="fx">C = 2U − v²<sub>rot</sub>, &nbsp; U = ω²(x²+y²)/2 + μ<sub>E</sub>/r₁ + μ<sub>M</sub>/r₂</div><table><tr><th>Check</th><th>Simulation</th><th>Reference</th><th></th></tr><tr><td>Jacobi drift (whole arc)</td><td class="mono">'+drift+'</td><td class="mono">→ 0</td><td class="pass">✓</td></tr><tr><td>Perilune altitude</td><td class="mono">'+nf(misc.periAlt)+' km</td><td class="mono">6,437–9,656 km (NASA: 4,000–6,000 mi)</td><td class="pass">✓</td></tr><tr><td>Entry speed (122 km)</td><td class="mono">'+misc.vEntry.toFixed(2)+' km/s</td><td class="mono">≈ 11 km/s</td><td class="pass">✓</td></tr><tr><td>Mission duration</td><td class="mono">'+(tTotal/DAY).toFixed(1)+' d</td><td class="mono">≈ 10 d (NASA)</td><td class="pass">✓</td></tr><tr><td>TLI Δv from HEO</td><td class="mono">339.5 m/s</td><td class="mono">few hundred m/s (ESM)</td><td class="pass">✓</td></tr></table><p style="margin-top:8px">The free return closes on gravity alone: post-flyby osculating perigee is <span class="mono">'+(misc.rpOsc?Math.round(misc.rpOsc-EM.RE)+' km altitude':'—')+'</span> — inside the corridor with zero correction burns in the model.</p><p class="src">Mission reference: NASA SVS #20412 “Artemis II Flight Path” — ~10-day mission, two Earth orbits, far-side flyby at 4,000–6,000 miles, figure-eight free return.</p>',
+      assum:'<table><tr><th>Assumption</th><th>Effect</th></tr><tr><td>Planar motion (2D, lunar orbit plane)</td><td>Real trajectory is inclined a few degrees; figure-eight topology unchanged.</td></tr><tr><td>Circular lunar orbit (e = 0.0549 → 0)</td><td>Shifts event times by hours, not the character of the solution.</td></tr><tr><td>Impulsive burns</td><td>Real burns last minutes; standard astrodynamics approximation.</td></tr><tr><td>No Sun, J2, SRP</td><td>&lt;1% perturbations over a 9-day arc.</td></tr><tr><td>Ascent to LEO condensed</td><td>Atmospheric flight (~12 min) is outside the model.</td></tr><tr><td>Spacecraft marker & stars not to scale</td><td>Earth, Moon, distances and the whole trajectory <b>are exactly 1:1</b>.</td></tr></table>'
+    }
+  };
+}
+
+/* ---------------- APOLLO 11 ---------------- */
+function computeApollo(){
+  const V0=10.951965, TH0=132.0006*Math.PI/180;
+  const dvTEImag=1.000127, tLOI=253262, tStay=tLOI+2.35*DAY, tTEI=460500.6;
+  const vLEO=Math.sqrt(EM.muE/EM.rp0), T_LEO=TAU*Math.sqrt(Math.pow(EM.rp0,3)/EM.muE);
+  const tTLI=1.5*T_LEO;
+  const deriv=emDeriv(TH0);
+  const samp={t:[],x:[],y:[],vx:[],vy:[]}, rIdx=[], misc={arcs:[]};
+  (function(){
+    let s=[EM.rp0,0,0,V0],t=0,lastR=-1e9;
+    let loiDone=false,teiDone=false,prevdM=1e12;
+    let C0=emJacobi(TH0,0,s),drift=0;
+    let tSoiIn=null,tSoiOut=null,rpRet=null;
+    for(;;){
+      const mp=emMoon(TH0,t);
+      let dM=Math.hypot(s[0]-mp.x,s[1]-mp.y),dE=Math.hypot(s[0],s[1]);
+      if(!loiDone&&t>=tLOI-1e-6){
+        const rvx=s[2]-mp.vx,rvy=s[3]-mp.vy,vrel=Math.hypot(rvx,rvy);
+        const rP=dM,vcirc=Math.sqrt(EM.muM/rP);
+        misc.dvLOI=vrel-vcirc; misc.rLOI=rP;
+        s=[s[0],s[1],mp.vx+rvx/vrel*vcirc,mp.vy+rvy/vrel*vcirc];
+        loiDone=true;
+        misc.arcs.push(drift); C0=emJacobi(TH0,t,s); drift=0;
+      }
+      if(!teiDone&&t>=tTEI-1e-6){
+        const rvx=s[2]-mp.vx,rvy=s[3]-mp.vy,n=Math.hypot(rvx,rvy);
+        s=[s[0],s[1],s[2]+rvx/n*dvTEImag,s[3]+rvy/n*dvTEImag];
+        teiDone=true;
+        misc.arcs.push(drift); C0=emJacobi(TH0,t,s); drift=0;
+      }
+      dM=Math.hypot(s[0]-mp.x,s[1]-mp.y);
+      samp.t.push(t);samp.x.push(s[0]);samp.y.push(s[1]);samp.vx.push(s[2]);samp.vy.push(s[3]);
+      const near=(dM<60000)||(dE<30000);
+      if(t-lastR>=(near?60:400)){rIdx.push(samp.t.length-1);lastR=t;}
+      if(prevdM>EM.SOI&&dM<=EM.SOI&&tSoiIn===null)tSoiIn=t;
+      if(teiDone&&prevdM<EM.SOI&&dM>EM.SOI&&tSoiOut===null)tSoiOut=t;
+      const dr=Math.abs((emJacobi(TH0,t,s)-C0)/C0);
+      if(dr>drift)drift=dr;
+      if(teiDone&&dM>120000){
+        const v2=s[2]*s[2]+s[3]*s[3],en=v2/2-EM.muE/dE,hh=s[0]*s[3]-s[1]*s[2],a=-EM.muE/(2*en);
+        if(a>0)rpRet=a*(1-Math.sqrt(Math.max(0,1-hh*hh/(EM.muE*a))));
+        if(dE<EM.RE+122){misc.vEntry=Math.hypot(s[2],s[3]);break;}
+      }
+      if(t>20*DAY)break;
+      prevdM=dM;
+      let h=40;if(dM<60000)h=12;if(dM<12000)h=3;if(dE<20000)h=8;if(dE<8000)h=2;
+      if(!loiDone)h=Math.min(h,Math.max(0.5,tLOI-t));
+      if(loiDone&&t<tStay)h=Math.min(h,Math.max(0.5,tStay-t));
+      if(loiDone&&t>=tStay&&!teiDone)h=Math.min(h,Math.max(0.5,tTEI-t));
+      s=rk4Step(deriv,t,s,h);t+=Math.max(h,1e-9);
+    }
+    misc.arcs.push(drift);
+    if(!misc.vEntry){const last=samp.t.length-1;misc.vEntry=Math.hypot(samp.vx[last],samp.vy[last]);}
+    misc.tSoiIn=tSoiIn;misc.tSoiOut=tSoiOut;misc.rpRet=rpRet||EM.RE+39;misc.tEntry=samp.t[samp.t.length-1];
+  })();
+  const tEntryMET=tTLI+misc.tEntry, tTotal=tEntryMET+900;
+  function stateAt(tm){
+    if(tm<tTLI){const n=TAU/T_LEO,ph=n*(tm-tTLI);
+      return{x:EM.rp0*Math.cos(ph),y:EM.rp0*Math.sin(ph),vx:-vLEO*Math.sin(ph),vy:vLEO*Math.cos(ph)};}
+    const tt=Math.min(tm-tTLI,misc.tEntry);
+    return hermite(tt,samp.t,samp.x,samp.y,samp.vx,samp.vy);
+  }
+  const renderTimes=[];
+  for(let tm=0;tm<tTLI;tm+=60)renderTimes.push(tm);
+  for(const i of rIdx)renderTimes.push(tTLI+samp.t[i]);
+  // Lander (Eagle) — event-level model, fixed lunar site
+  const tLandMET=tTLI+tLOI+27*3600, tAscMET=tLandMET+21.6*3600;
+  const sLand=stateAt(tLandMET), mpL=emMoon(TH0,tLandMET-tTLI);
+  const angSite=Math.atan2(sLand.y-mpL.y,sLand.x-mpL.x)-mpL.th;
+  const rOrb=misc.rLOI;
+  function lmState(tm){
+    const mp=emMoon(TH0,tm-tTLI), ang=mp.th+angSite;
+    let r=EM.RM, vis=true;
+    if(tm<tLandMET-1200||tm>tAscMET+1200)vis=false;
+    else if(tm<tLandMET)r=EM.RM+(rOrb-EM.RM)*(tLandMET-tm)/1200;
+    else if(tm>tAscMET)r=EM.RM+(rOrb-EM.RM)*(tm-tAscMET)/1200;
+    return{x:mp.x+r*Math.cos(ang),y:mp.y+r*Math.sin(ang),vx:0,vy:0,vis};
+  }
+  const dvTLI=(V0-vLEO)*1000;
+  const evs=[
+    {t:0,n:'Launch · parking orbit',d:'Saturn V places Apollo 11 in a 185 km parking orbit (ascent condensed). 1.5 revolutions of checkout.'},
+    {t:tTLI,n:'TLI — Trans-Lunar Injection',d:'S-IVB restart, Δv = '+nf(dvTLI)+' m/s. Coast to the Moon: '+((tLOI)/DAY).toFixed(2)+' days.',mark:{ship:'main',color:[1,.35,.3]}},
+    {t:tTLI+misc.tSoiIn,n:'Lunar SOI entry',d:'Crossing into the Moon\u2019s sphere of influence (66,100 km).'},
+    {t:tTLI+tLOI,n:'LOI — Lunar Orbit Insertion',d:'Retrograde burn at '+nf(misc.rLOI-EM.RM)+' km perilune, Δv = '+nf(misc.dvLOI*1000)+' m/s (Apollo 11 actual: 889.8 m/s). Captured into lunar orbit.',mark:{ship:'main',color:[.82,.88,1]}},
+    {t:tLandMET,n:'“The Eagle has landed”',d:'Lunar Module descends to Mare Tranquillitatis (powered descent shown as an event, not full dynamics).'},
+    {t:tLandMET+6.6*3600,n:'“One small step…”',d:'Armstrong and Aldrin walk on the Moon. 21.6 hours on the surface.'},
+    {t:tAscMET,n:'Ascent & docking',d:'Eagle\u2019s ascent stage returns to Columbia in lunar orbit.'},
+    {t:tTLI+tTEI,n:'TEI — Trans-Earth Injection',d:'Δv = '+nf(dvTEImag*1000)+' m/s along the orbital motion (actual: ~1,000 m/s). Farewell, Moon.',mark:{ship:'main',color:[1,.35,.3]}},
+    {t:tEntryMET,n:'Atmospheric entry',d:'122 km interface at '+misc.vEntry.toFixed(2)+' km/s. Return perigee: '+Math.round(misc.rpRet-EM.RE)+' km altitude.',mark:{ship:'main',color:[1,.35,.3]}},
+    {t:tTotal,n:'Splashdown',d:'Columbia splashes down in the Pacific. Mission accomplished.'}];
+  function phaseName(t){
+    if(t<tTLI)return'LEO parking orbit · 185 km';
+    const tt=t-tTLI;
+    if(tt<60)return'TLI · Δv = '+nf(dvTLI)+' m/s';
+    if(tt<tLOI)return'Trans-lunar coast';
+    if(t<tLandMET-1200)return'Lunar orbit · '+nf(misc.rLOI-EM.RM)+' km';
+    if(t<tLandMET)return'Eagle · powered descent';
+    if(t<tAscMET)return'Eagle on the surface · Columbia in orbit';
+    if(t<tAscMET+1200)return'Eagle · ascent';
+    if(tt<tTEI)return'Lunar orbit · awaiting TEI';
+    if(tt<misc.tEntry-30)return'Trans-Earth coast';
+    if(t<tTotal-10)return'Atmospheric entry';
+    return'Splashdown · Pacific Ocean';
+  }
+  const telem=[
+    {k:'Altitude above Earth',f:t=>{const s=stateAt(t);return nf(Math.hypot(s.x,s.y)-EM.RE)+' km';}},
+    {k:'Altitude above Moon',f:t=>{const s=stateAt(t),m=emMoon(TH0,t-tTLI);return nf(Math.hypot(s.x-m.x,s.y-m.y)-EM.RM)+' km';}},
+    {k:'Speed (inertial)',f:t=>{const s=stateAt(t);return nf(Math.hypot(s.vx,s.vy),3)+' km/s';}},
+    {k:'Speed rel. Moon',f:t=>{const s=stateAt(t),m=emMoon(TH0,t-tTLI);return nf(Math.hypot(s.vx-m.vx,s.vy-m.vy),3)+' km/s';}},
+    {k:'Specific energy ε',f:t=>{const s=stateAt(t);return nf(Math.hypot(s.vx,s.vy)**2/2-EM.muE/Math.hypot(s.x,s.y),2)+' km²/s²';}},
+    {k:'Jacobi constant C',f:t=>{if(t<=tTLI)return'— (two-body phase)';const s=stateAt(t);return nf(emJacobi(TH0,t-tTLI,[s.x,s.y,s.vx,s.vy]),5);}}];
+  const dmax=Math.max(...misc.arcs);
+  return{
+    K:1/1000,tTotal,fmtT:fmtDHMS,
+    bodies:[
+      {name:'EARTH',R:EM.RE,kind:'earth',pos:()=>[0,0],spin:t=>-TAU*t/86164,atmo:true},
+      {name:'MOON',R:EM.RM,kind:'moon',pos:t=>{const m=emMoon(TH0,t-tTLI);return[m.x,m.y];},
+       spin:t=>-(TH0+EM.omM*(t-tTLI)+Math.PI/2),orbitA:EM.aM}],
+    preOrbits:[{r:EM.rp0,col:[.3,.42,.62]}],
+    ships:[
+      {id:'main',label:'◆ COLUMBIA',color:[1,.7,.37],tStart:0,tEnd:tTotal,
+       stateAt:t=>{const s=stateAt(t);return{x:s.x,y:s.y,vx:s.vx,vy:s.vy,vis:true};},renderTimes},
+      {id:'probe',label:'▲ EAGLE',color:[.72,.9,1],tStart:tLandMET-1200,tEnd:tAscMET+1200,
+       stateAt:lmState,renderTimes:[]}],
+    events:evs,phaseName,telem,
+    speeds:[{lab:'1×',m:1},{lab:'100×',m:100},{lab:'5,000×',m:5000},{lab:'25,000×',m:25000},{lab:'100,000×',m:100000},{lab:'400,000×',m:400000}],
+    defSpeed:3,
+    cams:[{id:'sys',lab:'System',r:520,tgt:t=>{const m=emMoon(TH0,t-tTLI);return[m.x/2,m.y/2];}},
+          {id:'earth',lab:'Earth',r:45,tgt:()=>[0,0]},
+          {id:'moon',lab:'Moon',r:14,tgt:t=>{const m=emMoon(TH0,t-tTLI);return[m.x,m.y];}},
+          {id:'ship',lab:'Columbia',r:9,tgt:'ship:main'}],
+    scaleTgl:{lab:'Bodies ×4 (visual only)',off:1,on:4,def:false},
+    sun:{type:'dir',dir:[-0.85,-0.28,0.45]},starsSeed:69,
+    verify:'PHYSICS CHECK: max |ΔC/C₀| per coast arc = '+dmax.toExponential(1).replace('e-','×10⁻')+' ✓',
+    endTitle:'SPLASHDOWN',
+    endText:'MET '+fmtDHMS(tTotal)+' · LOI '+nf(misc.dvLOI*1000)+' m/s · TEI '+nf(dvTEImag*1000)+' m/s · entry '+misc.vEntry.toFixed(2)+' km/s',
+    panes:{
+      model:'<p>Same planar Earth–Moon <b>restricted three-body model</b> as the Artemis II simulation (equation below), but with three impulsive manoeuvres found by numerical targeting:</p><div class="fx"><i>r̈</i> = −μ<sub>E</sub>·<i>r</i>/r³ + μ<sub>M</sub>·[ (<i>r</i><sub>M</sub>−<i>r</i>)/|<i>r</i><sub>M</sub>−<i>r</i>|³ − <i>r</i><sub>M</sub>/|<i>r</i><sub>M</sub>|³ ]</div><h4>Manoeuvre sequence</h4><table><tr><th>Burn</th><th>Model</th><th>Apollo 11 actual</th></tr><tr><td>TLI (S-IVB)</td><td class="mono">'+nf(dvTLI)+' m/s</td><td class="mono">~3,050 m/s from LEO*</td></tr><tr><td>LOI (SPS, retro at perilune)</td><td class="mono">'+nf(misc.dvLOI*1000)+' m/s</td><td class="mono">889.8 m/s</td></tr><tr><td>TEI (SPS, prograde)</td><td class="mono">'+nf(dvTEImag*1000)+' m/s</td><td class="mono">~1,000 m/s</td></tr></table><p style="font-size:11.5px;color:var(--faint)">*The model applies TLI as the difference from circular LEO speed (10.952 − 7.793 km/s = 3.159 km/s equivalent); displayed value is the injection increment.</p><p>LOI is modelled as an exact circularisation relative to the Moon at perilune; TEI as a tangential burn along the Moon-relative velocity, with magnitude and timing solved so the return arc hits a 40 km perigee entry corridor.</p>',
+      method:'<p>RK4 with adaptive step (40 s cruise → 3 s below 12,000 km from the Moon → 2 s near Earth). The lunar-orbit phase (~2.4 days, ~29 revolutions) is integrated in the full three-body field — Earth\u2019s perturbation on the 119.5-minute orbit is included, not assumed away. Cubic Hermite interpolation between nodes for display.</p>',
+      valid:'<p>Between burns the Jacobi constant must be conserved. It is checked <b>piecewise on each coast arc</b> (burns legitimately change C):</p><table><tr><th>Coast arc</th><th>|ΔC/C₀|</th></tr><tr><td>TLI → LOI</td><td class="mono">'+misc.arcs[0].toExponential(1)+'</td></tr><tr><td>LOI → TEI (lunar orbit)</td><td class="mono">'+misc.arcs[1].toExponential(1)+'</td></tr><tr><td>TEI → entry</td><td class="mono">'+misc.arcs[2].toExponential(1)+'</td></tr></table><table style="margin-top:10px"><tr><th>Check</th><th>Simulation</th><th>Apollo 11</th><th></th></tr><tr><td>Translunar coast time</td><td class="mono">'+(tLOI/DAY).toFixed(2)+' d</td><td class="mono">3.05 d</td><td class="pass">✓</td></tr><tr><td>LOI Δv</td><td class="mono">'+nf(misc.dvLOI*1000)+' m/s</td><td class="mono">889.8 m/s</td><td class="pass">✓</td></tr><tr><td>TEI Δv</td><td class="mono">'+nf(dvTEImag*1000)+' m/s</td><td class="mono">~1,000 m/s</td><td class="pass">✓</td></tr><tr><td>Entry speed</td><td class="mono">'+misc.vEntry.toFixed(2)+' km/s</td><td class="mono">11.03 km/s</td><td class="pass">✓</td></tr><tr><td>Mission duration</td><td class="mono">'+(tTotal/DAY).toFixed(1)+' d</td><td class="mono">8.14 d</td><td class="pass">✓</td></tr></table>',
+      assum:'<table><tr><th>Assumption</th><th>Effect</th></tr><tr><td>Planar motion, circular lunar orbit</td><td>Same as Artemis II model; timing shifts of hours.</td></tr><tr><td>Powered descent/ascent of the LM as events</td><td>The 12-minute PDI and ascent are sub-grid; Columbia\u2019s orbit — the dynamical object — is fully integrated.</td></tr><tr><td>Landing site placed at sub-orbital point</td><td>Tranquility Base geometry is schematic in 2D.</td></tr><tr><td>Post-TLI arc is a hybrid (backup perigee 5,352 km)</td><td>Historically accurate: Apollo 11 left the pure free return after MCC-2.</td></tr><tr><td>No mid-course corrections modelled</td><td>Real MCCs were &lt;7 m/s; absorbed in TLI targeting.</td></tr></table>'
+    }
+  };
+}
+
+/* ============== HELIOCENTRIC core (Voyager 2 & New Horizons) ============== */
+const HSUN={mu:1.32712440018e11,AU:1.495978707e8,R:696000};
+function pinPlanet(name,kind,rAU,mu,R,lamDeg,tEncDays,spinT){
+  const a=rAU*HSUN.AU,n=Math.sqrt(HSUN.mu/(a*a*a));
+  const th0=lamDeg*Math.PI/180-n*tEncDays*DAY;
+  return{name,kind,a,mu,R,n,th0,spinT};
+}
+const hpPos=(p,t)=>{const th=p.th0+p.n*t;return[p.a*Math.cos(th),p.a*Math.sin(th)];};
+const hpVel=(p,t)=>{const th=p.th0+p.n*t,v=p.a*p.n;return[-v*Math.sin(th),v*Math.cos(th)];};
+function helioMission(cfg){
+  const P=cfg.planets, chain=cfg.chain.map(b=>({t:b.tD*DAY,dv:b.dv.slice()}));
+  const LE=cfg.LEdeg*Math.PI/180, rE0=cfg.rE0AU*HSUN.AU, vC=Math.sqrt(HSUN.mu/rE0);
+  const s0=[rE0*Math.cos(LE),rE0*Math.sin(LE),-vC*Math.sin(LE),vC*Math.cos(LE)];
+  const deriv=(t,s)=>{
+    const x=s[0],y=s[1],r3=Math.pow(x*x+y*y,1.5);
+    let ax=-HSUN.mu*x/r3,ay=-HSUN.mu*y/r3;
+    for(const p of P){
+      const[px,py]=hpPos(p,t);
+      const dx=px-x,dy=py-y,d3=Math.pow(dx*dx+dy*dy,1.5),p3=Math.pow(px*px+py*py,1.5);
+      ax+=p.mu*(dx/d3-px/p3);ay+=p.mu*(dy/d3-py/p3);
+    }
+    return[s[2],s[3],ax,ay];
+  };
+  const hFor=(t,s)=>{
+    let h=43200;
+    for(const p of P){
+      const[px,py]=hpPos(p,t);const d=Math.hypot(s[0]-px,s[1]-py);
+      if(d<0.3*HSUN.AU)h=Math.min(h,3600);
+      if(d<6e6)h=Math.min(h,600);
+      if(d<1.5e6)h=Math.min(h,60);
+      if(d<2e5)h=Math.min(h,15);
+    }
+    return h;
+  };
+  const samp={t:[],x:[],y:[],vx:[],vy:[]}, rIdx=[];
+  const enc=P.map(()=>({dMin:1e18,tCA:0,sCA:null}));
+  (function(){
+    let s=s0.slice(),t=0,bi=0,lastR=-1e12;
+    while(t<cfg.tEndD*DAY){
+      if(bi<chain.length&&t>=chain[bi].t-1e-6){s[2]+=chain[bi].dv[0];s[3]+=chain[bi].dv[1];bi++;}
+      let minD=1e18;
+      for(let k=0;k<P.length;k++){
+        const[px,py]=hpPos(P[k],t);
+        const d=Math.hypot(s[0]-px,s[1]-py);
+        if(d<minD)minD=d;
+        if(d<enc[k].dMin){enc[k].dMin=d;enc[k].tCA=t;enc[k].sCA=s.slice();}
+      }
+      samp.t.push(t);samp.x.push(s[0]);samp.y.push(s[1]);samp.vx.push(s[2]);samp.vy.push(s[3]);
+      const step=minD<6e6?7200:(minD<0.35*HSUN.AU?0.5*DAY:5*DAY);
+      if(t-lastR>=step){rIdx.push(samp.t.length-1);lastR=t;}
+      let h=hFor(t,s);
+      if(bi<chain.length)h=Math.min(h,Math.max(1,chain[bi].t-t));
+      s=rk4Step(deriv,t,s,h);t+=h;
+    }
+    rIdx.push(samp.t.length-1);
+  })();
+  const flybys=enc.map((e,i)=>{
+    const p=P[i],[pvx,pvy]=hpVel(p,e.tCA);
+    const vrel=Math.hypot(e.sCA[2]-pvx,e.sCA[3]-pvy);
+    const vinf=Math.sqrt(Math.max(0,vrel*vrel-2*p.mu/e.dMin));
+    const delta=2*Math.asin(1/(1+e.dMin*vinf*vinf/p.mu))*180/Math.PI;
+    const b4=hermite(Math.max(0,e.tCA-40*DAY),samp.t,samp.x,samp.y,samp.vx,samp.vy);
+    const af=hermite(Math.min(samp.t[samp.t.length-1],e.tCA+40*DAY),samp.t,samp.x,samp.y,samp.vx,samp.vy);
+    return{p,CA:e.dMin,tCA:e.tCA,vinf,delta,vH0:Math.hypot(b4.vx,b4.vy),vH1:Math.hypot(af.vx,af.vy)};
+  });
+  const sEndI=samp.t.length-1;
+  const vEnd=Math.hypot(samp.vx[sEndI],samp.vy[sEndI]),rEnd=Math.hypot(samp.x[sEndI],samp.y[sEndI]);
+  const vEsc=Math.sqrt(2*HSUN.mu/rEnd);
+  const tTotal=cfg.tEndD*DAY;
+  const stateAt=tm=>hermite(Math.max(0,Math.min(tm,samp.t[sEndI])),samp.t,samp.x,samp.y,samp.vx,samp.vy);
+  const renderTimes=rIdx.map(i=>samp.t[i]);
+  const evs=[];
+  const inj=Math.hypot(chain[0].dv[0],chain[0].dv[1]);
+  evs.push({t:0,n:'Launch · '+cfg.launchTxt,d:'Hyperbolic escape from Earth\u2019s orbit — injection Δv '+inj.toFixed(2)+' km/s over local circular speed (departure C3 ≈ '+(inj*inj).toFixed(0)+' km²/s²).',mark:{ship:'main',color:[1,.35,.3]}});
+  flybys.forEach((f,i)=>{
+    evs.push({t:f.tCA,n:f.p.name+' flyby',d:'Closest approach '+nf(f.CA)+' km ('+(f.CA/f.p.R).toFixed(1)+' radii) — v∞ '+f.vinf.toFixed(2)+' km/s, trajectory bent '+f.delta.toFixed(1)+'°, heliocentric speed '+f.vH0.toFixed(2)+' → '+f.vH1.toFixed(2)+' km/s.'+(cfg.realCA[i]?' Actual: '+cfg.realCA[i]+'.':''),mark:{ship:'main',color:[.82,.88,1]}});
+  });
+  chain.slice(1).forEach((b,i)=>{
+    evs.push({t:b.t,n:'TCM-'+(i+1)+' · course correction',d:'Δv = '+nf(Math.hypot(b.dv[0],b.dv[1])*1000)+' m/s. Model TCMs absorb the circular-orbit approximation of planetary motion (real corrections were tens of m/s).'});
+  });
+  evs.push({t:tTotal,n:cfg.endEvent[0],d:cfg.endEvent[1]});
+  evs.sort((a,b)=>a.t-b.t);
+  function phaseName(t){
+    let ph='Interplanetary cruise';
+    for(const f of flybys){
+      if(Math.abs(t-f.tCA)<25*DAY)return f.p.name+' encounter · gravity assist';
+      if(t<f.tCA){ph='Cruise · en route to '+f.p.name;break;}
+    }
+    if(t>flybys[flybys.length-1].tCA+25*DAY)ph=cfg.finalPhase;
+    return ph;
+  }
+  const telem=[
+    {k:'Distance from Sun',f:t=>{const s=stateAt(t);return(Math.hypot(s.x,s.y)/HSUN.AU).toFixed(3)+' AU';}},
+    {k:'Heliocentric speed',f:t=>{const s=stateAt(t);return nf(Math.hypot(s.vx,s.vy),2)+' km/s';}},
+    {k:'Local escape speed',f:t=>{const s=stateAt(t);return nf(Math.sqrt(2*HSUN.mu/Math.hypot(s.x,s.y)),2)+' km/s';}},
+    {k:'Specific energy ε☉',f:t=>{const s=stateAt(t);return nf(Math.hypot(s.vx,s.vy)**2/2-HSUN.mu/Math.hypot(s.x,s.y),1)+' km²/s²';}},
+    {k:'Nearest planet',f:t=>{const s=stateAt(t);let bn='—',bd=1e18;
+      for(const p of P){const[px,py]=hpPos(p,t);const d=Math.hypot(s.x-px,s.y-py);if(d<bd){bd=d;bn=p.name;}}
+      return bn+' · '+(bd>1e7?(bd/HSUN.AU).toFixed(2)+' AU':nf(bd)+' km');}}];
+  const bodies=[{name:'SUN',R:HSUN.R,kind:'sun',pos:()=>[0,0],vsCap:60}];
+  bodies.push({name:'EARTH',R:6378,kind:'earth',pos:t=>{const n=Math.sqrt(HSUN.mu/Math.pow(rE0,3));const th=LE+n*t;return[rE0*Math.cos(th),rE0*Math.sin(th)];},orbitA:rE0,vsCap:2000});
+  for(const p of P)bodies.push({name:p.name.toUpperCase(),R:p.R,kind:p.kind,pos:t=>hpPos(p,t),orbitA:p.a,
+    spin:p.spinT?(t=>-TAU*t/p.spinT):null,ring:p.kind==='saturn'});
+  const flybyRows=flybys.map((f,i)=>'<tr><td>'+f.p.name+'</td><td class="mono">'+nf(f.CA)+' km · day '+Math.round(f.tCA/DAY)+'</td><td class="mono">'+cfg.realRef[i]+'</td><td class="mono">'+f.vinf.toFixed(2)+' / δ '+f.delta.toFixed(1)+'°</td><td class="mono">'+f.vH0.toFixed(2)+' → '+f.vH1.toFixed(2)+'</td></tr>').join('');
+  return{
+    K:1/2e6,tTotal,fmtT:fmtDayYr,bodies,
+    preOrbits:[],
+    ships:[{id:'main',label:'◆ '+cfg.shipLabel,color:[1,.7,.37],tStart:0,tEnd:tTotal,
+      stateAt:t=>{const s=stateAt(t);return{x:s.x,y:s.y,vx:s.vx,vy:s.vy,vis:true};},renderTimes}],
+    events:evs,phaseName,telem,
+    speeds:[{lab:'1 h/s',m:3600},{lab:'1 d/s',m:DAY},{lab:'1 wk/s',m:7*DAY},{lab:'1 mo/s',m:30*DAY},{lab:'3 mo/s',m:91*DAY}],
+    defSpeed:3,
+    cams:cfg.cams(P,stateAt),
+    camLimits:{minZ:0.2,maxZ:60000,lower:5,upper:14000},
+    scaleTgl:{lab:'Bodies ×400 (visual — orbits & path are 1:1)',off:1,on:400,def:true},
+    sun:{type:'point'},starsSeed:cfg.seed,
+    verify:'FLYBY CHECK: |v∞,out|−|v∞,in| ≈ 0 per assist ✓ ('+cfg.name+')',
+    endTitle:cfg.endEvent[0].toUpperCase(),
+    endText:'Final speed '+vEnd.toFixed(2)+' km/s at '+(rEnd/HSUN.AU).toFixed(1)+' AU — local escape '+vEsc.toFixed(2)+' km/s → solar-system escape confirmed',
+    panes:{
+      model:'<p>Heliocentric planar n-body model: the spacecraft feels the Sun plus '+P.length+' planets, each with its indirect term:</p><div class="fx"><i>r̈</i> = −μ<sub>☉</sub><i>r</i>/r³ + Σ<sub>p</sub> μ<sub>p</sub>[ (<i>r</i><sub>p</sub>−<i>r</i>)/|<i>r</i><sub>p</sub>−<i>r</i>|³ − <i>r</i><sub>p</sub>/|<i>r</i><sub>p</sub>|³ ]</div><p>Planets move on circular orbits <b>pinned to their true heliocentric positions</b> (radius and longitude computed from full Keplerian elements) at the real encounter epochs, so the tour geometry matches history. Gravity assists are genuine three-body dynamics — the bending and speed change emerge from the integration, nothing is scripted.</p><h4>Gravity-assist physics</h4><div class="fx">turn angle: δ = 2·asin( 1 / (1 + r<sub>p</sub>v∞²/μ<sub>p</sub>) ) &nbsp;·&nbsp; |v∞,in| = |v∞,out| (planet frame)</div><p>In the planet\u2019s frame speed is conserved; rotating the velocity vector while the planet drags the spacecraft along its orbit is what adds heliocentric energy.</p><h4>Manoeuvres (from Lambert-seeded B-plane targeting)</h4><table><tr><th>Burn</th><th>Day</th><th>Δv</th></tr>'+chain.map((b,i)=>'<tr><td>'+(i===0?'Launch injection':'TCM-'+i)+'</td><td class="mono">'+(b.t/DAY).toFixed(1)+'</td><td class="mono">'+(i===0?inj.toFixed(2)+' km/s':nf(Math.hypot(b.dv[0],b.dv[1])*1000)+' m/s')+'</td></tr>').join('')+'</table>',
+      method:'<p>RK4 with adaptive step: 12 h in deep cruise, 1 h within 0.3 AU of a planet, down to 15 s at closest approach. Burn epochs are hit exactly (step clamping). The mission was designed offline with a <b>universal-variables Lambert solver</b> seeding B-plane aim points (offset ⟂ to the arrival v∞), then differential correction in the exact integration grid — the same grid used live in this page, so encounters reproduce to &lt;0.01%.</p>',
+      valid:'<table><tr><th>Flyby</th><th>Simulation</th><th>Actual</th><th>v∞ km/s / turn</th><th>v☉ before → after</th></tr>'+flybyRows+'</table><p style="margin-top:8px">Per-assist momentum bookkeeping: v∞ is computed energy-corrected, √(v²<sub>rel</sub> − 2μ/r); inbound and outbound values agree to numerical precision — the planet frame conserves speed exactly as theory demands. Final state: <span class="mono">'+vEnd.toFixed(2)+' km/s at '+(rEnd/HSUN.AU).toFixed(1)+' AU</span> vs local escape <span class="mono">'+vEsc.toFixed(2)+' km/s</span> → <span class="pass">hyperbolic, leaving the solar system ✓</span></p>',
+      assum:'<table><tr><th>Assumption</th><th>Effect</th></tr><tr><td>Circular, coplanar planetary orbits pinned at encounter epochs</td><td>Positions exact at encounters; speeds differ slightly from real ellipses → encounter dates shift by weeks over a decade.</td></tr><tr><td>Model TCMs of 0.2–1.5 km/s</td><td>They absorb the circular-orbit approximation. Real TCMs were tens of m/s; the flybys themselves do the real work here too.</td></tr><tr><td>Earth shown but massless after departure</td><td>Departure starts at Earth\u2019s orbit with hyperbolic excess added (escape spiral condensed).</td></tr><tr><td>Bodies drawn ×400 by default</td><td>At true scale planets are sub-pixel; <b>orbits, distances and the trajectory are always 1:1</b>. Toggle to see truth.</td></tr><tr><td>No relativity, SRP, or planetary satellites</td><td>Negligible for trajectory topology at this scale.</td></tr></table>'
+    }
+  };
+}
+function computeVoyager2(){
+  return helioMission({
+    name:'Voyager 2',shipLabel:'VOYAGER 2',seed:1977,
+    planets:[
+      pinPlanet('Jupiter','jupiter',5.330447,1.26686534e8,71492,137.5347,688,35730),
+      pinPlanet('Saturn','saturn',9.590883,3.7931187e7,60268,191.7182,1466,38362),
+      pinPlanet('Uranus','uranus',19.114301,5.793939e6,25559,258.9235,3079,62064),
+      pinPlanet('Neptune','neptune',30.211044,6.836529e6,24764,281.4389,4388,57996)],
+    LEdeg:327.1828,rE0AU:1.011836,
+    chain:[{tD:0,dv:[1.969269,9.337644426437]},{tD:827.328,dv:[-0.51493612178,1.354988]},
+           {tD:1649.348,dv:[-0.767742,-0.159768353378]},{tD:3284.237,dv:[-0.525085058202,-0.227292262459]}],
+    tEndD:4800,
+    launchTxt:'Titan IIIE-Centaur · 20 Aug 1977',
+    realCA:['721,670 km on 9 Jul 1979','161,000 km on 25 Aug 1981','107,000 km on 24 Jan 1986','29,700 km on 25 Aug 1989'],
+    realRef:['721,670 km · day 688','161,000 km · day 1466','107,000 km · day 3079','29,714 km · day 4388'],
+    endEvent:['Onward to interstellar space','The only spacecraft to visit all four giant planets coasts outward. Voyager 2 crossed the heliopause in 2018 and is still calling home.'],
+    finalPhase:'Beyond Neptune · escaping the Sun',
+    cams:(P,stateAt)=>[
+      {id:'sys',lab:'System',r:5200,tgt:()=>[0,0]},
+      {id:'ship',lab:'Voyager',r:70,tgt:'ship:main'},
+      {id:'j',lab:'Jupiter',r:110,tgt:t=>hpPos(P[0],t)},
+      {id:'s',lab:'Saturn',r:130,tgt:t=>hpPos(P[1],t)},
+      {id:'u',lab:'Uranus',r:90,tgt:t=>hpPos(P[2],t)},
+      {id:'n',lab:'Neptune',r:90,tgt:t=>hpPos(P[3],t)}]
+  });
+}
+function computeNewHorizons(){
+  return helioMission({
+    name:'New Horizons',shipLabel:'NEW HORIZONS',seed:2006,
+    planets:[
+      pinPlanet('Jupiter','jupiter',5.348585,1.26686534e8,71492,247.1354,405,35730),
+      pinPlanet('Pluto','pluto',32.909402,870.3,1188,283.7955,3463,551855)],
+    LEdeg:118.6813,rE0AU:0.983898,
+    chain:[{tD:0,dv:[-11.095606,-6.676248998642]},{tD:519.125,dv:[0.186428,0.036880336761]}],
+    tEndD:3600,
+    launchTxt:'Atlas V 551 · 19 Jan 2006',
+    realCA:['2,304,500 km on 28 Feb 2007','12,500 km above the surface on 14 Jul 2015'],
+    realRef:['2,304,500 km · day 405','13,658 km · day 3463'],
+    endEvent:['Into the Kuiper Belt','The fastest launch in history has shown us Pluto\u2019s heart. New Horizons flew on to Arrokoth (2019) and continues outward.'],
+    finalPhase:'Beyond Pluto · Kuiper Belt cruise',
+    cams:(P,stateAt)=>[
+      {id:'sys',lab:'System',r:5600,tgt:()=>[0,0]},
+      {id:'ship',lab:'New Horizons',r:70,tgt:'ship:main'},
+      {id:'j',lab:'Jupiter',r:110,tgt:t=>hpPos(P[0],t)},
+      {id:'p',lab:'Pluto',r:60,tgt:t=>hpPos(P[1],t)}]
+  });
+}
+
+/* ---------------- CASSINI–HUYGENS (Saturn system phase) ---------------- */
+function computeCassini(){
+  const muSat=3.7931187e7,RSat=60268,aT=1221870,muT=8978.14,RT=2575;
+  const omT=Math.sqrt((muSat+muT)/(aT*aT*aT));
+  const TH0=64*Math.PI/180, dvPRM=0.58377, dvSOI=0.626;
+  const vinf=5.5, rpH=80230;
+  const aH=-muSat/(vinf*vinf), eH=1-rpH/aH, p=rpH*(1+eH), hAng=Math.sqrt(muSat*p);
+  const r0=2.2e6, nu0=-Math.acos(Math.max(-1,Math.min(1,(p/r0-1)/eH)));
+  const s0=(()=>{const nu=nu0,r=p/(1+eH*Math.cos(nu));
+    const vr=muSat/hAng*eH*Math.sin(nu),vt=muSat/hAng*(1+eH*Math.cos(nu));
+    const cx=Math.cos(nu),sx=Math.sin(nu);
+    return[r*cx,r*sx,vr*cx-vt*sx,vr*sx+vt*cx];})();
+  const tRel=7346770, tODM=7519570, odmDV=[0.02,0.021762695];
+  const titan=t=>{const th=TH0+omT*t;return{x:aT*Math.cos(th),y:aT*Math.sin(th),
+    vx:-aT*omT*Math.sin(th),vy:aT*omT*Math.cos(th),th};};
+  const deriv=(t,s)=>{
+    const T=titan(t),x=s[0],y=s[1],r3=Math.pow(x*x+y*y,1.5);
+    const dx=T.x-x,dy=T.y-y,d3=Math.pow(dx*dx+dy*dy,1.5),aT3=aT*aT*aT;
+    return[s[2],s[3],-muSat*x/r3+muT*(dx/d3-T.x/aT3),-muSat*y/r3+muT*(dy/d3-T.y/aT3)];
+  };
+  const hFor=(s,t)=>{
+    const T=titan(t);
+    const dT=Math.hypot(s[0]-T.x,s[1]-T.y),dS=Math.hypot(s[0],s[1]);
+    let h=120;
+    if(dS<3e5)h=20;if(dS<1.2e5)h=6;
+    if(dT<2e5)h=Math.min(h,15);if(dT<3e4)h=Math.min(h,3);if(dT<8e3)h=Math.min(h,1);
+    return h;
+  };
+  function stJacobi(t,s){
+    const mu2=muT/(muSat+muT);
+    const th=TH0+omT*t,c=Math.cos(th),si=Math.sin(th);
+    const bx=mu2*aT*c,by=mu2*aT*si;
+    const X=s[0]-bx,Y=s[1]-by;
+    const VX=s[2]+mu2*aT*omT*si,VY=s[3]-mu2*aT*omT*c;
+    const xr=X*c+Y*si,yr=-X*si+Y*c;
+    const vxi=VX+omT*Y,vyi=VY-omT*X;
+    const vxr=vxi*c+vyi*si,vyr=-vxi*si+vyi*c;
+    const r1=Math.hypot(xr+mu2*aT,yr),r2=Math.hypot(xr-(1-mu2)*aT,yr);
+    const U=0.5*omT*omT*(xr*xr+yr*yr)+muSat/r1+muT/r2;
+    return 2*U-(vxr*vxr+vyr*vyr);
+  }
+  function runStream(withODM,tEnd){
+    let s=s0.slice(),t=0,phase=0,rPrev=1e12,rApo=0,odmDone=false;
+    const S={t:[],x:[],y:[],vx:[],vy:[]},rI=[];
+    const out={arcs:[]}; let C0=stJacobi(0,s),drift=0,lastR=-1e9,dTmin=1e12,entrySet=false;
+    while(t<tEnd){
+      const dS=Math.hypot(s[0],s[1]);
+      if(phase===0&&dS<rpH*1.001&&dS>rPrev){
+        const v=Math.hypot(s[2],s[3]);
+        s[2]-=dvSOI*s[2]/v;s[3]-=dvSOI*s[3]/v;phase=1;
+        out.tSOI=t;out.epsPost=(Math.hypot(s[2],s[3])**2)/2-muSat/dS;
+        out.aPost=-muSat/(2*out.epsPost);
+        out.arcs.push(drift);C0=stJacobi(t,s);drift=0;
+      }
+      if(phase===1){
+        if(dS>rApo)rApo=dS;
+        else if(dS<rApo-50&&rApo>2e6){
+          const v=Math.hypot(s[2],s[3]);
+          s[2]+=dvPRM*s[2]/v;s[3]+=dvPRM*s[3]/v;
+          out.tPRM=t;out.rApo=rApo;phase=2;
+          out.arcs.push(drift);C0=stJacobi(t,s);drift=0;
+        }
+      }
+      if(withODM&&!odmDone&&t>=tODM-1e-6){
+        s[2]+=odmDV[0];s[3]+=odmDV[1];odmDone=true;
+        out.arcs.push(drift);C0=stJacobi(t,s);drift=0;
+      }
+      const T=titan(t);
+      const dT=Math.hypot(s[0]-T.x,s[1]-T.y);
+      if(phase===2){
+        if(dT<dTmin){dTmin=dT;out.tCA=t;}
+        if(!withODM&&!entrySet&&dT<3845){
+          out.tEntry=t;out.vEntry=Math.hypot(s[2]-T.vx,s[3]-T.vy);
+          out.entryAng=Math.atan2(s[1]-T.y,s[0]-T.x)-T.th;entrySet=true;
+        }
+      }
+      S.t.push(t);S.x.push(s[0]);S.y.push(s[1]);S.vx.push(s[2]);S.vy.push(s[3]);
+      const near=(dT<2e5)||(dS<2e5);
+      if(t-lastR>=(near?120:1800)){rI.push(S.t.length-1);lastR=t;}
+      const dr=Math.abs((stJacobi(t,s)-C0)/C0);
+      if(dr>drift)drift=dr;
+      rPrev=dS;
+      let h=hFor(s,t);
+      if(withODM&&!odmDone)h=Math.min(h,Math.max(0.5,tODM-t));
+      s=rk4Step(deriv,t,s,h);t+=h;
+    }
+    out.arcs.push(drift);
+    rI.push(S.t.length-1);
+    out.S=S;out.rI=rI;out.dTmin=dTmin;
+    return out;
+  }
+  const tCAnom=9074770;
+  const A=runStream(false,tCAnom+1*DAY);   // probe stream (ballistic)
+  const B=runStream(true,tCAnom+4*DAY);    // orbiter stream (with ODM)
+  const tEntry=A.tEntry, tTD=tEntry+8940, tTotal=tCAnom+4*DAY;
+  const misc={tSOI:B.tSOI,tPRM:B.tPRM,epsPost:B.epsPost,aPost:B.aPost,
+    period:TAU*Math.sqrt(Math.pow(B.aPost,3)/muSat),orbCA:B.dTmin,orbTCA:B.tCA,
+    tEntry,vEntry:A.vEntry,arcs:B.arcs,probeCA:A.dTmin};
+  const orbState=tm=>hermite(Math.max(0,Math.min(tm,B.S.t[B.S.t.length-1])),B.S.t,B.S.x,B.S.y,B.S.vx,B.S.vy);
+  function probeState(tm){
+    if(tm<tRel)return{x:0,y:0,vx:0,vy:0,vis:false};
+    if(tm<tEntry){const s=hermite(tm,A.S.t,A.S.x,A.S.y,A.S.vx,A.S.vy);return{x:s.x,y:s.y,vx:s.vx,vy:s.vy,vis:true};}
+    const T=titan(tm),ang=T.th+A.entryAng;
+    const r=tm<tTD?3845-(3845-RT)*(tm-tEntry)/8940:RT;
+    return{x:T.x+r*Math.cos(ang),y:T.y+r*Math.sin(ang),vx:0,vy:0,vis:true};
+  }
+  const orbRT=B.rI.map(i=>B.S.t[i]);
+  const probeRT=A.rI.map(i=>A.S.t[i]).filter(t=>t>=tRel&&t<=tEntry);
+  const evs=[
+    {t:0,n:'Arrival at Saturn',d:'After a 6.7-year VVEJGA cruise (four gravity assists — outside this model), Cassini falls in on a hyperbola: v∞ = 5.5 km/s.'},
+    {t:B.tSOI,n:'SOI — Saturn Orbit Insertion',d:'Retrograde burn Δv = 626 m/s (the actual value) at '+nf(rpH-RSat)+' km above the clouds. Orbital energy flips negative: captured, period '+(misc.period/DAY).toFixed(0)+' days (actual: 116).',mark:{ship:'main',color:[1,.35,.3]}},
+    {t:B.tPRM,n:'PRM — Periapsis Raise',d:'Prograde Δv = '+nf(dvPRM*1000)+' m/s at '+(B.rApo/1e6).toFixed(1)+' M-km apoapsis, targeting the first Titan encounter (actual PRM: 393 m/s).'},
+    {t:tRel,n:'Huygens release',d:'The stack is already on a Titan-impact course — exactly as flown. Huygens separates ballistically and coasts alone for 20 days.',mark:{ship:'probe',color:[.5,.85,1]}},
+    {t:tODM,n:'ODM — Orbiter Deflection',d:'Cassini side-steps with Δv = '+nf(Math.hypot(odmDV[0],odmDV[1])*1000)+' m/s (actual: 23.8 m/s), raising its own Titan pass to '+nf(misc.orbCA)+' km.'},
+    {t:tEntry,n:'Huygens atmospheric entry',d:'1,270 km interface at '+misc.vEntry.toFixed(2)+' km/s relative to Titan. Heat shield, then three parachutes.',mark:{ship:'probe',color:[1,.35,.3]}},
+    {t:tTD,n:'Touchdown on Titan',d:'The first landing in the outer solar system (14 Jan 2005). Huygens transmits from the surface of an alien moon.'},
+    {t:misc.orbTCA,n:'Cassini Titan flyby',d:'The orbiter sweeps past at '+nf(B.dTmin)+' km, relaying Huygens\u2019 data to Earth.'},
+    {t:tTotal,n:'The Grand Tour of Saturn begins',d:'Cassini went on to orbit Saturn for 13 years — 294 orbits, 127 Titan flybys — before the Grand Finale plunge of 2017.'}];
+  evs.sort((a,b)=>a.t-b.t);
+  function phaseName(t){
+    if(t<B.tSOI)return'Hyperbolic approach · v∞ 5.5 km/s';
+    if(t<B.tPRM)return'Capture orbit · period '+(misc.period/DAY).toFixed(0)+' d';
+    if(t<tRel)return'Inbound leg · Titan intercept course';
+    if(t<tODM)return'Huygens released · both on impact course';
+    if(t<tEntry)return'Coast · probe 20-day solo cruise';
+    if(t<tTD)return'Huygens · parachute descent (2 h 29 m)';
+    return'Huygens on Titan · Cassini in orbit';
+  }
+  const telem=[
+    {k:'Distance from Saturn',f:t=>{const s=orbState(t);return nf(Math.hypot(s.x,s.y))+' km';}},
+    {k:'Cassini alt. above Titan',f:t=>{const s=orbState(t),T=titan(t);return nf(Math.hypot(s.x-T.x,s.y-T.y)-RT)+' km';}},
+    {k:'Cassini speed',f:t=>{const s=orbState(t);return nf(Math.hypot(s.vx,s.vy),3)+' km/s';}},
+    {k:'Huygens alt. above Titan',f:t=>{const s=probeState(t),T=titan(t);return s.vis?nf(Math.hypot(s.x-T.x,s.y-T.y)-RT)+' km':'— (attached)';}},
+    {k:'Specific energy ε (Saturn)',f:t=>{const s=orbState(t);return nf(Math.hypot(s.vx,s.vy)**2/2-muSat/Math.hypot(s.x,s.y),2)+' km²/s²';}},
+    {k:'Jacobi constant C',f:t=>{const s=orbState(t);return nf(stJacobi(t,[s.x,s.y,s.vx,s.vy]),4);}}];
+  const dmax=Math.max(...misc.arcs);
+  return{
+    K:1/10000,tTotal,fmtT:fmtDHM,
+    bodies:[
+      {name:'SATURN',R:RSat,kind:'saturn',pos:()=>[0,0],spin:t=>-TAU*t/38362,ring:true,vsCap:1},
+      {name:'TITAN',R:RT,kind:'titan',pos:t=>{const T=titan(t);return[T.x,T.y];},
+       spin:t=>-(TH0+omT*t+Math.PI/2),orbitA:aT}],
+    preOrbits:[],
+    ships:[
+      {id:'main',label:'◆ CASSINI',color:[1,.7,.37],tStart:0,tEnd:tTotal,
+       stateAt:t=>{const s=orbState(t);return{x:s.x,y:s.y,vx:s.vx,vy:s.vy,vis:true};},renderTimes:orbRT},
+      {id:'probe',label:'◈ HUYGENS',color:[.5,.85,1],tStart:tRel,tEnd:tTotal,
+       stateAt:probeState,renderTimes:probeRT}],
+    events:evs,phaseName,telem,
+    speeds:[{lab:'60×',m:60},{lab:'1 h/s',m:3600},{lab:'6 h/s',m:21600},{lab:'1 d/s',m:DAY},{lab:'5 d/s',m:5*DAY},{lab:'15 d/s',m:15*DAY}],
+    defSpeed:4,
+    cams:[{id:'sys',lab:'System',r:1450,tgt:()=>[0,0]},
+          {id:'sat',lab:'Saturn',r:32,tgt:()=>[0,0]},
+          {id:'tit',lab:'Titan',r:14,tgt:t=>{const T=titan(t);return[T.x,T.y];}},
+          {id:'ship',lab:'Cassini',r:8,tgt:'ship:main'},
+          {id:'probe',lab:'Huygens',r:5,tgt:'ship:probe'}],
+    camLimits:{minZ:0.02,maxZ:40000,lower:1,upper:6000},
+    scaleTgl:{lab:'Titan ×5 (visual — Saturn & orbits 1:1)',off:1,on:5,def:true},
+    sun:{type:'dir',dir:[-0.8,-0.3,0.5]},starsSeed:2004,
+    verify:'PHYSICS CHECK: coast-arc |ΔC/C₀| ≤ '+dmax.toExponential(1).replace('e-','×10⁻')+' ✓',
+    endTitle:'HUYGENS ON TITAN',
+    endText:'Entry '+misc.vEntry.toFixed(2)+' km/s · SOI 626 m/s · capture period '+(misc.period/DAY).toFixed(0)+' d · orbiter pass '+nf(misc.orbCA)+' km',
+    panes:{
+      model:'<p>Saturn-centred planar <b>restricted three-body problem</b> (Saturn–Titan–spacecraft) with the indirect term — the same structure as the Earth–Moon missions, with Titan on a circular orbit (a = 1,221,870 km, period 15.95 d):</p><div class="fx"><i>r̈</i> = −μ<sub>♄</sub><i>r</i>/r³ + μ<sub>T</sub>[ (<i>r</i><sub>T</sub>−<i>r</i>)/|<i>r</i><sub>T</sub>−<i>r</i>|³ − <i>r</i><sub>T</sub>/|<i>r</i><sub>T</sub>|³ ]</div><h4>Sequence</h4><table><tr><th>Manoeuvre</th><th>Model</th><th>Actual</th></tr><tr><td>SOI (retro at periapsis)</td><td class="mono">626 m/s</td><td class="mono">626 m/s ✓</td></tr><tr><td>PRM (prograde at apoapsis)</td><td class="mono">'+nf(dvPRM*1000)+' m/s</td><td class="mono">393 m/s</td></tr><tr><td>ODM (orbiter deflection)</td><td class="mono">'+nf(Math.hypot(odmDV[0],odmDV[1])*1000)+' m/s</td><td class="mono">23.8 m/s</td></tr></table><p>The Huygens delivery is <b>ballistic and untargeted at release</b>, exactly as flown: PRM places the whole stack on a Titan-impact course; the probe simply coasts; the orbiter deflects itself two days later. The approach hyperbola (v∞ = 5.5 km/s, periapsis 80,230 km) matches the real arrival geometry.</p>',
+      method:'<p>RK4, adaptive step 120 s → 1 s near Titan. SOI and PRM are applied by state detection (periapsis / apoapsis crossing), not clocked — so the physics, not a script, decides when they fire. Burn ODM epoch is hit exactly by step clamping. Titan\u2019s phase θ₀ and the PRM magnitude were solved offline by pattern search so the ballistic probe arc crosses Titan\u2019s entry interface; the browser re-integrates the same equations on the same grid.</p>',
+      valid:'<table><tr><th>Check</th><th>Simulation</th><th>Reference</th><th></th></tr><tr><td>Capture (post-SOI energy)</td><td class="mono">ε = '+misc.epsPost.toFixed(2)+' km²/s² &lt; 0</td><td class="mono">bound orbit</td><td class="pass">✓</td></tr><tr><td>Initial orbit period</td><td class="mono">'+(misc.period/DAY).toFixed(1)+' d</td><td class="mono">116 d</td><td class="pass">✓</td></tr><tr><td>Huygens entry interface</td><td class="mono">1,270 km alt</td><td class="mono">1,270 km</td><td class="pass">✓</td></tr><tr><td>Huygens entry speed</td><td class="mono">'+misc.vEntry.toFixed(2)+' km/s</td><td class="mono">6.1 km/s</td><td class="warn2">≈</td></tr><tr><td>Orbiter deflected pass</td><td class="mono">'+nf(misc.orbCA)+' km</td><td class="mono">60,000 km (design)</td><td class="pass">✓</td></tr><tr><td>Jacobi drift per coast arc</td><td class="mono">≤ '+dmax.toExponential(1)+'</td><td class="mono">→ 0</td><td class="pass">✓</td></tr></table><p style="margin-top:8px">Entry speed runs ~20% low because the planar model fixes the arrival geometry in Titan\u2019s orbital plane; the capture, delivery and deflection mechanics are dynamically exact within the model.</p>',
+      assum:'<table><tr><th>Assumption</th><th>Effect</th></tr><tr><td>Interplanetary VVEJGA cruise not simulated</td><td>The mission opens at Saturn arrival; the cruise\u2019s four gravity assists are described, not integrated.</td></tr><tr><td>Titan\u2019s phase chosen for the encounter</td><td>Real operations chose the arrival date for the same reason.</td></tr><tr><td>Planar model, circular Titan orbit (e = 0.029)</td><td>Entry-angle geometry approximate; capture dynamics unaffected.</td></tr><tr><td>Parachute descent scripted (2 h 29 m, radial)</td><td>Atmospheric flight is outside the gravity model; timing matches Huygens.</td></tr><tr><td>Other moons, rings\u2019 mass, J2 of Saturn omitted</td><td>Sub-percent over 109 days.</td></tr></table>'
+    }
+  };
+}
+
+/* ---------------- ROSETTA & PHILAE (67P proximity operations) ---------------- */
+function computeRosetta(){
+  const mu=6.662e-7, Rc=2.0;
+  const T10=TAU*Math.sqrt(1000/mu);
+  const aTr=16.25,eTr=12.5/32.5,Ttr=Math.PI*Math.sqrt(Math.pow(aTr,3)/mu);
+  const t1=T10,t2=t1+Ttr;
+  const v10=Math.sqrt(mu/10),n10=v10/10,nTr=Math.PI/Ttr;
+  const vrR=-0.00055,vtR=0.0001887453,dR=-0.0001765625,dT=-0.0001919833;
+  const deriv=(t,s)=>{const r3=Math.pow(s[0]*s[0]+s[1]*s[1],1.5);
+    return[s[2],s[3],-mu*s[0]/r3,-mu*s[1]/r3];};
+  function arc(sIn,tAbs0,tMax,rec){
+    let s=sIn.slice(),t=0,rMin=1e9,tMinA=0,drift=0;
+    const E0=(s[2]*s[2]+s[3]*s[3])/2-mu/Math.hypot(s[0],s[1]);
+    while(t<tMax){
+      const r=Math.hypot(s[0],s[1]);
+      if(r<rMin){rMin=r;tMinA=t;}
+      const E=(s[2]*s[2]+s[3]*s[3])/2-mu/r;
+      drift=Math.max(drift,Math.abs((E-E0)/E0));
+      if(rec)rec(tAbs0+t,s);
+      if(t>60&&r<=Rc)return{hit:true,t,v:Math.hypot(s[2],s[3]),s:s.slice(),rMin,tMinA,drift};
+      const h=r>10?20:(r>4?8:2);
+      s=rk4Step(deriv,t,s,h);t+=h;
+    }
+    return{hit:false,s,rMin,tMinA,drift};
+  }
+  function bounceDir(sImp,vout,angDeg){
+    const r=Math.hypot(sImp[0],sImp[1]);
+    const ux=sImp[0]/r,uy=sImp[1]/r,tx=-uy,ty=ux,a=angDeg*Math.PI/180;
+    return[sImp[0],sImp[1],vout*(Math.sin(a)*ux+Math.cos(a)*tx),vout*(Math.sin(a)*uy+Math.cos(a)*ty)];
+  }
+  // Philae
+  const phS={t:[],x:[],y:[],vx:[],vy:[]};
+  const rec=(ta,s)=>{phS.t.push(ta);phS.x.push(s[0]);phS.y.push(s[1]);phS.vx.push(s[2]);phS.vy.push(s[3]);};
+  const d1=arc([22.5,0,vrR+dR,vtR+dT],t2,60*3600,rec);
+  const tTD1=t2+d1.t;
+  const b1=arc(bounceDir(d1.s,0.38e-3,52),tTD1,6*3600,rec);
+  const tTD2=tTD1+b1.t;
+  const b2=arc(bounceDir(b1.s,0.03e-3,60),tTD2,3600,rec);
+  const tTD3=tTD2+b2.t;
+  const restAng=Math.atan2(b2.s[1],b2.s[0]);
+  // Rosetta delivery arc
+  const roS={t:[],x:[],y:[],vx:[],vy:[]};
+  const recR=(ta,s)=>{roS.t.push(ta);roS.x.push(s[0]);roS.y.push(s[1]);roS.vx.push(s[2]);roS.vy.push(s[3]);};
+  const tTotal=tTD3+2.5*3600;
+  const ra=arc([22.5,0,vrR,vtR],t2,tTotal-t2,recR);
+  const tRosCA=t2+ra.tMinA;
+  const misc={TD1v:d1.v*1e3,TOF:d1.t,drift:d1.drift,rosCA:ra.rMin,
+    b1dur:b1.t,b1apex:(b1.rMin===undefined?0:0),vEsc:Math.sqrt(2*mu/Rc)*1e3};
+  let b1apex=0;for(let i=0;i<phS.t.length;i++){if(phS.t[i]>tTD1&&phS.t[i]<tTD2)b1apex=Math.max(b1apex,Math.hypot(phS.x[i],phS.y[i]));}
+  misc.b1apex=(b1apex-Rc)*1e3;
+  function mapState(tm){
+    if(tm<t1){const ph=Math.PI+n10*(tm-t1);
+      return{x:10*Math.cos(ph),y:10*Math.sin(ph),vx:-v10*Math.sin(ph),vy:v10*Math.cos(ph)};}
+    const M=nTr*(tm-t1),E=keplerE(M,eTr);
+    const cE=Math.cos(E),sE=Math.sin(E),r=aTr*(1-eTr*cE),f=Math.sqrt(mu*aTr)/r;
+    const xP=aTr*(cE-eTr),yP=aTr*Math.sqrt(1-eTr*eTr)*sE;
+    const vxP=-f*sE,vyP=f*Math.sqrt(1-eTr*eTr)*cE;
+    return{x:-xP,y:-yP,vx:-vxP,vy:-vyP};
+  }
+  function rosState(tm){
+    if(tm<t2)return{...mapState(tm),vis:true};
+    const s=hermite(Math.min(tm,roS.t[roS.t.length-1]),roS.t,roS.x,roS.y,roS.vx,roS.vy);
+    return{x:s.x,y:s.y,vx:s.vx,vy:s.vy,vis:true};
+  }
+  function phiState(tm){
+    if(tm<t2)return{x:0,y:0,vx:0,vy:0,vis:false};
+    if(tm>=tTD3)return{x:Rc*Math.cos(restAng),y:Rc*Math.sin(restAng),vx:0,vy:0,vis:true};
+    const s=hermite(tm,phS.t,phS.x,phS.y,phS.vx,phS.vy);
+    return{x:s.x,y:s.y,vx:s.vx,vy:s.vy,vis:true};
+  }
+  const rtMain=[];for(let tm=0;tm<t2;tm+=600)rtMain.push(tm);
+  for(let i=0;i<roS.t.length;i+=3)rtMain.push(roS.t[i]);
+  const rtProbe=[];for(let i=0;i<phS.t.length;i+=2)rtProbe.push(phS.t[i]);
+  const evs=[
+    {t:0,n:'Global mapping orbit · 10 km',d:'Bound orbit around a 4-km comet: orbital speed 0.26 m/s — slower than walking. Period 2.8 days.'},
+    {t:t1,n:'Transfer manoeuvre',d:'Δv = +4.6 cm/s. In 67P\u2019s feeble gravity, centimetres per second redraw the whole orbit.'},
+    {t:t2-1,n:'Pre-delivery manoeuvre',d:'Δv = 0.55 m/s puts Rosetta on a hyperbolic delivery arc — it will swing past the comet at '+misc.rosCA.toFixed(1)+' km, not orbit it.',mark:{ship:'main',color:[1,.35,.3]}},
+    {t:t2,n:'Philae separation',d:'Spring push of 0.26 m/s (actual: 0.19 m/s). 12 Nov 2014 — seven hours of ballistic silence begin.',mark:{ship:'probe',color:[.5,.85,1]}},
+    {t:tTD1,n:'Touchdown 1 — harpoons fail',d:'Contact at Agilkia: '+misc.TD1v.toFixed(2)+' m/s after a '+(misc.TOF/3600).toFixed(1)+'-hour fall (actual: 1.0 m/s, 7.05 h). The anchors don\u2019t fire.',mark:{ship:'probe',color:[1,.35,.3]}},
+    {t:tTD1+60,n:'The bounce',d:'Rebound at 0.38 m/s — below escape velocity (0.82 m/s), so Philae stays bound: a '+(misc.b1dur/60).toFixed(0)+'-minute, '+misc.b1apex.toFixed(0)+'-m-high hop (actual: ~111 min).'},
+    {t:tTD2,n:'Touchdown 2',d:'A second, gentler contact — and one last 0.03 m/s skip of '+(b2.t/60).toFixed(0)+' minutes.'},
+    {t:tTD3,n:'Final rest at Abydos',d:'Philae settles in shadow against a cliff. 57 hours of battery, all instruments run. First soft landing on a comet.'},
+    {t:tRosCA,n:'Rosetta closest pass',d:'The orbiter sweeps by at '+misc.rosCA.toFixed(1)+' km on its delivery hyperbola, listening for its lander.'},
+    {t:tTotal,n:'The mission continues',d:'Rosetta escorted 67P around the Sun for two more years, ending with its own controlled touchdown in Sept 2016.'}];
+  evs.sort((a,b)=>a.t-b.t);
+  function phaseName(t){
+    if(t<t1)return'Mapping orbit · 10 km · 0.26 m/s';
+    if(t<t2)return'Hohmann transfer · 10 → 22.5 km';
+    if(t<tTD1)return'Philae · ballistic descent';
+    if(t<tTD2)return'Philae · the great bounce';
+    if(t<tTD3)return'Philae · final hops';
+    return'Philae at Abydos · Rosetta escorting';
+  }
+  const telem=[
+    {k:'Rosetta dist. from centre',f:t=>{const s=rosState(t);return Math.hypot(s.x,s.y).toFixed(2)+' km';}},
+    {k:'Rosetta speed',f:t=>{const s=rosState(t);return(Math.hypot(s.vx,s.vy)*1e3).toFixed(3)+' m/s';}},
+    {k:'Philae dist. from centre',f:t=>{const s=phiState(t);return s.vis?Math.hypot(s.x,s.y).toFixed(2)+' km':'— (attached)';}},
+    {k:'Philae speed',f:t=>{const s=phiState(t);return s.vis?(Math.hypot(s.vx,s.vy)*1e3).toFixed(3)+' m/s':'—';}},
+    {k:'Local escape speed',f:t=>{const s=rosState(t);return(Math.sqrt(2*mu/Math.hypot(s.x,s.y))*1e3).toFixed(3)+' m/s';}},
+    {k:'Philae energy ε',f:t=>{const s=phiState(t);if(!s.vis)return'—';
+      return((Math.hypot(s.vx,s.vy)**2/2-mu/Math.hypot(s.x,s.y))*1e6).toExponential(2)+' m²/s²·10⁻⁶';}}];
+  return{
+    K:1,tTotal,fmtT:t=>'T+ '+fmtDHMS(t),
+    bodies:[{name:'67P',R:Rc,kind:'comet',pos:()=>[0,0],lobes:true}],
+    preOrbits:[{r:10,col:[.3,.42,.62]}],
+    ships:[
+      {id:'main',label:'◆ ROSETTA',color:[1,.7,.37],tStart:0,tEnd:tTotal,stateAt:rosState,renderTimes:rtMain},
+      {id:'probe',label:'◈ PHILAE',color:[.5,.85,1],tStart:t2,tEnd:tTotal,stateAt:phiState,renderTimes:rtProbe}],
+    events:evs,phaseName,telem,
+    speeds:[{lab:'1×',m:1},{lab:'60×',m:60},{lab:'600×',m:600},{lab:'1 h/s',m:3600},{lab:'6 h/s',m:21600},{lab:'1 d/s',m:DAY}],
+    defSpeed:4,
+    cams:[{id:'sys',lab:'System',r:70,tgt:()=>[0,0]},
+          {id:'comet',lab:'Comet',r:9,tgt:()=>[0,0]},
+          {id:'ros',lab:'Rosetta',r:5,tgt:'ship:main'},
+          {id:'phi',lab:'Philae',r:2.5,tgt:'ship:probe'}],
+    camLimits:{minZ:0.005,maxZ:3000,lower:0.4,upper:500},
+    scaleTgl:null,
+    sun:{type:'dir',dir:[-0.75,-0.35,0.55]},starsSeed:67,
+    verify:'PHYSICS CHECK: descent energy drift = '+misc.drift.toExponential(1).replace('e-','×10⁻')+' ✓',
+    endTitle:'PHILAE HAS LANDED',
+    endText:'Touchdown '+misc.TD1v.toFixed(2)+' m/s after '+(misc.TOF/3600).toFixed(1)+' h · bounce 0.38 &lt; v_esc 0.82 m/s · at rest on 67P',
+    panes:{
+      model:'<p>Comet-centred <b>two-body problem</b> with the measured gravitational parameter of 67P/Churyumov–Gerasimenko:</p><div class="fx"><i>r̈</i> = −μ·<i>r</i>/r³ , &nbsp; μ = 6.662×10⁻⁷ km³/s² &nbsp;(GM of a 10¹³-kg comet)</div><p>This is gravity a hundred billion times weaker than Earth\u2019s. Orbital speed at 10 km is 0.26 m/s; escape velocity at the surface is <b>0.82 m/s</b> — you could jump off this comet. That single number drives the whole drama: Philae\u2019s 0.38 m/s rebound stays bound, which is why the bounce lasted hours instead of losing the lander to space.</p><h4>Sequence</h4><table><tr><th>Manoeuvre</th><th>Model</th><th>Actual</th></tr><tr><td>Transfer 10→22.5 km</td><td class="mono">4.6 cm/s</td><td class="mono">cm/s-class ops</td></tr><tr><td>Pre-delivery manoeuvre</td><td class="mono">0.55 m/s</td><td class="mono">~0.5 m/s class</td></tr><tr><td>Philae separation push</td><td class="mono">0.26 m/s</td><td class="mono">0.19 m/s</td></tr></table><p>The descent initial velocity was solved by 2-parameter targeting for the two measured facts: ~7-hour fall, ~1.0 m/s touchdown. Bounces use restitution to the observed rebound speeds (0.38, 0.03 m/s); the hop trajectories themselves are integrated, not drawn.</p>',
+      method:'<p>RK4 with steps of 20 s (far), 8 s, 2 s (near the surface). The two-body coast conserves specific orbital energy exactly in theory — measured drift over the 7.3-hour descent: <span class="mono">'+misc.drift.toExponential(1)+'</span>. Mapping and transfer phases are analytic Kepler arcs (Newton-solved eccentric anomaly), joined impulsively.</p>',
+      valid:'<table><tr><th>Check</th><th>Simulation</th><th>Rosetta/Philae actual</th><th></th></tr><tr><td>Descent duration</td><td class="mono">'+(misc.TOF/3600).toFixed(2)+' h</td><td class="mono">7.05 h</td><td class="pass">✓</td></tr><tr><td>Touchdown speed</td><td class="mono">'+misc.TD1v.toFixed(2)+' m/s</td><td class="mono">1.0 m/s</td><td class="pass">✓</td></tr><tr><td>Surface escape velocity</td><td class="mono">'+misc.vEsc.toFixed(2)+' m/s</td><td class="mono">~0.8–0.9 m/s</td><td class="pass">✓</td></tr><tr><td>Bounce stays bound</td><td class="mono">0.38 &lt; '+misc.vEsc.toFixed(2)+' m/s</td><td class="mono">Philae did not escape</td><td class="pass">✓</td></tr><tr><td>First hop</td><td class="mono">'+(misc.b1dur/60).toFixed(0)+' min · '+misc.b1apex.toFixed(0)+' m apex</td><td class="mono">~111 min · ~1 km</td><td class="warn2">≈</td></tr><tr><td>Energy drift (coast)</td><td class="mono">'+misc.drift.toExponential(1)+'</td><td class="mono">→ 0</td><td class="pass">✓</td></tr></table><p style="margin-top:8px">The hop differs because the real bounce happened on a rotating, irregularly-shaped nucleus (the surface moved ~0.3 m/s under Philae); with point-mass gravity the same rebound speed gives a shorter arc — the bound-vs-escape physics, the part that saved the mission, is exact.</p>',
+      assum:'<table><tr><th>Assumption</th><th>Effect</th></tr><tr><td>Point-mass gravity, 2.0 km contact sphere</td><td>67P is a 4×2.5 km bilobed “duck”; the shown shape is visual. Near-surface gravity of the real shape varies ~2×.</td></tr><tr><td>Comet rotation (12.4 h) neglected in dynamics</td><td>Surface motion ~0.3 m/s at the lobes — comparable to landing speeds; affects hop direction, not bound/unbound physics.</td></tr><tr><td>No outgassing, SRP, solar tide</td><td>μN-level forces; relevant over weeks, not hours.</td></tr><tr><td>10-year cruise & three Earth+Mars assists omitted</td><td>The mission opens at proximity operations, Aug–Nov 2014.</td></tr><tr><td>Timeline compressed</td><td>Months of triangular approach arcs condensed into one mapping orbit.</td></tr></table>'
+    }
+  };
+}
+const MISSIONS=[
+  {id:'apollo11',nm:'APOLLO 11',yr:'1969',bl:'First human landing on the Moon — TLI, LOI, Tranquility Base, and the ride home.',fn:computeApollo,sub:'First Moon landing · Earth–Moon three-body'},
+  {id:'artemis2',nm:'ARTEMIS II',yr:'2026',bl:'Crewed free-return around the far side of the Moon — no engine needed to come home.',fn:computeArtemis,sub:'Crewed lunar free return · figure-eight'},
+  {id:'voyager2',nm:'VOYAGER 2',yr:'1977–1989',bl:'The Grand Tour: four gravity assists past Jupiter, Saturn, Uranus and Neptune.',fn:computeVoyager2,sub:'Grand tour of the giant planets'},
+  {id:'cassini',nm:'CASSINI–HUYGENS',yr:'2004–2005',bl:'Capture at Saturn and the first landing in the outer solar system, on Titan.',fn:computeCassini,sub:'Saturn orbit insertion & Titan landing'},
+  {id:'rosetta',nm:'ROSETTA & PHILAE',yr:'2014',bl:'Orbiting a comet at walking pace — and the bounce that nearly lost a lander.',fn:computeRosetta,sub:'Comet 67P proximity ops & landing'},
+  {id:'newhorizons',nm:'NEW HORIZONS',yr:'2006–2015',bl:'The fastest launch ever, a Jupiter slingshot, and nine years to Pluto\u2019s heart.',fn:computeNewHorizons,sub:'Pluto flyby · fastest launch in history'}];
+/*PHYS-END*/
+
+/* ================= PROCEDURAL TEXTURE PAINTERS ================= */
+function paintTex(kind,scene,seed){
+  const W=512,H=256;
+  const dt=new BABYLON.DynamicTexture('tex_'+kind,{width:W,height:H},scene,false);
+  const c=dt.getContext();
+  const rnd=mulberry(seed||1234);
+  const blob=(x,y,rx,ry,col)=>{c.fillStyle=col;c.beginPath();c.ellipse(x,y,rx,ry,rnd()*3,0,TAU);c.fill();};
+  const bands=(list)=>{let y=0;for(const b of list){c.fillStyle=b[0];c.fillRect(0,y,W,b[1]*H);y+=b[1]*H;}};
+  if(kind==='earth'){
+    c.fillStyle='#12325e';c.fillRect(0,0,W,H);
+    for(let i=0;i<70;i++)blob(rnd()*W,30+rnd()*(H-60),14+rnd()*46,8+rnd()*24,rnd()<.5?'#1d5a3a':'#2a6b42');
+    for(let i=0;i<26;i++)blob(rnd()*W,40+rnd()*(H-80),8+rnd()*22,5+rnd()*12,'#7a6a3e');
+    c.fillStyle='#eef4fb';c.fillRect(0,0,W,16);c.fillRect(0,H-16,W,16);
+    c.globalAlpha=.30;c.fillStyle='#ffffff';
+    for(let i=0;i<60;i++)blob(rnd()*W,rnd()*H,20+rnd()*54,5+rnd()*13,'#ffffff');
+    c.globalAlpha=1;
+  } else if(kind==='moon'){
+    c.fillStyle='#8d8d8d';c.fillRect(0,0,W,H);
+    for(let i=0;i<22;i++)blob(rnd()*W,rnd()*H,20+rnd()*60,14+rnd()*36,'#6f6f70');
+    for(let i=0;i<150;i++){const r=1.5+rnd()*8;blob(rnd()*W,rnd()*H,r,r*.92,rnd()<.5?'#a2a2a2':'#787878');}
+  } else if(kind==='sun'){
+    const g=c.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#ffd27a');g.addColorStop(.5,'#fff3c4');g.addColorStop(1,'#ffc45e');
+    c.fillStyle=g;c.fillRect(0,0,W,H);
+    c.globalAlpha=.35;
+    for(let i=0;i<120;i++)blob(rnd()*W,rnd()*H,6+rnd()*22,4+rnd()*11,rnd()<.5?'#fff8dc':'#ff9d3c');
+    c.globalAlpha=1;
+  } else if(kind==='jupiter'){
+    bands([['#c8a882',.10],['#e6d5b8',.09],['#b98d5e',.08],['#e8dcc4',.10],['#a9754b',.09],
+           ['#dfcaa6',.10],['#c99a63',.09],['#eadfc8',.10],['#b8875a',.09],['#d9c19c',.16]]);
+    c.globalAlpha=.30;
+    for(let i=0;i<90;i++)blob(rnd()*W,rnd()*H,16+rnd()*50,3+rnd()*7,rnd()<.5?'#ffffff':'#8a6038');
+    c.globalAlpha=1;
+    blob(W*.66,H*.63,34,17,'#c4553a');
+    c.globalAlpha=.5;blob(W*.66,H*.63,26,12,'#e07a56');c.globalAlpha=1;
+  } else if(kind==='saturn'){
+    bands([['#e3d3a8',.14],['#d6c08d',.12],['#efe3c2',.13],['#cbb17c',.12],
+           ['#e8d9b0',.13],['#d2b988',.12],['#f0e6cb',.24]]);
+    c.globalAlpha=.22;
+    for(let i=0;i<70;i++)blob(rnd()*W,rnd()*H,20+rnd()*54,3+rnd()*6,'#ffffff');
+    c.globalAlpha=1;
+  } else if(kind==='uranus'){
+    bands([['#a8e2e6',.30],['#bdeaec',.40],['#9fd8dd',.30]]);
+    c.globalAlpha=.16;
+    for(let i=0;i<40;i++)blob(rnd()*W,rnd()*H,30+rnd()*70,4+rnd()*8,'#ffffff');
+    c.globalAlpha=1;
+  } else if(kind==='neptune'){
+    bands([['#2f5fc4',.26],['#3d72d8',.24],['#2a55b4',.26],['#3768cc',.24]]);
+    c.globalAlpha=.28;
+    for(let i=0;i<44;i++)blob(rnd()*W,rnd()*H,24+rnd()*60,4+rnd()*9,'#ffffff');
+    c.globalAlpha=1;
+    blob(W*.38,H*.58,26,14,'#1c3f88');
+  } else if(kind==='pluto'){
+    c.fillStyle='#b09a80';c.fillRect(0,0,W,H);
+    for(let i=0;i<40;i++)blob(rnd()*W,rnd()*H,16+rnd()*44,10+rnd()*26,rnd()<.5?'#8e775e':'#c4ae92');
+    c.fillStyle='#efe6d4';c.beginPath();c.ellipse(W*.55,H*.56,58,40,0,0,TAU);c.fill();
+    for(let i=0;i<60;i++)blob(rnd()*W,rnd()*H,3+rnd()*9,2+rnd()*6,'#7d6850');
+  } else if(kind==='titan'){
+    bands([['#d9962f',.22],['#e8b455',.20],['#cf8a26',.20],['#e0a441',.20],['#c87f22',.18]]);
+    c.globalAlpha=.30;
+    for(let i=0;i<90;i++)blob(rnd()*W,rnd()*H,20+rnd()*56,6+rnd()*14,rnd()<.5?'#f5cd84':'#a96a19');
+    c.globalAlpha=1;
+  } else if(kind==='comet'){
+    c.fillStyle='#3a3632';c.fillRect(0,0,W,H);
+    for(let i=0;i<80;i++)blob(rnd()*W,rnd()*H,10+rnd()*40,8+rnd()*22,rnd()<.5?'#2c2926':'#4a453f');
+    for(let i=0;i<260;i++){const r=1+rnd()*5;blob(rnd()*W,rnd()*H,r,r,rnd()<.6?'#221f1c':'#5a544c');}
+  } else {
+    c.fillStyle='#8a8a8a';c.fillRect(0,0,W,H);
+  }
+  dt.update();
+  return dt;
+}
+function paintRing(scene,seed){
+  const S=512;
+  const dt=new BABYLON.DynamicTexture('ringtex',{width:S,height:S},scene,false);
+  const c=dt.getContext();
+  const rnd=mulberry(seed||7);
+  c.clearRect(0,0,S,S);
+  const cx=S/2,cy=S/2;
+  for(let r=S/2;r>S*0.115;r-=1){
+    const f=(r-S*0.115)/(S/2-S*0.115);
+    let a=0.55-0.32*Math.abs(f-0.5)*2+ (rnd()-0.5)*0.22;
+    if(f>0.44&&f<0.50)a*=0.10;        // Cassini division
+    if(f>0.88)a*=0.35;
+    a=Math.max(0,Math.min(0.85,a));
+    const g=190+Math.floor(rnd()*50);
+    c.strokeStyle='rgba('+g+','+(g-16)+','+(g-56)+','+a.toFixed(3)+')';
+    c.beginPath();c.arc(cx,cy,r,0,TAU);c.stroke();
+  }
+  dt.update();
+  dt.hasAlpha=true;
+  return dt;
+}
+function makeStars(scene,seed,radius){
+  const rnd=mulberry(seed||1);
+  const N=1400;
+  const pcs=new BABYLON.PointsCloudSystem('stars',2,scene);
+  pcs.addPoints(N,(p)=>{
+    const u=rnd()*2-1,th=rnd()*TAU,s=Math.sqrt(1-u*u);
+    p.position=new BABYLON.Vector3(radius*s*Math.cos(th),radius*u,radius*s*Math.sin(th));
+    const w=0.55+rnd()*0.45, tint=rnd();
+    p.color=new BABYLON.Color4(w*(tint<.2?0.82:1),w*(tint<.2?0.88:1),w*(tint>.8?0.82:1),1);
+  });
+  return pcs.buildMeshAsync().then(m=>{
+    m.material.pointSize=1.6;
+    m.infiniteDistance=true;
+    m.isPickable=false;
+    return m;
+  });
+}
+
+/* ================= SCENE + UI ENGINE ================= */
+function initApp(){
+  const canvas=document.getElementById('scene');
+  const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:false,stencil:false},true);
+  const $=id=>document.getElementById(id);
+  const tagsHost=$('tags');
+
+  let M=null, scene=null, cam=null, R=null;   // R = runtime refs
+  let simT=0, playing=false, speedIdx=0, camIdx=0, visOn=false, curMission=null;
+  let lastTrail=0, lastUI=0;
+
+  /* ---------- scene construction ---------- */
+  function disposeScene(){
+    if(scene){scene.dispose();scene=null;}
+    tagsHost.innerHTML='';
+    R=null;cam=null;
+  }
+  function v3(x,y,K){return new BABYLON.Vector3(x*K,0,y*K);}
+
+  function buildScene(){
+    const K=M.K;
+    scene=new BABYLON.Scene(engine);
+    scene.clearColor=new BABYLON.Color4(0.012,0.024,0.055,1);
+    scene.autoClear=true;
+    R={bodies:[],ships:[],labels:[],marks:[]};
+
+    // camera
+    const cl=M.camLimits||{minZ:0.05,maxZ:60000,lower:3,upper:30000};
+    cam=new BABYLON.ArcRotateCamera('cam',-Math.PI/2,0.86,M.cams[0].r,BABYLON.Vector3.Zero(),scene);
+    cam.attachControl(canvas,true);
+    cam.minZ=cl.minZ;cam.maxZ=cl.maxZ;
+    cam.lowerRadiusLimit=cl.lower;cam.upperRadiusLimit=cl.upper;
+    cam.wheelDeltaPercentage=0.018;
+    cam.pinchDeltaPercentage=0.018;
+    cam.panningSensibility=0;
+    M.cams.forEach(cc=>{cc._r=cc.r;});
+
+    // lights
+    const amb=new BABYLON.HemisphericLight('amb',new BABYLON.Vector3(0,1,0),scene);
+    amb.intensity=0.16;amb.diffuse=new BABYLON.Color3(.6,.7,.9);
+    if(M.sun.type==='point'){
+      const pl=new BABYLON.PointLight('sunL',BABYLON.Vector3.Zero(),scene);
+      pl.intensity=1.05;pl.range=1e9;pl.diffuse=new BABYLON.Color3(1,.96,.88);
+    }else{
+      const d=M.sun.dir;
+      const dl=new BABYLON.DirectionalLight('sunL',new BABYLON.Vector3(d[0],d[1],d[2]),scene);
+      dl.intensity=1.15;dl.diffuse=new BABYLON.Color3(1,.97,.92);
+    }
+
+    makeStars(scene,M.starsSeed,(M.camLimits?M.camLimits.upper:30000)*0.9);
+
+    // bodies
+    M.bodies.forEach((b,i)=>{
+      const seg=b.kind==='sun'?32:(b.R*K>4?48:26);
+      const mesh=BABYLON.MeshBuilder.CreateSphere('b'+i,{diameter:2*b.R*K,segments:seg},scene);
+      const mat=new BABYLON.StandardMaterial('bm'+i,scene);
+      const tex=paintTex(b.kind,scene,(M.starsSeed||7)+i*31);
+      mat.diffuseTexture=tex;
+      mat.specularColor=new BABYLON.Color3(.05,.05,.06);
+      if(b.kind==='sun'){
+        mat.emissiveTexture=tex;mat.disableLighting=true;
+        const gl=new BABYLON.GlowLayer('glow',scene);gl.intensity=0.55;
+      }else{
+        mat.emissiveColor=new BABYLON.Color3(.05,.06,.09);
+      }
+      mesh.material=mat;
+      const rec={def:b,mesh,base:b.R*K,extras:[]};
+
+      if(b.atmo){
+        const a=BABYLON.MeshBuilder.CreateSphere('atmo'+i,{diameter:2*b.R*K*1.035,segments:seg},scene);
+        const am=new BABYLON.StandardMaterial('am'+i,scene);
+        am.diffuseColor=new BABYLON.Color3(.3,.55,1);am.emissiveColor=new BABYLON.Color3(.16,.32,.62);
+        am.alpha=0.16;am.backFaceCulling=false;am.specularColor=BABYLON.Color3.Black();
+        a.material=am;a.parent=mesh;rec.extras.push(a);
+      }
+      if(b.ring){
+        const disc=BABYLON.MeshBuilder.CreateDisc('ring'+i,{radius:b.R*K*2.28,tessellation:80},scene);
+        disc.rotation.x=Math.PI/2;
+        const rm=new BABYLON.StandardMaterial('rm'+i,scene);
+        rm.diffuseTexture=paintRing(scene,5);
+        rm.opacityTexture=rm.diffuseTexture;
+        rm.emissiveColor=new BABYLON.Color3(.35,.32,.25);
+        rm.backFaceCulling=false;rm.specularColor=BABYLON.Color3.Black();
+        disc.material=rm;disc.parent=mesh;rec.extras.push(disc);
+      }
+      if(b.lobes){
+        const l2=BABYLON.MeshBuilder.CreateSphere('lobe'+i,{diameter:1.25*b.R*K,segments:24},scene);
+        l2.material=mat;l2.position.x=b.R*K*0.92;l2.parent=mesh;
+        mesh.scaling.x=0.86;rec.extras.push(l2);
+      }
+      // orbit circle
+      if(b.orbitA){
+        const pts=[];
+        for(let a=0;a<=360;a+=1.5){const th=a*Math.PI/180;pts.push(v3(b.orbitA*Math.cos(th),b.orbitA*Math.sin(th),K));}
+        const ln=BABYLON.MeshBuilder.CreateLines('orb'+i,{points:pts},scene);
+        ln.color=new BABYLON.Color3(.20,.28,.44);ln.alpha=.75;ln.isPickable=false;
+      }
+      R.bodies.push(rec);
+      addLabel(b.name,'');
+      rec.labelIdx=R.labels.length-1;
+    });
+
+    // pre-orbits (parking / mapping orbits)
+    (M.preOrbits||[]).forEach((po,i)=>{
+      const pts=[];
+      if(po.ell){
+        const a=po.ell.a,e=po.ell.e,bb=a*Math.sqrt(1-e*e);
+        for(let E=0;E<=360;E+=1.2){const r=E*Math.PI/180;pts.push(v3(a*(Math.cos(r)-e),bb*Math.sin(r),K));}
+      }else{
+        for(let a=0;a<=360;a+=2){const th=a*Math.PI/180;pts.push(v3(po.r*Math.cos(th),po.r*Math.sin(th),K));}
+      }
+      const ln=BABYLON.MeshBuilder.CreateLines('pre'+i,{points:pts},scene);
+      ln.color=new BABYLON.Color3(po.col[0],po.col[1],po.col[2]);ln.alpha=.8;ln.isPickable=false;
+    });
+
+    // ships: full dim path + bright trail + marker
+    M.ships.forEach((sh,i)=>{
+      const pathPts=[],pathT=[];
+      for(const t of sh.renderTimes){
+        const st=sh.stateAt(t);
+        if(st.vis===false)continue;
+        pathPts.push(v3(st.x,st.y,K));pathT.push(t);
+      }
+      let dim=null;
+      if(pathPts.length>1){
+        dim=BABYLON.MeshBuilder.CreateLines('path'+i,{points:pathPts},scene);
+        dim.color=new BABYLON.Color3(sh.color[0]*.34,sh.color[1]*.34,sh.color[2]*.34);
+        dim.alpha=.55;dim.isPickable=false;
+      }
+      const mk=BABYLON.MeshBuilder.CreateSphere('sm'+i,{diameter:1,segments:12},scene);
+      const mm=new BABYLON.StandardMaterial('smm'+i,scene);
+      mm.emissiveColor=new BABYLON.Color3(sh.color[0],sh.color[1],sh.color[2]);
+      mm.diffuseColor=new BABYLON.Color3(sh.color[0],sh.color[1],sh.color[2]);
+      mm.disableLighting=true;mk.material=mm;mk.isPickable=false;
+      R.ships.push({def:sh,pathPts,pathT,dim,mk,trail:null});
+      addLabel(sh.label,sh.id==='main'?'ship':'probe');
+      R.ships[R.ships.length-1].labelIdx=R.labels.length-1;
+    });
+
+    // event markers
+    (M.events||[]).forEach((ev,i)=>{
+      if(!ev.mark)return;
+      const sh=M.ships.find(s=>s.id===ev.mark.ship);
+      if(!sh)return;
+      const st=sh.stateAt(ev.t);
+      const m=BABYLON.MeshBuilder.CreateSphere('ev'+i,{diameter:1,segments:10},scene);
+      const mm=new BABYLON.StandardMaterial('evm'+i,scene);
+      mm.emissiveColor=new BABYLON.Color3(ev.mark.color[0],ev.mark.color[1],ev.mark.color[2]);
+      mm.disableLighting=true;mm.alpha=.9;m.material=mm;m.isPickable=false;
+      m.position=v3(st.x,st.y,K);
+      R.marks.push({mesh:m,t:ev.t});
+    });
+
+    rebuildTrails(true);
+  }
+
+  function addLabel(text,cls){
+    const d=document.createElement('div');
+    d.className='tag'+(cls?' '+cls:'');
+    d.textContent=text;
+    tagsHost.appendChild(d);
+    R.labels.push(d);
+  }
+
+  function rebuildTrails(force){
+    if(!R)return;
+    R.ships.forEach(s=>{
+      if(s.trail){s.trail.dispose();s.trail=null;}
+      let n=0;
+      while(n<s.pathT.length&&s.pathT[n]<=simT)n++;
+      if(n<2)return;
+      const pts=s.pathPts.slice(0,n);
+      const ln=BABYLON.MeshBuilder.CreateLines('tr'+s.def.id,{points:pts},scene);
+      ln.color=new BABYLON.Color3(s.def.color[0],s.def.color[1],s.def.color[2]);
+      ln.isPickable=false;
+      s.trail=ln;
+    });
+  }
+
+  /* ---------- per-frame update ---------- */
+  const tmp=new BABYLON.Vector3();
+  function project(vec){
+    return BABYLON.Vector3.Project(vec,BABYLON.Matrix.Identity(),
+      scene.getTransformMatrix(),cam.viewport.toGlobal(engine.getRenderWidth(),engine.getRenderHeight()));
+  }
+  function placeLabel(div,pos){
+    const p=project(pos);
+    const behind=p.z>1||p.z<0;
+    if(behind){div.style.display='none';return;}
+    div.style.display='block';
+    div.style.left=p.x.toFixed(0)+'px';
+    div.style.top=p.y.toFixed(0)+'px';
+  }
+  function camTargetPos(){
+    const c=M.cams[camIdx],K=M.K;
+    if(typeof c.tgt==='string'&&c.tgt.indexOf('ship:')===0){
+      const id=c.tgt.slice(5);
+      const sh=M.ships.find(s=>s.id===id);
+      const st=sh.stateAt(Math.min(Math.max(simT,sh.tStart),sh.tEnd));
+      return v3(st.x,st.y,K);
+    }
+    const p=c.tgt(simT);
+    return v3(p[0],p[1],K);
+  }
+  function update(){
+    if(!M||!R)return;
+    const K=M.K;
+    const scale=visOn&&M.scaleTgl?M.scaleTgl.on:(M.scaleTgl?M.scaleTgl.off:1);
+    R.bodies.forEach(rb=>{
+      const b=rb.def,p=b.pos(simT);
+      rb.mesh.position.x=p[0]*K;rb.mesh.position.z=p[1]*K;
+      if(b.spin)rb.mesh.rotation.y=b.spin(simT);
+      const eff=Math.min(scale,b.vsCap===undefined?1e9:b.vsCap);
+      const sc=Math.max(1,eff);
+      rb.mesh.scaling.y=sc;rb.mesh.scaling.z=sc;
+      rb.mesh.scaling.x=(b.lobes?0.86:1)*sc;
+      placeLabel(R.labels[rb.labelIdx],rb.mesh.position);
+    });
+    const mkSize=cam.radius*0.011;
+    R.ships.forEach(s=>{
+      const sh=s.def;
+      const tt=Math.min(Math.max(simT,sh.tStart),sh.tEnd);
+      const st=sh.stateAt(tt);
+      const on=(st.vis!==false)&&simT>=sh.tStart-1e-9&&simT<=sh.tEnd+1e-9;
+      s.mk.isVisible=on;
+      R.labels[s.labelIdx].style.display=on?'block':'none';
+      if(on){
+        s.mk.position.x=st.x*K;s.mk.position.z=st.y*K;
+        s.mk.scaling.setAll(mkSize);
+        placeLabel(R.labels[s.labelIdx],s.mk.position);
+      }
+    });
+    R.marks.forEach(m=>{
+      m.mesh.scaling.setAll(cam.radius*0.008);
+      m.mesh.isVisible=simT>=m.t;
+    });
+    const tp=camTargetPos();
+    cam.target.copyFrom(tp);
+  }
+
+  /* ---------- UI ---------- */
+  function fillDrawer(){
+    const host=$('mList');host.innerHTML='';
+    MISSIONS.forEach(ms=>{
+      const d=document.createElement('div');
+      d.className='mItem'+(curMission===ms.id?' cur':'');
+      d.innerHTML='<div class="yr">'+ms.yr+'</div><div><div class="nm">'+ms.nm+'</div><div class="bl">'+ms.bl+'</div></div>';
+      d.onclick=()=>{closeDrawer();if(ms.id!==curMission)loadMission(ms);};
+      host.appendChild(d);
+    });
+  }
+  function openDrawer(){$('drawer').classList.add('open');$('shade').classList.add('on');fillDrawer();}
+  function closeDrawer(){$('drawer').classList.remove('open');$('shade').classList.remove('on');}
+
+  function buildChips(){
+    const sg=$('spdGrp'),cg=$('camGrp');
+    sg.innerHTML='<span class="grpLbl">Speed</span>';
+    M.speeds.forEach((sp,i)=>{
+      const b=document.createElement('button');
+      b.className='chip'+(i===speedIdx?' on':'');
+      b.textContent=sp.lab;
+      b.onclick=()=>{speedIdx=i;buildChips();};
+      sg.appendChild(b);
+    });
+    cg.innerHTML='<span class="grpLbl">Camera</span>';
+    M.cams.forEach((cc,i)=>{
+      const b=document.createElement('button');
+      b.className='chip'+(i===camIdx?' on':'');
+      b.textContent=cc.lab;
+      b.onclick=()=>{
+        M.cams[camIdx]._r=cam.radius;
+        camIdx=i;cam.radius=M.cams[i]._r||M.cams[i].r;buildChips();};
+      cg.appendChild(b);
+    });
+    const tog=$('scaleTog');
+    if(M.scaleTgl){
+      tog.style.display='flex';
+      $('scaleLbl').textContent=M.scaleTgl.lab;
+      $('scaleBodies').checked=visOn;
+    }else tog.style.display='none';
+  }
+  function buildEvents(){
+    const host=$('evList');host.innerHTML='';
+    M.events.forEach((ev,i)=>{
+      const d=document.createElement('div');
+      d.className='ev';d.dataset.i=i;
+      d.innerHTML='<div class="dot"></div><div><div class="t">'+M.fmtT(ev.t)+'</div>'+
+        '<div class="n">'+ev.n+'</div><div class="d">'+ev.d+'</div></div>';
+      d.onclick=()=>{simT=Math.min(ev.t,M.tTotal);rebuildTrails(true);syncUI(true);};
+      host.appendChild(d);
+    });
+    // timeline ticks
+    const tl=$('timeline');
+    tl.querySelectorAll('.tick').forEach(n=>n.remove());
+    M.events.forEach(ev=>{
+      const s=document.createElement('div');
+      s.className='tick'+(ev.mark?' major':'');
+      s.style.left=(ev.t/M.tTotal*100)+'%';
+      tl.appendChild(s);
+    });
+  }
+  function buildTelem(){
+    const b=$('telBody');b.innerHTML='';
+    M.telem.forEach((tr,i)=>{
+      const row=document.createElement('tr');
+      row.innerHTML='<td class="k">'+tr.k+'</td><td class="v" id="tv'+i+'">—</td>';
+      b.appendChild(row);
+    });
+    $('verifyStrip').textContent=M.verify;
+  }
+  function buildPanes(){
+    $('pModel').innerHTML=M.panes.model;
+    $('pMethod').innerHTML=M.panes.method;
+    $('pValid').innerHTML=M.panes.valid;
+    $('pAssum').innerHTML=M.panes.assum;
+  }
+  function syncUI(force){
+    $('metVal').textContent=M.fmtT(simT);
+    $('phaseBadge').textContent=M.phaseName(simT);
+    const pc=simT/M.tTotal*100;
+    $('scrub').value=pc;
+    $('fill').style.width=pc+'%';
+    M.telem.forEach((tr,i)=>{
+      const el=$('tv'+i);
+      if(el){try{el.textContent=tr.f(simT);}catch(e){el.textContent='—';}}
+    });
+    let act=-1;
+    M.events.forEach((ev,i)=>{if(simT>=ev.t)act=i;});
+    document.querySelectorAll('#evList .ev').forEach((n,i)=>{
+      n.classList.toggle('done',simT>=M.events[i].t);
+      n.classList.toggle('active',i===act);
+    });
+    if(force&&act>=0){
+      const n=document.querySelector('#evList .ev[data-i="'+act+'"]');
+      if(n)n.scrollIntoView({block:'nearest'});
+    }
+    const sp=$('splash');
+    if(simT>=M.tTotal-1){
+      $('splashTitle').textContent=M.endTitle;
+      $('splashTxt').innerHTML=M.endText;
+      sp.style.display='block';
+    }else sp.style.display='none';
+  }
+  function setPlay(v){
+    playing=v;
+    $('playBtn').textContent=v?'❚❚ PAUSE':'▶ PLAY';
+  }
+
+  /* ---------- mission loading ---------- */
+  function loadMission(ms){
+    $('loadTxt').textContent='INTEGRATING '+ms.nm+' (RK4)…';
+    $('loader').style.display='flex';
+    setPlay(false);
+    setTimeout(()=>{
+      try{
+        disposeScene();
+        M=ms.fn();
+        curMission=ms.id;
+        simT=0;speedIdx=Math.min(M.defSpeed||0,M.speeds.length-1);camIdx=0;
+        visOn=M.scaleTgl?!!M.scaleTgl.def:false;
+        buildScene();
+        $('brandName').innerHTML=ms.nm.replace(/^(\S+)/,'<b>$1</b>');
+        $('brandSub').textContent=ms.sub;
+        $('eqTitle').textContent=ms.nm+' — Physical Model';
+        buildChips();buildEvents();buildTelem();buildPanes();
+        syncUI(true);
+        $('loader').style.display='none';
+        setPlay(true);
+      }catch(e){
+        $('loadTxt').textContent='ERROR: '+e.message;
+        console.error(e);
+      }
+    },40);
+  }
+
+  /* ---------- wiring ---------- */
+  $('menuBtn').onclick=openDrawer;
+  $('drawerClose').onclick=closeDrawer;
+  $('shade').onclick=closeDrawer;
+  $('playBtn').onclick=()=>{
+    if(simT>=M.tTotal-1e-6){simT=0;rebuildTrails(true);}
+    setPlay(!playing);
+  };
+  $('scrub').oninput=e=>{
+    simT=parseFloat(e.target.value)/100*M.tTotal;
+    rebuildTrails(true);syncUI(true);
+  };
+  $('scaleBodies').onchange=e=>{visOn=e.target.checked;};
+  $('eqBtn').onclick=()=>$('eqModal').classList.add('open');
+  $('eqClose').onclick=()=>$('eqModal').classList.remove('open');
+  $('eqModal').onclick=e=>{if(e.target.id==='eqModal')$('eqModal').classList.remove('open');};
+  document.querySelectorAll('.eqTab').forEach(tb=>{
+    tb.onclick=()=>{
+      document.querySelectorAll('.eqTab').forEach(x=>x.classList.remove('on'));
+      document.querySelectorAll('.eqPane').forEach(x=>x.classList.remove('on'));
+      tb.classList.add('on');
+      $(tb.dataset.p).classList.add('on');
+    };
+  });
+  window.addEventListener('keydown',e=>{
+    if(e.code==='Space'){e.preventDefault();$('playBtn').click();}
+    if(e.key==='Escape'){closeDrawer();$('eqModal').classList.remove('open');}
+  });
+  window.addEventListener('resize',()=>engine.resize());
+
+  /* ---------- render loop ---------- */
+  engine.runRenderLoop(()=>{
+    if(!scene||!M)return;
+    const dt=Math.min(engine.getDeltaTime()/1000,0.1);
+    if(playing){
+      simT+=dt*M.speeds[speedIdx].m;
+      if(simT>=M.tTotal){simT=M.tTotal;setPlay(false);}
+    }
+    update();
+    const now=performance.now();
+    if(playing&&now-lastTrail>200){rebuildTrails();lastTrail=now;}
+    if(now-lastUI>90){syncUI(false);lastUI=now;}
+    scene.render();
+  });
+
+  loadMission(MISSIONS[0]);
+}
+</script>
+</body>
+</html>

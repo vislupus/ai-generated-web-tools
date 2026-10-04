@@ -422,6 +422,166 @@ Tower defense game with generated paths, multiple tower types, upgrades, mines, 
 
 ---
 
+<!-- NEW-PROJECTS-2026 -->
+
+### CHAIN — Self-Evolving Defense
+
+Genetic-algorithm tower defense where the computer evolves tower layouts and interactions to survive increasingly difficult waves.
+
+- Genetic evolution
+- Tower synergies
+- Chain detonations
+- Fitness tracking
+
+**AI:** Claude Opus  
+**Source:** `/chain-td/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/chain-td/
+
+
+---
+
+### CRYPTLIGHT
+
+Seeded dungeon crawler whose walls, torchlight and creatures are drawn with the CSS Paint API, with turn-based combat and progression.
+
+- CSS Paint API
+- Seeded dungeons
+- Turn-based combat
+- Depth progression
+
+**AI:** Claude Opus  
+**Source:** `/cryptlight/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/cryptlight/
+
+
+---
+
+### ECHO-9 — Space Simulation
+
+Open-ended spaceflight game with sector exploration, trading, cargo, stations, ship combat, missiles and persistent flight saves.
+
+- Free-flight controls
+- Sector exploration
+- Trade & cargo
+- Ship combat
+
+**AI:** Claude Opus  
+**Source:** `/echo9-space-simulation/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/echo9-space-simulation/
+
+
+---
+
+### Orrery — Million Particle Galaxy Simulator
+
+WebGL/regl galaxy simulator with 1,048,576 GPU-resident particles, multiple massive cores, cinematic navigation and interactive black holes.
+
+- 1,048,576 bodies
+- GPU particle state
+- Orbit & follow camera
+- Interactive black holes
+
+**AI:** Claude Opus  
+**Source:** `/galaxy-simulator/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/galaxy-simulator/
+
+
+---
+
+### Genetic Armies
+
+Two tactical army populations evolve against each other through selection, crossover and mutation, with optional human-controlled genomes.
+
+- Co-evolution
+- Army battles
+- Genome controls
+- Fitness ledger
+
+**AI:** Claude Opus  
+**Source:** `/genetichni-armii/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/genetichni-armii/
+
+
+---
+
+### Mechanical Computer
+
+A 30-puzzle interactive course that teaches computing from cranks and counting wheels through arithmetic, storage, sequencing, decisions and a programmable machine.
+
+- 30 puzzle campaign
+- Mechanical parts
+- Rod wiring
+- Tests & hints
+
+**AI:** Claude Opus  
+**Source:** `/mechanical-computer/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/mechanical-computer/
+
+
+---
+
+### Mission Lab — Scientific Spaceflight Simulations
+
+Interactive 3D lab for six historic and modern space missions, combining mission timelines, telemetry, numerical integration, equations and validation notes.
+
+- 6 space missions
+- Physics models
+- Live telemetry
+- Validation notes
+
+**AI:** Claude Opus  
+**Source:** `/mission-lab/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/mission-lab/
+
+
+---
+
+### My Home — 3D Virtual Tour
+
+Interactive Three.js virtual tour of a complete two-unit home with exterior views, room navigation, walk mode, floor switching and cutaway views.
+
+- Full home model
+- Walk mode
+- Floor cutaway
+- Lighting modes
+
+**AI:** ChatGPT  
+**Source:** `/moyat-dom-3d/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/moyat-dom-3d/
+
+
+---
+
+### STARFLIGHT — Bridge Terminal
+
+Browser space adventure inspired by the 1986 classic, with a procedural galaxy, planets, mining, trade, alien encounters, ship upgrades and combat.
+
+- Procedural galaxy
+- Planet mining
+- Alien encounters
+- Ship upgrades
+
+**AI:** Claude Opus  
+**Source:** `/starflight/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/starflight/
+
+
+---
+
+### SWARM — Evolving Space Invaders
+
+Space Invaders variant where each wave measures how you play and evolves the surviving enemy genomes to counter your movement and shooting habits.
+
+- Adaptive invaders
+- 32-genome pool
+- Player profiling
+- Wave evolution
+
+**AI:** Claude Opus  
+**Source:** `/swarm-invaders/`  
+**Live demo:** https://vislupus.github.io/ai-generated-web-tools/swarm-invaders/
+
+
 ## Structure
 
 Each tool lives in its own folder and opens through that folder’s `index.html`:
@@ -430,33 +590,43 @@ Each tool lives in its own folder and opens through that folder’s `index.html`
 /
 ├─ index.html            # Landing page listing all tools
 ├─ README.md             # Project overview
-├─ abyss-runner/             # Standalone project (index.html)
-├─ abyss-runner-ai/          # Standalone project (index.html)
-├─ blackhole/                # Standalone project (index.html)
-├─ boids-predator-prey/      # Standalone project (index.html)
-├─ boids-webgpu/             # Standalone project (index.html)
-├─ bomberman-rom-remake/     # Standalone project (index.html)
-├─ chaos-gallery/            # Standalone project (index.html)
-├─ civilization-sim/         # Standalone project (index.html)
-├─ computational-imaging-lab/ # Standalone project (index.html)
-├─ crystal-druse-generator/  # Standalone project (index.html)
-├─ crystal-wars/             # Standalone project (index.html)
-├─ drone-light-show/         # Standalone project (index.html)
-├─ fireworks/                # Standalone project (index.html)
-├─ holography/               # Standalone project (index.html)
-├─ japan-earthquake/         # Standalone project (index.html)
-├─ jp-text-highlighter/      # Standalone project (index.html)
-├─ lidar-sensor-simulation/  # Standalone project (index.html)
-├─ lidar-slam/               # Standalone project (index.html)
-├─ localnotes/               # Standalone project (index.html)
-├─ lunar_miner/              # Standalone project (index.html)
-├─ micro-rts/                # Standalone project (index.html)
-├─ mountain-routes/          # Standalone project (index.html)
-├─ n5-kanji-drill/           # Standalone project (index.html)
-├─ nbody-simulation/         # Standalone project (index.html)
-├─ particles-webgpu/         # Standalone project (index.html)
-├─ sheetclone/               # Standalone project (index.html)
-├─ solitaire/                # Standalone project (index.html)
-├─ tower-defense-procedural/ # Standalone project (index.html)
-└─ void-command/             # Standalone project (index.html)
+├─ abyss-runner/               # Standalone project (index.html)
+├─ abyss-runner-ai/            # Standalone project (index.html)
+├─ blackhole/                  # Standalone project (index.html)
+├─ boids-predator-prey/        # Standalone project (index.html)
+├─ boids-webgpu/               # Standalone project (index.html)
+├─ bomberman-rom-remake/       # Standalone project (index.html)
+├─ chain-td/                   # Standalone project (index.html)
+├─ chaos-gallery/              # Standalone project (index.html)
+├─ civilization-sim/           # Standalone project (index.html)
+├─ computational-imaging-lab/  # Standalone project (index.html)
+├─ cryptlight/                 # Standalone project (index.html)
+├─ crystal-druse-generator/    # Standalone project (index.html)
+├─ crystal-wars/               # Standalone project (index.html)
+├─ drone-light-show/           # Standalone project (index.html)
+├─ echo9-space-simulation/     # Standalone project (index.html)
+├─ fireworks/                  # Standalone project (index.html)
+├─ galaxy-simulator/           # Standalone project (index.html)
+├─ genetichni-armii/           # Standalone project (index.html)
+├─ holography/                 # Standalone project (index.html)
+├─ japan-earthquake/           # Standalone project (index.html)
+├─ jp-text-highlighter/        # Standalone project (index.html)
+├─ lidar-sensor-simulation/    # Standalone project (index.html)
+├─ lidar-slam/                 # Standalone project (index.html)
+├─ localnotes/                 # Standalone project (index.html)
+├─ lunar_miner/                # Standalone project (index.html)
+├─ mechanical-computer/        # Standalone project (index.html)
+├─ micro-rts/                  # Standalone project (index.html)
+├─ mission-lab/                # Standalone project (index.html)
+├─ mountain-routes/            # Standalone project (index.html)
+├─ moyat-dom-3d/               # Standalone project (index.html)
+├─ n5-kanji-drill/             # Standalone project (index.html)
+├─ nbody-simulation/           # Standalone project (index.html)
+├─ particles-webgpu/           # Standalone project (index.html)
+├─ sheetclone/                 # Standalone project (index.html)
+├─ solitaire/                  # Standalone project (index.html)
+├─ starflight/                 # Standalone project (index.html)
+├─ swarm-invaders/             # Standalone project (index.html)
+├─ tower-defense-procedural/   # Standalone project (index.html)
+└─ void-command/               # Standalone project (index.html)
 ```

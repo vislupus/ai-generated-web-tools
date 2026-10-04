@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SWARM — Space Invaders that evolves</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0A0710;
+    --deep:#120C22;
+    --panel:#191030;
+    --line:#2E1F52;
+    --mint:#7FE7C4;
+    --signal:#FF5FA2;
+    --amber:#FFC145;
+    --bone:#EDE6F2;
+    --dim:#8C7FB0;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --disp:'IBM Plex Sans Condensed',ui-sans-serif,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 50% -10%, #1B1038 0%, transparent 60%),
+      var(--void);
+    color:var(--bone);
+    font-family:var(--mono);
+    display:flex;align-items:center;justify-content:center;
+    padding:16px;
+  }
+  .wrap{width:100%;max-width:1130px;display:grid;grid-template-columns:minmax(0,1fr) 268px;gap:16px}
+  header{grid-column:1/-1;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:2px}
+  h1{font-family:var(--disp);font-weight:700;font-size:26px;letter-spacing:.22em;text-transform:uppercase;margin:0}
+  h1 span{color:var(--signal)}
+  .tag{font-size:11px;color:var(--dim);letter-spacing:.14em;text-transform:uppercase}
+  .tag b{color:var(--mint);font-weight:600}
+
+  #stage{position:relative;background:var(--deep);border:1px solid var(--line);border-radius:2px;overflow:hidden}
+  canvas{display:block;width:100%;height:auto;image-rendering:pixelated;touch-action:none}
+
+  /* overlays */
+  .ov{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;
+      background:linear-gradient(180deg,rgba(10,7,16,.88),rgba(10,7,16,.96));
+      padding:clamp(14px,3.2vw,30px);overflow:auto}
+  .ov.on{display:flex}
+  .eyebrow{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--signal)}
+  .ov h2{font-family:var(--disp);font-weight:700;text-transform:uppercase;letter-spacing:.14em;
+         font-size:clamp(20px,3.4vw,34px);margin:6px 0 12px}
+  .ov p{font-size:13px;line-height:1.65;color:var(--dim);margin:0 0 14px;max-width:56ch}
+  .ov p b{color:var(--bone);font-weight:600}
+  .keys{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 18px}
+  .key{border:1px solid var(--line);padding:5px 9px;font-size:11px;color:var(--bone);letter-spacing:.06em}
+  .key i{color:var(--mint);font-style:normal}
+  button{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+    background:var(--mint);color:#08131010;border:0;padding:12px 22px;cursor:pointer;color:#071510;font-weight:600}
+  button:hover{background:var(--bone)}
+  button:focus-visible{outline:2px solid var(--signal);outline-offset:3px}
+
+  /* gene readout — signature element */
+  .genes{display:grid;gap:7px;margin:2px 0 16px}
+  .gene{display:grid;grid-template-columns:112px 1fr 54px;align-items:center;gap:10px;font-size:11px}
+  .gene .nm{color:var(--dim);letter-spacing:.06em}
+  .track{position:relative;height:12px;background:#0E0920;border:1px solid var(--line)}
+  .track .old{position:absolute;inset:0 auto 0 0;background:repeating-linear-gradient(90deg,#3B2A66 0 2px,transparent 2px 4px)}
+  .track .new{position:absolute;inset:0 auto 0 0;background:var(--mint);transition:width .9s cubic-bezier(.2,.8,.2,1)}
+  .gene.up .new{background:var(--signal)}
+  .delta{text-align:right;color:var(--dim);font-size:11px}
+  .delta.up{color:var(--signal)}
+  .learn{border-left:2px solid var(--amber);padding:2px 0 2px 12px;margin:0 0 16px;display:grid;gap:7px}
+  .learn div{font-size:12px;line-height:1.5;color:var(--bone)}
+  .learn div s{color:var(--amber);text-decoration:none}
+
+  /* sidebar */
+  aside{border:1px solid var(--line);background:linear-gradient(180deg,var(--panel),#120C22);padding:14px;align-self:start}
+  aside h3{font-family:var(--disp);font-size:12px;letter-spacing:.24em;text-transform:uppercase;margin:0 0 10px;color:var(--dim)}
+  aside h3+ h3{margin-top:20px}
+  .row{display:grid;grid-template-columns:1fr 40px;gap:8px;font-size:11px;margin-bottom:6px;color:var(--dim)}
+  .bar{height:8px;background:#0E0920;border:1px solid var(--line);position:relative;margin-top:3px}
+  .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--mint);display:block}
+  .bar.s i{background:var(--signal)}
+  .row b{color:var(--bone);font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+  .note{font-size:11px;color:var(--dim);line-height:1.5;border-top:1px solid var(--line);padding-top:10px;margin-top:14px}
+  footer{grid-column:1/-1;font-size:11px;color:var(--dim);letter-spacing:.06em;border-top:1px solid var(--line);padding-top:10px}
+  @media(max-width:880px){.wrap{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>S<span>W</span>ARM</h1>
+    <div class="tag">Space Invaders where the invaders <b>learn from you</b> — generation by generation</div>
+  </header>
+
+  <div id="stage">
+    <canvas id="cv" width="800" height="600" aria-label="Game field"></canvas>
+
+    <div class="ov on" id="ovMenu">
+      <div class="eyebrow">Generation 1 · gene pool is random</div>
+      <h2>The swarm doesn't know you yet</h2>
+      <p>Every wave is one generation. While you play, the swarm records <b>where you stand</b>, <b>which way you run</b>, how accurately you shoot and how fast you clear. Survivors pass their genes on — the next wave is assembled against you personally.</p>
+      <div class="keys">
+        <div class="key"><i>← →</i> or <i>A D</i> move</div>
+        <div class="key"><i>Space</i> fire</div>
+        <div class="key"><i>P</i> pause</div>
+        <div class="key"><i>M</i> sound</div>
+        <div class="key">on mobile: <i>drag</i> to move</div>
+      </div>
+      <div><button id="btnStart">Launch the first wave</button></div>
+    </div>
+
+    <div class="ov" id="ovEvo"></div>
+    <div class="ov" id="ovOver"></div>
+    <div class="ov" id="ovPause">
+      <div class="eyebrow">Paused</div>
+      <h2>The swarm waits</h2>
+      <p>Press <b>P</b> to resume.</p>
+    </div>
+  </div>
+
+  <aside>
+    <h3>Swarm genome</h3>
+    <div id="geneLive"></div>
+    <h3>Your profile</h3>
+    <div id="profLive"></div>
+    <div class="note" id="sideNote">Data is collected from the current wave.</div>
+  </aside>
+
+  <footer>Selection + crossover + mutation over 32 genomes. The dead pass on nothing; the ones that hit you pass on the most.</footer>
+</div>
+
+<script>
+(() => {
+"use strict";
+const W = 800, H = 600;
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------------------------------------------------------------- utils */
+const clamp = (v,a,b) => v<a?a:v>b?b:v;
+const rnd = (a=1,b=0) => b + Math.random()*(a-b);
+const lerp = (a,b,t) => a+(b-a)*t;
+const sign = v => v<0?-1:v>0?1:0;
+
+/* ---------------------------------------------------------------- audio */
+let actx = null, muted = false;
+function audioOn(){ if(!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } }
+function sfx(freq, dur, type='square', vol=.05, slide=0){
+  if(!actx || muted) return;
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, actx.currentTime);
+  if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(40,freq+slide), actx.currentTime+dur);
+  g.gain.setValueAtTime(vol, actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime+dur);
+  o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime+dur+.02);
+}
+
+/* ------------------------------------------------------------- sprites */
+const SPR = [
+[ "..@.....@..",
+  "...@...@...",
+  "..@@@@@@@..",
+  ".@@.@@@.@@.",
+  "@@@@@@@@@@@",
+  "@.@@@@@@@.@",
+  "@.@.....@.@",
+  "...@@.@@..." ],
+[ "...@@@@@...",
+  ".@@@@@@@@@.",
+  "@@@@@@@@@@@",
+  "@@@.@@@.@@@",
+  "@@@@@@@@@@@",
+  "..@@@.@@@..",
+  ".@@.@@@.@@.",
+  "@@.......@@" ],
+[ "....@@@....",
+  "..@@@@@@@..",
+  ".@@@@@@@@@.",
+  "@@.@@@@@.@@",
+  "@@@@@@@@@@@",
+  "..@.@@@.@..",
+  ".@.......@.",
+  "@.@.....@.@" ]
+];
+
+/* ---------------------------------------------------------------- genes */
+const GENE_KEYS = ['speed','fireRate','aimLead','lateral','aggression','evasion','armor'];
+const GENE_NAMES = {
+  speed:'speed', fireRate:'fire rate', aimLead:'aim lead',
+  lateral:'drift to you', aggression:'aggression', evasion:'evasion', armor:'armor'
+};
+const POP = 32, COLS = 8, ROWS = 4;
+
+function randGenome(){
+  return { speed:rnd(.35,.10), fireRate:rnd(.30,.05), aimLead:rnd(.25,0),
+           lateral:rnd(.65,.35), aggression:rnd(.25,.02), evasion:rnd(.20,0), armor:rnd(.18,0) };
+}
+function mutate(g, rate){
+  for(const k of GENE_KEYS){
+    if(Math.random() < .55) g[k] = clamp(g[k] + (Math.random()*2-1)*rate, 0, 1);
+  }
+  return g;
+}
+function cross(a,b){
+  const c = {};
+  for(const k of GENE_KEYS) c[k] = Math.random()<.5 ? a[k] : lerp(a[k],b[k],Math.random());
+  return c;
+}
+function avgGenes(pop){
+  const o = {}; for(const k of GENE_KEYS){ o[k] = pop.reduce((s,g)=>s+g[k],0)/pop.length; } return o;
+}
+
+/* --------------------------------------------------------------- state */
+const S = {
+  mode:'menu', wave:1, gen:1, score:0, lives:3, best:0,
+  genomes: Array.from({length:POP}, randGenome),
+  fitness: new Array(POP).fill(0),
+  lastAvg: null, shake:0, t:0, paused:false
+};
+let inv = [], pb = [], eb = [], bits = [], bunkers = [], form = {}, player = {};
+const stars = Array.from({length:90},()=>({x:rnd(W),y:rnd(H),z:rnd(1,.25)}));
+
+/* player profile — what the swarm measures about you */
+let prof = null;
+function newProfile(){
+  return { zone:new Array(8).fill(0), dist:0, time:0, dodge:0, dodgeN:0,
+           shots:0, hits:0, taken:0, still:0 };
+}
+let memory = { dodge:0, mob:.5, acc:.4, camp:.5, zone:.5 }; // EMA across waves
+
+/* --------------------------------------------------------------- setup */
+function buildWave(){
+  inv = []; pb = []; eb = []; bits = [];
+  S.fitness = new Array(POP).fill(0);
+  form = { x:0, y:0, dir:1, drop:0 };
+  const gapX = 66, gapY = 46;
+  const x0 = (W - (COLS-1)*gapX)/2;
+  const y0 = 84 + Math.min(S.wave-1,5)*8;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const i = r*COLS+c, g = S.genomes[i];
+    const hp = 1 + Math.floor(g.armor*2.6);
+    inv.push({ gi:i, r, c, homeX:x0+c*gapX, homeY:y0+r*gapY, x:x0+c*gapX, y:y0+r*gapY,
+      ox:0, oy:0, hp, maxHp:hp, alive:true, state:'form', vx:0, vy:0,
+      cool:rnd(4,1.2), phase:rnd(Math.PI*2), spr:r%3, flash:0 });
+  }
+  bunkers = [];
+  for(let b=0;b<4;b++){
+    const bx = 92 + b*(W-184)/3 - 33, by = H-152;
+    const cells = [];
+    for(let r=0;r<6;r++) for(let c=0;c<11;c++){
+      if(r>3 && c>3 && c<7) continue;                 // doorway
+      if(r===0 && (c<2||c>8)) continue;               // rounded top
+      cells.push({x:bx+c*6, y:by+r*6, hp:1});
+    }
+    bunkers.push(cells);
+  }
+  player = { x:W/2, y:H-52, vx:0, cool:0, inv:1.2, alive:true };
+  prof = newProfile();
+}
+
+/* ------------------------------------------------------------ evolution */
+function evolve(cleared){
+  const before = avgGenes(S.genomes);
+  // 1. how the swarm reads you
+  const zsum = prof.zone.reduce((a,b)=>a+b,0) || 1;
+  let zi = 0; prof.zone.forEach((v,i)=>{ if(v>prof.zone[zi]) zi=i; });
+  const zoneShare = prof.zone[zi]/zsum;
+  const zoneNorm  = (zi+.5)/8;
+  const mob  = clamp(prof.dist/Math.max(1,prof.time)/260, 0, 1);
+  const acc  = prof.shots>4 ? clamp(prof.hits/prof.shots,0,1) : .35;
+  const dodge= prof.dodgeN>3 ? clamp(prof.dodge/prof.dodgeN,-1,1) : 0;
+  const fast = clamp(1 - prof.time/70, 0, 1);
+
+  memory.zone = lerp(memory.zone, zoneNorm, .55);
+  memory.mob  = lerp(memory.mob,  mob,  .5);
+  memory.acc  = lerp(memory.acc,  acc,  .5);
+  memory.dodge= lerp(memory.dodge,dodge,.5);
+  memory.camp = lerp(memory.camp, 1-mob, .5);
+
+  // 2. selection: fitness = survival + pressure applied to you
+  const idx = S.genomes.map((g,i)=>i).sort((a,b)=>S.fitness[b]-S.fitness[a]);
+  const pick = () => {
+    let best = idx[Math.floor(Math.random()*POP)];
+    for(let k=0;k<2;k++){ const c = idx[Math.floor(Math.random()*POP)];
+      if(S.fitness[c] > S.fitness[best]) best = c; }
+    return S.genomes[best];
+  };
+  const next = [];
+  for(let e=0;e<4;e++) next.push(mutate({...S.genomes[idx[e]]}, .03));   // elites
+  const rate = cleared ? .12 : .07;                                       // lose → smaller jump
+  while(next.length < POP) next.push(mutate(cross(pick(), pick()), rate));
+
+  // 3. lamarckian nudge — the part you can actually feel
+  const T = {
+    lateral:    memory.zone,
+    aimLead:    clamp(.10 + memory.mob*.85 + Math.abs(memory.dodge)*.45, 0, 1),
+    aggression: clamp(.12 + memory.camp*.70 + S.wave*.03, 0, 1),
+    fireRate:   clamp(.12 + fast*.55 + S.wave*.05, 0, 1),
+    evasion:    clamp(memory.acc*1.15, 0, 1),
+    speed:      clamp(.15 + fast*.70 + S.wave*.03, 0, 1),
+    armor:      clamp(.05 + memory.acc*.65 + S.wave*.04, 0, 1)
+  };
+  for(const g of next) for(const k of GENE_KEYS) g[k] = clamp(lerp(g[k], T[k], k==='lateral'?.34:.24), 0, 1);
+
+  S.genomes = next; S.gen++;
+  const after = avgGenes(S.genomes);
+
+  // 4. readable insights
+  const zname = ['far left','left','left-center','center','center','right-center','right','far right'][zi];
+  const lines = [];
+  if(zoneShare > .24) lines.push(`You spent <s>${Math.round(zoneShare*100)}%</s> of the wave in the <s>${zname}</s> zone — they are massing there.`);
+  if(mob > .45) lines.push(`You never stop moving — they picked up <s>aim lead</s> and now shoot ahead of you.`);
+  else lines.push(`You barely move — <s>aggression</s> is up and they dive far more often.`);
+  if(Math.abs(dodge) > .3) lines.push(`When they line you up you break <s>${dodge>0?'right':'left'}</s> — that is now baked into their aim.`);
+  if(acc > .55) lines.push(`<s>${Math.round(acc*100)}%</s> accuracy — they answered with <s>armor</s> and sideways evasion.`);
+  if(fast > .45 && cleared) lines.push(`You cleared the wave in <s>${prof.time.toFixed(0)}s</s> — selection rewarded speed.`);
+  if(prof.taken > 0) lines.push(`They hit you <s>${prof.taken}</s> times; those exact genomes bred the most.`);
+  return { before, after, lines: lines.slice(0,4) };
+}
+
+/* ------------------------------------------------------------- input */
+const keys = {};
+addEventListener('keydown', e=>{
+  if(['ArrowLeft','ArrowRight','Space',' ','ArrowUp','ArrowDown'].includes(e.key === ' ' ? 'Space' : e.key)) e.preventDefault();
+  keys[e.code] = true; audioOn();
+  if(e.code === 'KeyM'){ muted = !muted; }
+  if(e.code === 'KeyP' && (S.mode==='play'||S.paused)) togglePause();
+  if(e.code === 'Enter' || e.code === 'Space'){
+    if(S.mode === 'menu') start();
+    else if(S.mode === 'evo') nextWave();
+    else if(S.mode === 'over') start(true);
+  }
+});
+addEventListener('keyup', e=>{ keys[e.code] = false; });
+let touch = null;
+cv.addEventListener('pointerdown', e=>{ audioOn(); cv.setPointerCapture(e.pointerId); touch = ptx(e); });
+cv.addEventListener('pointermove', e=>{ if(touch!==null) touch = ptx(e); });
+cv.addEventListener('pointerup',  ()=> touch = null);
+cv.addEventListener('pointercancel',()=> touch = null);
+function ptx(e){ const r = cv.getBoundingClientRect(); return (e.clientX-r.left)/r.width*W; }
+function togglePause(){ S.paused = !S.paused; ov('ovPause', S.paused); }
+
+/* -------------------------------------------------------------- update */
+function update(dt){
+  S.t += dt;
+  if(S.shake > 0) S.shake = Math.max(0, S.shake-dt*3);
+  if(S.mode !== 'play' || S.paused) return;
+  prof.time += dt;
+
+  /* --- player --- */
+  let dir = 0;
+  if(keys['ArrowLeft']||keys['KeyA']) dir -= 1;
+  if(keys['ArrowRight']||keys['KeyD']) dir += 1;
+  if(touch !== null){ const d = touch - player.x; dir = Math.abs(d)<4 ? 0 : sign(d); }
+  player.vx = dir*300;
+  player.x = clamp(player.x + player.vx*dt, 24, W-24);
+  prof.dist += Math.abs(player.vx)*dt;
+  if(dir === 0) prof.still += dt;
+  prof.zone[clamp(Math.floor(player.x/W*8),0,7)] += dt;
+  player.inv = Math.max(0, player.inv-dt);
+  player.cool -= dt;
+
+  const wantFire = keys['Space'] || keys['KeyW'] || keys['ArrowUp'] || touch !== null;
+  if(wantFire && player.cool <= 0 && pb.length < 3){
+    pb.push({x:player.x, y:player.y-14});
+    player.cool = .30; prof.shots++;
+    sfx(880, .07, 'square', .04, -420);
+  }
+
+  /* --- player bullets --- */
+  for(const b of pb) b.y -= 640*dt;
+  pb = pb.filter(b => b.y > -20);
+
+  /* --- formation march --- */
+  const alive = inv.filter(i=>i.alive);
+  if(!alive.length){ endWave(true); return; }
+  const avgSpd = alive.reduce((s,i)=>s+S.genomes[i.gi].speed,0)/alive.length;
+  const ratio = 1 - alive.length/POP;
+  const speed = (16 + S.wave*2.5) * (0.6 + avgSpd*1.3) * (1 + ratio*1.9);
+  form.x += form.dir*speed*dt;
+  let minX = 1e9, maxX = -1e9;
+  for(const i of alive){ const x = i.homeX+form.x+i.ox; if(x<minX)minX=x; if(x>maxX)maxX=x; }
+  if(maxX > W-30 && form.dir > 0){ form.dir = -1; form.y += 16; sfx(120,.1,'sine',.05); }
+  if(minX < 30 && form.dir < 0){ form.dir = 1; form.y += 16; sfx(120,.1,'sine',.05); }
+
+  /* --- invaders --- */
+  let divers = alive.filter(i=>i.state==='dive').length;
+  const maxDive = Math.min(4, 1 + Math.floor(S.wave/2));
+  for(const e of inv){
+    if(!e.alive) continue;
+    const g = S.genomes[e.gi];
+    S.fitness[e.gi] += dt*0.5;
+    e.flash = Math.max(0, e.flash-dt*4);
+
+    if(e.state === 'form'){
+      // lean toward your favourite zone
+      const targetX = 50 + g.lateral*(W-100);
+      const want = clamp((targetX - (e.homeX+form.x))*.42, -84, 84);
+      e.ox = lerp(e.ox, want, clamp(dt*1.1,0,1));
+      e.ox += Math.sin(S.t*(.5+g.speed*1.4)+e.phase)*8*dt;
+      // dodge incoming fire
+      if(g.evasion > .12){
+        for(const b of pb){
+          if(b.y > e.y && b.y < e.y+220 && Math.abs(b.x-e.x) < 46){
+            e.ox = clamp(e.ox - sign(b.x-e.x)*g.evasion*95*dt, -110, 110); break;
+          }
+        }
+      }
+      e.x = e.homeX + form.x + e.ox;
+      e.y = e.homeY + form.y;
+      if(divers < maxDive && e.y > 60 && Math.random() < (0.02 + g.aggression*0.28)*dt){
+        e.state = 'dive'; divers++;
+        e.vy = 120 + g.speed*130; e.vx = sign(player.x-e.x)*(40+g.speed*70);
+        sfx(300,.18,'sawtooth',.04,-180);
+      }
+    } else if(e.state === 'dive'){
+      e.vx = lerp(e.vx, sign(player.x-e.x)*(70+g.aggression*130), dt*1.4);
+      e.x += e.vx*dt + Math.sin(S.t*4+e.phase)*40*dt;
+      e.y += e.vy*dt;
+      e.x = clamp(e.x, 18, W-18);
+      if(e.y > H+30){ e.state = 'return'; e.y = -30; e.x = e.homeX+form.x; }
+      // ram the bunkers
+      for(const cells of bunkers) for(const c of cells)
+        if(c.hp>0 && Math.abs(c.x+3-e.x)<12 && Math.abs(c.y+3-e.y)<10) c.hp = 0;
+    } else { // return
+      const tx = e.homeX+form.x+e.ox, ty = e.homeY+form.y;
+      e.x = lerp(e.x, tx, clamp(dt*2.2,0,1)); e.y = lerp(e.y, ty, clamp(dt*2.2,0,1));
+      if(Math.abs(e.x-tx)<6 && Math.abs(e.y-ty)<6) e.state = 'form';
+    }
+
+    // shooting: bottom of column, or anytime while diving
+    e.cool -= dt;
+    if(e.cool <= 0){
+      const bottom = e.state !== 'form' || !inv.some(o => o.alive && o.c === e.c && o.r > e.r && o.state === 'form');
+      if(bottom && e.y < player.y-30 && eb.length < 3 + S.wave){
+        const spd = 250 + S.wave*8;
+        const flight = (player.y - e.y)/spd;
+        let tx = player.x + player.vx*flight*g.aimLead*1.9;   // predict your strafe
+        tx += memory.dodge * g.aimLead * 70;                   // predict your flinch
+        const dx = clamp((tx-e.x)/Math.max(60,player.y-e.y), -.8, .8);
+        eb.push({x:e.x, y:e.y+8, vx:dx*spd*.55, vy:spd, ph:rnd(6)});
+        S.fitness[e.gi] += .15;
+        e.cool = (4.8 - g.fireRate*3.4) * rnd(1.25,.75) * (e.state==='dive'?.55:1) * (S.wave<3?1.3:1);
+        sfx(200,.06,'square',.025,-90);
+      } else e.cool = .4;
+    }
+
+    if(e.y > player.y-26 && e.state === 'form'){ S.lives = 0; hitPlayer(true); return; }
+    if(player.inv<=0 && player.alive && Math.abs(e.x-player.x)<20 && Math.abs(e.y-player.y)<18){
+      S.fitness[e.gi] += 22; killInv(e, false); hitPlayer(); if(S.mode!=='play') return;
+    }
+  }
+
+  /* --- enemy bullets --- */
+  for(const b of eb){ b.x += b.vx*dt; b.y += b.vy*dt; b.ph += dt*14; }
+  eb = eb.filter(b => b.y < H+20 && b.x > -20 && b.x < W+20);
+
+  /* --- collisions: player bullets vs invaders --- */
+  for(let i=pb.length-1;i>=0;i--){
+    const b = pb[i]; let gone = false;
+    for(const e of inv){
+      if(!e.alive) continue;
+      if(Math.abs(b.x-e.x) < 13 && Math.abs(b.y-e.y) < 10){
+        e.hp--; e.flash = 1; prof.hits++;
+        if(e.hp <= 0){ killInv(e, true); } else sfx(300,.05,'square',.03);
+        gone = true; break;
+      }
+    }
+    if(!gone) gone = hitBunker(b.x, b.y);
+    if(gone) pb.splice(i,1);
+  }
+
+  /* --- enemy bullets vs bunkers / player --- */
+  for(let i=eb.length-1;i>=0;i--){
+    const b = eb[i];
+    if(hitBunker(b.x,b.y)){ eb.splice(i,1); continue; }
+    const near = Math.abs(b.x-player.x) < 90 && b.y > player.y-170 && b.y < player.y;
+    if(near && Math.abs(player.vx) > 40){                        // learn your flinch
+      prof.dodge += sign(player.vx) * (Math.abs(b.x-player.x)<50?1:.5); prof.dodgeN++;
+    }
+    if(player.inv<=0 && Math.abs(b.x-player.x)<13 && Math.abs(b.y-player.y)<14){
+      eb.splice(i,1); hitPlayer(); if(S.mode!=='play') return;
+      break;                       // hitPlayer() wipes eb — stop iterating it
+    }
+  }
+
+  for(const p of bits){ p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 260*dt; p.life -= dt; }
+  bits = bits.filter(p=>p.life>0);
+
+  if(S.t - lastSide > .3){ lastSide = S.t; renderSide(); }
+}
+
+function hitBunker(x,y){
+  for(const cells of bunkers) for(const c of cells){
+    if(c.hp>0 && x > c.x-1 && x < c.x+7 && y > c.y-1 && y < c.y+7){ c.hp = 0; return true; }
+  }
+  return false;
+}
+function killInv(e, scored){
+  e.alive = false;
+  if(scored){ S.score += 12 + e.maxHp*6 + (ROWS-e.r)*4; }
+  burst(e.x, e.y, 12, `hsl(${170 - S.genomes[e.gi].aggression*170},85%,62%)`);
+  sfx(140,.16,'triangle',.05,-90);
+}
+function hitPlayer(fatal){
+  S.lives--; prof.taken++; S.shake = 1;
+  burst(player.x, player.y, 22, '#FF5FA2');
+  sfx(90,.35,'sawtooth',.07,-60);
+  player.inv = 1.6; eb = [];
+  if(S.lives <= 0 || fatal) endWave(false);
+}
+function burst(x,y,n,col){
+  if(reduced) n = Math.min(n,4);
+  for(let i=0;i<n;i++) bits.push({x,y,vx:rnd(150,-150),vy:rnd(60,-160),life:rnd(.7,.3),col});
+}
+
+/* --------------------------------------------------------------- render */
+function render(){
+  ctx.save();
+  if(S.shake>0 && !reduced) ctx.translate(rnd(4,-4)*S.shake, rnd(4,-4)*S.shake);
+  ctx.fillStyle = '#0D0819'; ctx.fillRect(-10,-10,W+20,H+20);
+  for(const s of stars){
+    ctx.fillStyle = `rgba(180,160,220,${.12+s.z*.35})`;
+    ctx.fillRect(s.x, (s.y + S.t*s.z*6) % H, 1+ (s.z>.8?1:0), 1+(s.z>.8?1:0));
+  }
+  // ground line
+  ctx.fillStyle = '#2E1F52'; ctx.fillRect(0, H-26, W, 1);
+
+  for(const cells of bunkers) for(const c of cells){
+    if(c.hp>0){ ctx.fillStyle = '#4FD1A5'; ctx.fillRect(c.x, c.y, 6, 6); }
+  }
+
+  for(const e of inv){
+    if(!e.alive) continue;
+    const g = S.genomes[e.gi];
+    const hue = 170 - g.aggression*170;
+    const lit = e.flash>0 ? 92 : 58 + (e.hp/e.maxHp)*8;
+    drawInv(e.x, e.y, SPR[e.spr], `hsl(${hue},85%,${lit}%)`, e, g);
+  }
+
+  ctx.fillStyle = '#EDE6F2';
+  for(const b of pb) ctx.fillRect(b.x-1, b.y-10, 2, 11);
+  for(const b of eb){
+    ctx.fillStyle = '#FFC145';
+    const w = Math.sin(b.ph)*2;
+    ctx.fillRect(b.x-1.5+w, b.y-5, 3, 5); ctx.fillRect(b.x-1.5-w, b.y, 3, 5);
+  }
+  for(const p of bits){ ctx.fillStyle = p.col; ctx.globalAlpha = clamp(p.life*1.6,0,1);
+    ctx.fillRect(p.x-1.5,p.y-1.5,3,3); ctx.globalAlpha = 1; }
+
+  if(S.mode === 'play' && S.lives > 0 && (player.inv<=0 || Math.floor(S.t*12)%2)) drawShip(player.x, player.y);
+
+  // HUD
+  ctx.font = "600 13px 'IBM Plex Mono',monospace"; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#8C7FB0'; ctx.fillText('SCORE', 16, 12); ctx.fillText('WAVE', 340, 12);
+  ctx.fillText('GENERATION', 470, 12); ctx.fillText('LIVES', 690, 12);
+  ctx.fillStyle = '#EDE6F2';
+  ctx.fillText(String(S.score).padStart(5,'0'), 16, 30);
+  ctx.fillText(String(S.wave), 340, 30);
+  ctx.fillStyle = '#FF5FA2'; ctx.fillText(String(S.gen), 470, 30);
+  ctx.fillStyle = '#7FE7C4';
+  for(let i=0;i<Math.max(0,S.lives);i++) drawShip(700+i*22, 40, .55);
+  ctx.restore();
+}
+function drawInv(x,y,spr,col,e,g){
+  const px = 2, w = 11*px, h = 8*px;
+  const ox = x - w/2, oy = y - h/2;
+  if(e.maxHp > 1){ // armour shell
+    ctx.strokeStyle = e.maxHp > 2 ? '#FF5FA2' : '#FFC145';
+    ctx.lineWidth = 1; ctx.strokeRect(ox-3.5, oy-3.5, w+7, h+7);
+    if(e.hp > 1 && e.maxHp > 2) ctx.strokeRect(ox-6.5, oy-6.5, w+13, h+13);
+  }
+  ctx.fillStyle = col;
+  for(let r=0;r<8;r++){ const row = spr[r];
+    for(let c=0;c<11;c++) if(row[c] === '@') ctx.fillRect(ox+c*px, oy+r*px, px, px);
+  }
+  if(g.aimLead > .55){ ctx.fillStyle = '#FFC145'; ctx.fillRect(x-1, y+h/2-1, 2, 2); }
+}
+function drawShip(x,y,s=1){
+  const P = ["....@....","...@@@...",".@@@@@@@.","@@@@@@@@@","@@.@@@.@@"];
+  const px = 3*s, w = 9*px, h = 5*px;
+  ctx.fillStyle = '#7FE7C4';
+  for(let r=0;r<5;r++) for(let c=0;c<9;c++)
+    if(P[r][c]==='@') ctx.fillRect(x-w/2+c*px, y-h/2+r*px, px, px);
+}
+
+/* ------------------------------------------------------------- screens */
+function ov(id, on){ document.getElementById(id).classList.toggle('on', on); }
+function hideAll(){ ['ovMenu','ovEvo','ovOver','ovPause'].forEach(i=>ov(i,false)); }
+
+function start(keepGenes){
+  audioOn();
+  if(!keepGenes){ /* fresh session keeps whatever the swarm already learned */ }
+  S.wave = 1; S.score = 0; S.lives = 3; S.paused = false;
+  buildWave(); hideAll(); S.mode = 'play'; renderSide();
+}
+function nextWave(){ S.wave++; buildWave(); hideAll(); S.mode = 'play'; renderSide(); }
+
+function endWave(cleared){
+  const r = evolve(cleared);
+  S.best = Math.max(S.best, S.score);
+  S.mode = cleared ? 'evo' : 'over';
+  const rows = GENE_KEYS.map(k=>{
+    const a = r.before[k], b = r.after[k], d = b-a;
+    return `<div class="gene ${d>0.005?'up':''}">
+      <div class="nm">${GENE_NAMES[k]}</div>
+      <div class="track"><span class="old" style="width:${(a*100).toFixed(0)}%"></span>
+      <span class="new" style="width:${(a*100).toFixed(0)}%" data-w="${(b*100).toFixed(0)}"></span></div>
+      <div class="delta ${d>0.005?'up':''}">${d>=0?'+':'−'}${Math.abs(d*100).toFixed(0)}</div></div>`;
+  }).join('');
+  const learn = `<div class="learn">${r.lines.map(l=>`<div>${l}</div>`).join('')}</div>`;
+
+  if(cleared){
+    document.getElementById('ovEvo').innerHTML =
+      `<div class="eyebrow">Wave ${S.wave} cleared · generation ${S.gen} hatched</div>
+       <h2>The swarm rearranged itself</h2>
+       ${learn}
+       <div class="genes">${rows}</div>
+       <p>Dotted is the old genome, solid is the new one. <b>32 genomes, 4 elites, crossover and mutation.</b></p>
+       <div><button id="btnNext">Launch wave ${S.wave+1}</button></div>`;
+    ov('ovEvo', true);
+    document.getElementById('btnNext').onclick = nextWave;
+  } else {
+    document.getElementById('ovOver').innerHTML =
+      `<div class="eyebrow">Game over · ${S.score} points · reached wave ${S.wave}</div>
+       <h2>The swarm outlived you</h2>
+       ${learn}
+       <div class="genes">${rows}</div>
+       <p>The gene pool <b>does not reset</b>. Your next run starts against generation ${S.gen} — the one that already killed you once.</p>
+       <div><button id="btnAgain">Again, against generation ${S.gen}</button></div>`;
+    ov('ovOver', true);
+    document.getElementById('btnAgain').onclick = () => start(true);
+  }
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    document.querySelectorAll('.track .new').forEach(el=> el.style.width = el.dataset.w+'%');
+  }));
+  sfx(cleared?520:110, .5, cleared?'triangle':'sawtooth', .06, cleared?300:-70);
+}
+
+/* ------------------------------------------------------------- sidebar */
+let lastSide = 0;
+function renderSide(){
+  const a = avgGenes(S.genomes);
+  document.getElementById('geneLive').innerHTML = GENE_KEYS.map(k=>
+    `<div class="row"><div>${GENE_NAMES[k]}<div class="bar"><i style="width:${(a[k]*100).toFixed(0)}%"></i></div></div>
+     <b>${(a[k]*100).toFixed(0)}</b></div>`).join('');
+  const zsum = prof ? (prof.zone.reduce((x,y)=>x+y,0)||1) : 1;
+  const mob = prof ? clamp(prof.dist/Math.max(1,prof.time)/260,0,1) : 0;
+  const acc = prof && prof.shots>0 ? prof.hits/prof.shots : 0;
+  const dg  = prof && prof.dodgeN>0 ? (prof.dodge/prof.dodgeN+1)/2 : .5;
+  const zn  = prof ? prof.zone.reduce((s,v,i)=>s+v*(i+.5)/8,0)/zsum : .5;
+  const P = [['mobility',mob],['accuracy',acc],['average position',zn],['breaks right',dg]];
+  document.getElementById('profLive').innerHTML = P.map(([n,v])=>
+    `<div class="row"><div>${n}<div class="bar s"><i style="width:${(v*100).toFixed(0)}%"></i></div></div>
+     <b>${(v*100).toFixed(0)}</b></div>`).join('');
+  document.getElementById('sideNote').textContent =
+    S.mode==='play' ? `Wave ${S.wave} · ${inv.filter(i=>i.alive).length} alive of ${POP}` :
+    'Values are averaged across the whole gene pool.';
+}
+
+/* ---------------------------------------------------------------- loop */
+document.getElementById('btnStart').onclick = () => start();
+let last = performance.now();
+function frame(t){
+  const dt = clamp((t-last)/1000, 0, .033); last = t;
+  update(dt); render(); requestAnimationFrame(frame);
+}
+renderSide(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

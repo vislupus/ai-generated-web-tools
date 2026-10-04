@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STARFLIGHT · Bridge Terminal</title>
+<style>
+:root{
+  --void:#060a14;
+  --hull:#0d1524;
+  --plate:#131e33;
+  --line:#22314e;
+  --amber:#f2a33c;
+  --signal:#57d8d8;
+  --alert:#e0524a;
+  --leaf:#7ec96f;
+  --muted:#7f92ad;
+  --text:#d7e2f2;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--void);color:var(--text);font-family:var(--mono);}
+body{
+  min-height:100vh;
+  background:
+    radial-gradient(1200px 700px at 70% -10%, #10203a 0%, transparent 60%),
+    var(--void);
+  padding:14px;
+}
+#app{max-width:1180px;margin:0 auto}
+
+header.deck{
+  display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:12px;
+}
+header.deck h1{
+  margin:0;font-size:15px;font-weight:600;letter-spacing:.62em;text-transform:uppercase;
+  color:var(--amber);
+}
+header.deck .sub{font-size:11px;color:var(--muted);letter-spacing:.18em;text-transform:uppercase}
+header.deck .stardate{margin-left:auto;font-size:11px;color:var(--signal);letter-spacing:.12em}
+
+main{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px;align-items:start}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+
+.viewport{
+  position:relative;border:1px solid var(--line);background:#03060d;
+  padding:9px;
+}
+.viewport canvas{display:block;width:100%;height:auto;background:#03060d}
+.corner{position:absolute;width:11px;height:11px;border:1px solid var(--amber);opacity:.75}
+.corner.tl{top:3px;left:3px;border-right:0;border-bottom:0}
+.corner.tr{top:3px;right:3px;border-left:0;border-bottom:0}
+.corner.bl{bottom:3px;left:3px;border-right:0;border-top:0}
+.corner.br{bottom:3px;right:3px;border-left:0;border-top:0}
+#hint{
+  margin-top:8px;font-size:11.5px;color:var(--muted);letter-spacing:.05em;min-height:16px;
+  border-top:1px dotted var(--line);padding-top:7px;
+}
+#hint b{color:var(--signal);font-weight:500}
+
+aside{display:flex;flex-direction:column;gap:12px}
+.panel{border:1px solid var(--line);background:var(--hull)}
+.panel > .cap{
+  display:flex;align-items:center;gap:8px;
+  font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);
+  padding:7px 10px;border-bottom:1px solid var(--line);background:var(--plate);
+}
+.panel > .cap::after{content:"";flex:1;height:1px;background:repeating-linear-gradient(90deg,var(--line) 0 2px,transparent 2px 5px)}
+.panel .body{padding:10px}
+
+.row{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:2.5px 0}
+.row .lbl{color:var(--muted)}
+.row .val{color:var(--text);text-align:right}
+.row .val.warn{color:var(--amber)}
+.row .val.bad{color:var(--alert)}
+.row .val.ok{color:var(--leaf)}
+.bar{height:5px;background:#0a1120;border:1px solid var(--line);margin:3px 0 7px;position:relative}
+.bar > i{display:block;height:100%;background:var(--signal)}
+.bar.amber > i{background:var(--amber)}
+.bar.alert > i{background:var(--alert)}
+.bar.leaf > i{background:var(--leaf)}
+hr.sep{border:0;border-top:1px dotted var(--line);margin:9px 0}
+
+#actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px}
+#actions.one{grid-template-columns:1fr}
+button.btn{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;
+  background:var(--plate);color:var(--text);border:1px solid var(--line);
+  padding:8px 9px;text-align:left;cursor:pointer;position:relative;
+  transition:background .12s,border-color .12s,color .12s;
+}
+button.btn:hover:not(:disabled){background:#1b2a45;border-color:var(--signal);color:#fff}
+button.btn:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+button.btn:disabled{opacity:.34;cursor:not-allowed}
+button.btn.hot{border-color:var(--amber);color:var(--amber)}
+button.btn.danger{border-color:#59262a;color:#f0938c}
+button.btn .k{position:absolute;right:7px;top:7px;font-size:9px;color:var(--muted);letter-spacing:0}
+button.btn .cost{display:block;font-size:10px;color:var(--muted);margin-top:2px}
+button.btn.wide{grid-column:1 / -1}
+
+#log{padding:8px 10px;height:190px;overflow-y:auto;font-size:11.5px;line-height:1.5}
+#log div{margin-bottom:3px;color:var(--text)}
+#log div::before{content:"› ";color:var(--line)}
+#log .m{color:var(--muted)}
+#log .a{color:var(--amber)}
+#log .c{color:var(--signal)}
+#log .r{color:var(--alert)}
+#log .g{color:var(--leaf)}
+#log::-webkit-scrollbar{width:6px}
+#log::-webkit-scrollbar-thumb{background:var(--line)}
+
+table.cargo{width:100%;border-collapse:collapse;font-size:11.5px}
+table.cargo td{padding:2px 0;border-bottom:1px dotted #16223a}
+table.cargo td.q{text-align:right;color:var(--signal);width:44px}
+table.cargo td.v{text-align:right;color:var(--muted);width:62px}
+.empty{font-size:11.5px;color:var(--muted);font-style:italic}
+footer{margin-top:12px;font-size:10.5px;color:#43536e;letter-spacing:.08em;text-align:center}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="deck">
+    <h1>Starflight</h1>
+    <span class="sub">ISS Excalibur · bridge terminal</span>
+    <span class="stardate" id="stardate">Stardate 4620.0</span>
+  </header>
+
+  <main>
+    <div>
+      <div class="viewport">
+        <span class="corner tl"></span><span class="corner tr"></span>
+        <span class="corner bl"></span><span class="corner br"></span>
+        <canvas id="cv" width="780" height="540"></canvas>
+      </div>
+      <div id="hint"></div>
+    </div>
+
+    <aside>
+      <div class="panel">
+        <div class="cap" id="statusCap">Status</div>
+        <div class="body" id="status"></div>
+      </div>
+      <div class="panel">
+        <div class="cap">Commands</div>
+        <div id="actions"></div>
+      </div>
+      <div class="panel">
+        <div class="cap">Ship's log</div>
+        <div id="log"></div>
+      </div>
+    </aside>
+  </main>
+
+  <footer>Arrow keys — move · Enter — primary action · inspired by Starflight (Binary Systems, 1986)</footer>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   DETERMINISTIC RNG
+============================================================ */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function hash(){const s=Array.prototype.join.call(arguments,"|");let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function rngFor(){return mulberry32(hash.apply(null,arguments));}
+const SEED=90210;
+function pick(r,a){return a[Math.floor(r()*a.length)];}
+function ri(r,a,b){return a+Math.floor(r()*(b-a+1));}
+
+/* ============================================================
+   DATA
+============================================================ */
+const ELEMENTS=[
+  {n:"Endurium",v:320,w:0.05},{n:"Rhenium",v:250,w:0.05},{n:"Monopolium",v:215,w:0.05},
+  {n:"Promethium",v:190,w:0.06},{n:"Plutonium",v:170,w:0.06},{n:"Molybdenum",v:130,w:0.08},
+  {n:"Cobalt",v:110,w:0.09},{n:"Chromium",v:90,w:0.09},{n:"Tungsten",v:78,w:0.09},
+  {n:"Titanium",v:66,w:0.10},{n:"Nickel",v:52,w:0.11},{n:"Zinc",v:44,w:0.11},
+  {n:"Aluminum",v:38,w:0.12},{n:"Copper",v:32,w:0.12},{n:"Iron",v:24,w:0.14},
+  {n:"Silicon",v:16,w:0.15},{n:"Lead",v:12,w:0.15},{n:"Magnesium",v:9,w:0.16}
+];
+const ARTIFACT="Ancient artifact";
+const PTYPES={
+  rock:   {n:"Rocky",       col:["#5a4b3d","#7a6650","#95826b","#b0a08a"], min:1.0, life:0.25, land:true},
+  molten: {n:"Molten",      col:["#1a0d0c","#48120c","#8a1f0d","#d4530f"], min:1.35,life:0.05, land:true},
+  ice:    {n:"Icy",         col:["#2b4462","#4f7098","#8ab0cf","#dcecf7"], min:0.85,life:0.20, land:true},
+  ocean:  {n:"Oceanic",     col:["#07253f","#0d4166","#166a91","#2f9fb0"], min:0.55,life:0.85, land:true},
+  terra:  {n:"Terrestrial", col:["#123a52","#3d6a3a","#6b8a45","#a89a6a"], min:0.7, life:1.0,  land:true},
+  gas:    {n:"Gas giant",   col:["#4a3a6b","#6b5590","#8f77b5","#c0aede"], min:0,   life:0.1,  land:false},
+  frozen: {n:"Frozen",      col:["#1d2436","#333e58","#586888","#93a4c0"], min:0.9, life:0.10, land:true},
+  acid:   {n:"Acidic",      col:["#2e2c10","#544f16","#7e7420","#ada03a"], min:1.1, life:0.35, land:true}
+};
+const ROMAN=["I","II","III","IV","V","VI","VII","VIII"];
+const SYL1=["Ar","Be","Ca","De","El","Fe","Gra","He","Il","Jo","Kor","Lu","Me","Nu","Or","Pi","Qua","Re","Si","Ta","Ul","Ve","Xe","Za","Tu","Mir","Ny","Nar","Tri","Ven"];
+const SYL2=["na","ris","tor","la","men","kar","dis","vel","mor","tis","ran","sol","bek","nur","fel","gal","dar","xis","min","tei"];
+const SYL3=["","","","","-Prime","-Beta","-Gamma","-Delta"," Major"," Minor"," Secundus"];
+
+const RACES=[
+  {n:"Veloxi", dis:"aggressive", pow:1.35, hail:"The Veloxi do not bargain with soft things. Prepare to die."},
+  {n:"Uhlek",  dis:"hostile",    pow:1.6,  hail:"SWARM. SWARM. YOUR FLESH IS TRIBUTE."},
+  {n:"Thrynn", dis:"traders",    pow:1.0,  hail:"Thrynn respect strength. You have shown enough. Trade, or leave."},
+  {n:"Elowan", dis:"peaceful",   pow:0.7,  hail:"We are Elowan, children of the light. We raise no weapon against you."},
+  {n:"Spemin", dis:"cowardly",   pow:0.55, hail:"Oh great and terrible one! Spemin are your humble servants! Please do not shoot!"},
+  {n:"Mechan", dis:"machine",    pow:1.2,  hail:"QUERY. ORGANIC FORMS. FUNCTION UNKNOWN. STANDING BY."},
+  {n:"Nomads", dis:"drifters",   pow:0.9,  hail:"We drift from nothing toward nothing. Have you news of the Ancients?"}
+];
+const ARTIFACT_LORE=[
+  "Crystal tablet. The record speaks of a race called the Ancients, who seeded life across this arm of the galaxy.",
+  "Decoded fragment: \"The stars here are not stable. We lit them, to burn something older than ourselves.\"",
+  "Navigation sphere. It shows a wave of stellar flares spreading outward from the core.",
+  "Refugee log: \"We sent the seeds to eight worlds. One of them will remember.\"",
+  "Keystone. At a touch it recites coordinates — and a date. The date is months from now."
+];
+
+/* ============================================================
+   STATE
+============================================================ */
+const GW=3000, GH=2300;
+let stars=[], G=null;
+const surfaceCache={};
+
+function newGame(){
+  G={
+    scene:"intro", portMenu:"main",
+    credits:6000, stardate:4620.0, artifactsDelivered:0, lore:[],
+    cargo:{},
+    ship:{
+      hull:100, hullMax:100,
+      shields:0, shieldClass:1,
+      weaponClass:1, engineClass:1, armorClass:1,
+      cargoMax:100, fuel:60, fuelMax:100,
+      x:0,y:0, ang:-Math.PI/2
+    },
+    sys:null, planet:null, surface:null, combat:null,
+    log:[], flash:0, t:0, distTravelled:0
+  };
+  genGalaxy();
+  G.ship.x=stars[0].x; G.ship.y=stars[0].y;
+  logMsg("Starport Arth: docking clearance accepted.","c");
+  logMsg("The ISS Excalibur is yours. The hold is empty. The credits are few.","m");
+  logMsg("Arth is the second planet of Sol. Return here to dock, sell and refuel.","m");
+}
+
+/* ---------- Galaxy ---------- */
+function starName(r){ return pick(r,SYL1)+pick(r,SYL2)+pick(r,SYL3); }
+function genGalaxy(){
+  const r=rngFor(SEED,"galaxy");
+  stars=[];
+  stars.push(makeStar(0, GW*0.50, GH*0.74, "Sol", true));
+  let guard=0;
+  while(stars.length<118 && guard<9000){
+    guard++;
+    const x=90+r()*(GW-180), y=90+r()*(GH-180);
+    let ok=true;
+    for(const s of stars){ if((s.x-x)*(s.x-x)+(s.y-y)*(s.y-y) < 95*95){ok=false;break;} }
+    if(!ok) continue;
+    stars.push(makeStar(stars.length,x,y,null,false));
+  }
+}
+function makeStar(i,x,y,name,home){
+  const r=rngFor(SEED,"star",i);
+  const cls=home?"G":pick(r,["M","M","M","K","K","G","G","F","A","B","O"]);
+  const colors={M:"#e0603c",K:"#efa056",G:"#f6e6a8",F:"#ffffff",A:"#cfe1ff",B:"#9db9ff",O:"#7f9dff"};
+  const st={id:i,x:x,y:y,name:name||starName(r),cls:cls,col:colors[cls],home:home,planets:[],visited:home};
+  const n=home?4:ri(r,1,6);
+  for(let p=0;p<n;p++){
+    const pr=rngFor(SEED,"planet",i,p);
+    let type;
+    if(home&&p===1) type="terra";
+    else if(p>=3&&pr()<0.55) type="gas";
+    else type=pick(pr,["rock","rock","rock","molten","ice","ocean","terra","frozen","acid","gas"]);
+    const T=PTYPES[type];
+    const pl={
+      key:i+"-"+p, star:st, idx:p,
+      name:(home&&p===1)?"Arth":st.name+" "+ROMAN[p],
+      type:type, tname:T.n, land:T.land,
+      orbit:62+p*33+pr()*14, ang:pr()*Math.PI*2, spd:(0.00055/(1+p*0.55))*(0.7+pr()*0.6),
+      rad:(type==="gas")?12+pr()*7:5+pr()*4.5,
+      grav:+((type==="gas"?4+pr()*6:0.2+pr()*2.2).toFixed(2)),
+      temp:Math.round(type==="molten"?600+pr()*900:type==="ice"||type==="frozen"?-190+pr()*90:type==="terra"?-15+pr()*45:-80+pr()*260),
+      atmo:pick(pr,["none","carbon dioxide","methane","ammonia","nitrogen/oxygen","hydrogen","chlorine","sulfur vapor"]),
+      minerals:+(T.min*(0.35+pr()*0.9)).toFixed(2),
+      life:+(T.life*(0.2+pr()*1.0)).toFixed(2),
+      ruins:(T.land && pr()<0.16),
+      starport:(home&&p===1),
+      scanned:(home&&p===1), visited:false
+    };
+    st.planets.push(pl);
+  }
+  return st;
+}
+
+/* ============================================================
+   HELPERS
+============================================================ */
+const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+const W=cv.width, H=cv.height;
+const elStatus=document.getElementById("status"),
+      elActions=document.getElementById("actions"),
+      elLog=document.getElementById("log"),
+      elHint=document.getElementById("hint"),
+      elCap=document.getElementById("statusCap"),
+      elDate=document.getElementById("stardate");
+
+function logMsg(t,c){ G.log.push({t:t,c:c||""}); if(G.log.length>90)G.log.shift(); renderLog(); }
+function renderLog(){
+  elLog.innerHTML=G.log.map(function(m){return '<div class="'+m.c+'">'+m.t+'</div>';}).join("");
+  elLog.scrollTop=elLog.scrollHeight;
+}
+function cargoUsed(){ let s=0; for(const k in G.cargo) s+=G.cargo[k].q; return s; }
+function addCargo(name,q,val,kind){
+  const free=G.ship.cargoMax-cargoUsed();
+  if(free<=0) return 0;
+  q=Math.min(q,free);
+  if(!G.cargo[name]) G.cargo[name]={q:0,v:val,kind:kind||"min"};
+  G.cargo[name].q+=q;
+  return q;
+}
+function fmt(n){ return Math.round(n).toLocaleString("en-US"); }
+function dist(a,b,c,d){ return Math.hypot(a-c,b-d); }
+function engineSpeed(){ return 2.0+G.ship.engineClass*0.85; }
+function shieldMax(){ return G.ship.shieldClass*22; }
+function hullMax(){ return 60+G.ship.armorClass*40; }
+
+/* ============================================================
+   SHARED DRAWING
+============================================================ */
+function clear(bg){ ctx.fillStyle=bg||"#03060d"; ctx.fillRect(0,0,W,H); }
+function starfield(seed,ox,oy,n,alpha){
+  const r=mulberry32(seed); ctx.save();
+  for(let i=0;i<n;i++){
+    const x=(r()*W*2-ox*0.25)%W, y=(r()*H*2-oy*0.25)%H;
+    const s=r()*1.4+0.2;
+    ctx.fillStyle="rgba(200,220,255,"+((alpha||0.7)*r()).toFixed(2)+")";
+    ctx.fillRect((x+W)%W,(y+H)%H,s,s);
+  }
+  ctx.restore();
+}
+function text(t,x,y,col,size,align,ls){
+  ctx.fillStyle=col||"#d7e2f2";
+  ctx.font=(size||12)+"px ui-monospace, Menlo, Consolas, monospace";
+  ctx.textAlign=align||"left"; ctx.textBaseline="alphabetic";
+  if(ls){ let cx=x; for(const ch of t){ ctx.fillText(ch,cx,y); cx+=ctx.measureText(ch).width+ls; } }
+  else ctx.fillText(t,x,y);
+}
+function frame(x,y,w,h,col){
+  ctx.strokeStyle=col||"#22314e"; ctx.lineWidth=1;
+  ctx.strokeRect(Math.round(x)+0.5,Math.round(y)+0.5,w,h);
+}
+function drawShipIcon(x,y,ang,scale,col){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(ang); ctx.scale(scale,scale);
+  ctx.fillStyle=col||"#f2a33c";
+  ctx.beginPath(); ctx.moveTo(9,0); ctx.lineTo(-6,5.5); ctx.lineTo(-3,0); ctx.lineTo(-6,-5.5); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/* ============================================================
+   SCENE: INTRO
+============================================================ */
+function drawIntro(){
+  clear(); starfield(7,0,0,320,0.8);
+  text("STARFLIGHT",W/2,150,"#f2a33c",40,"center",10);
+  text("bridge terminal · Excalibur class",W/2,178,"#7f92ad",12,"center",2);
+  const lines=[
+    "Year 4620. The Empire has been ash for three centuries.",
+    "Eight colonized worlds met at Arth, built a starport,",
+    "and then built one single exploration vessel.",
+    "",
+    "The stars out here are burning out, one by one. Nobody knows why.",
+    "You have an empty hold, a little endurium in the tank,",
+    "and an entire galaxy to sell or to save."
+  ];
+  lines.forEach(function(l,i){ text(l,W/2,250+i*22,i<3?"#d7e2f2":"#a9bad2",13.5,"center"); });
+  text("Deliver 5 Ancient artifacts to the starport to learn the truth.",W/2,H-70,"#57d8d8",12,"center");
+}
+
+/* ============================================================
+   SCENE: STARPORT
+============================================================ */
+function drawPort(){
+  clear("#050912"); starfield(11,0,0,180,0.5);
+  const g=ctx.createRadialGradient(W/2,H+340,80,W/2,H+340,430);
+  g.addColorStop(0,"#3d6a3a"); g.addColorStop(0.55,"#1d4a55"); g.addColorStop(1,"#071120");
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(W/2,H+340,430,0,7); ctx.fill();
+  ctx.save(); ctx.translate(W/2, 230);
+  const t=G.t*0.004;
+  ctx.strokeStyle="#22314e"; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.ellipse(0,0,150,44,0,0,7); ctx.stroke();
+  ctx.strokeStyle="#2f4a72"; ctx.beginPath(); ctx.ellipse(0,0,118,33,0,0,7); ctx.stroke();
+  ctx.fillStyle="#131e33"; ctx.fillRect(-34,-58,68,116);
+  ctx.strokeStyle="#3a5480"; ctx.strokeRect(-34,-58,68,116);
+  for(let i=0;i<9;i++){
+    ctx.fillStyle=(Math.sin(t*7+i)>0.1)?"#f2a33c":"#31405e";
+    ctx.fillRect(-26,-48+i*12,8,5); ctx.fillRect(18,-48+i*12,8,5);
+  }
+  for(let i=0;i<6;i++){
+    const a=t+i*Math.PI/3;
+    ctx.fillStyle="#57d8d8"; ctx.globalAlpha=0.8;
+    ctx.fillRect(Math.cos(a)*150-2, Math.sin(a)*44-2, 4,4);
+  }
+  ctx.globalAlpha=1; ctx.restore();
+  drawShipIcon(W/2+205, 300, -0.35, 2.2, "#f2a33c");
+  text("STARPORT ARTH · DRY DOCK 7",W/2,60,"#f2a33c",14,"center",5);
+  text("The only human port in the known galaxy",W/2,80,"#7f92ad",11,"center");
+
+  frame(30,H-140,W-60,110,"#22314e");
+  text("PORT BULLETIN",44,H-120,"#7f92ad",10,"left",3);
+  const board=[
+    "We buy minerals. We pay cash. We do not ask where they came from.",
+    "Ancient artifacts: 5,000 credits each, plus archive access.",
+    "Do not fly without reserve fuel. Nobody is coming to look for you."
+  ];
+  board.forEach(function(b,i){ text("· "+b,44,H-98+i*20,"#a9bad2",11.5); });
+}
+
+/* ============================================================
+   SCENE: HYPERSPACE
+============================================================ */
+const MAPSC=Math.min(W/GW,H/GH);
+function w2sx(x){ return (x*MAPSC)+ (W-GW*MAPSC)/2; }
+function w2sy(y){ return (y*MAPSC)+ (H-GH*MAPSC)/2; }
+function nearestStar(){
+  let best=null,bd=1e9;
+  for(const s of stars){ const d=dist(s.x,s.y,G.ship.x,G.ship.y); if(d<bd){bd=d;best=s;} }
+  return {star:best,d:bd};
+}
+function updateHyper(){
+  const sp=engineSpeed()*0.55;
+  let dx=0,dy=0;
+  if(keys.ArrowLeft)dx-=1; if(keys.ArrowRight)dx+=1;
+  if(keys.ArrowUp)dy-=1; if(keys.ArrowDown)dy+=1;
+  if(dx||dy){
+    const l=Math.hypot(dx,dy); dx/=l; dy/=l;
+    if(G.ship.fuel<=0){ if(G.t%90===0) logMsg("The tank is dry. The engines are silent.","r"); return; }
+    G.ship.ang=Math.atan2(dy,dx);
+    const nx=Math.max(20,Math.min(GW-20,G.ship.x+dx*sp)), ny=Math.max(20,Math.min(GH-20,G.ship.y+dy*sp));
+    const d=dist(nx,ny,G.ship.x,G.ship.y);
+    G.ship.x=nx; G.ship.y=ny;
+    G.ship.fuel=Math.max(0,G.ship.fuel-d*0.020/(1+G.ship.engineClass*0.12));
+    G.stardate+=d*0.004;
+    G.distTravelled+=d;
+    const far=dist(G.ship.x,G.ship.y,stars[0].x,stars[0].y);
+    if(far>260 && Math.random()<d*0.00085) startCombat();
+  }
+}
+function drawHyper(){
+  clear(); starfield(3,G.ship.x,G.ship.y,260,0.55);
+  ctx.strokeStyle="rgba(34,49,78,0.6)"; ctx.lineWidth=1;
+  for(let gx=0;gx<=GW;gx+=250){ ctx.beginPath(); ctx.moveTo(w2sx(gx),w2sy(0)); ctx.lineTo(w2sx(gx),w2sy(GH)); ctx.stroke(); }
+  for(let gy=0;gy<=GH;gy+=250){ ctx.beginPath(); ctx.moveTo(w2sx(0),w2sy(gy)); ctx.lineTo(w2sx(GW),w2sy(gy)); ctx.stroke(); }
+  frame(w2sx(0),w2sy(0),GW*MAPSC,GH*MAPSC,"#2f4a72");
+  const near=nearestStar();
+  for(const s of stars){
+    const x=w2sx(s.x), y=w2sy(s.y);
+    ctx.fillStyle=s.col; ctx.globalAlpha=s.visited?1:0.85;
+    ctx.beginPath(); ctx.arc(x,y,s.home?4.5:3,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+    if(s.home){
+      ctx.strokeStyle="#f2a33c";
+      ctx.beginPath(); ctx.arc(x,y,9+Math.sin(G.t*0.05)*1.5,0,7); ctx.stroke();
+      text("SOL · HOME PORT",x+11,y+4,"#f2a33c",10);
+    } else {
+      if(s.visited){ ctx.strokeStyle="rgba(87,216,216,.5)"; ctx.beginPath(); ctx.arc(x,y,6,0,7); ctx.stroke(); }
+      if(s===near.star || s.visited) text(s.name,x+7,y+4,s===near.star?"#57d8d8":"#5c7099",10);
+    }
+  }
+  // heading arrow toward Sol
+  const sx=w2sx(G.ship.x), sy=w2sy(G.ship.y);
+  const hx=w2sx(stars[0].x), hy=w2sy(stars[0].y);
+  if(dist(sx,sy,hx,hy)>60){
+    const a=Math.atan2(hy-sy,hx-sx);
+    ctx.save(); ctx.translate(sx+Math.cos(a)*26, sy+Math.sin(a)*26); ctx.rotate(a);
+    ctx.fillStyle="rgba(242,163,60,.55)";
+    ctx.beginPath(); ctx.moveTo(6,0); ctx.lineTo(-4,3.5); ctx.lineTo(-4,-3.5); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.strokeStyle="rgba(242,163,60,.35)";
+  ctx.beginPath(); ctx.arc(sx,sy,13+Math.sin(G.t*0.06)*2,0,7); ctx.stroke();
+  drawShipIcon(sx,sy,G.ship.ang,1.15);
+  text("HYPERSPACE",16,26,"#7f92ad",11,"left",3);
+  text("sector "+String.fromCharCode(65+Math.floor(G.ship.x/300))+"-"+(1+Math.floor(G.ship.y/300)),16,44,"#57d8d8",11);
+}
+
+/* ============================================================
+   SCENE: STAR SYSTEM
+============================================================ */
+function enterSystem(star){
+  star.visited=true;
+  G.sys={star:star, x:W/2, y:H-70, ang:-Math.PI/2};
+  G.scene="system";
+  logMsg("Entering the "+star.name+" system · class "+star.cls+" · "+star.planets.length+" planets.","c");
+  if(star.home) logMsg("Starport Arth is the second planet. Orbit it and dock.","a");
+  refresh();
+}
+function updateSystem(){
+  const s=G.sys, sp=2.2+G.ship.engineClass*0.5;
+  let dx=0,dy=0;
+  if(keys.ArrowLeft)dx-=1; if(keys.ArrowRight)dx+=1;
+  if(keys.ArrowUp)dy-=1; if(keys.ArrowDown)dy+=1;
+  if(dx||dy){ const l=Math.hypot(dx,dy); s.ang=Math.atan2(dy,dx);
+    s.x=Math.max(10,Math.min(W-10,s.x+dx/l*sp)); s.y=Math.max(10,Math.min(H-10,s.y+dy/l*sp)); }
+  for(const p of s.star.planets) p.ang+=p.spd;
+  G.stardate+=0.0009;
+}
+function planetPos(p){
+  return {x:W/2+Math.cos(p.ang)*p.orbit*1.35, y:H/2+Math.sin(p.ang)*p.orbit*0.78};
+}
+function nearestPlanet(){
+  let best=null,bd=1e9;
+  for(const p of G.sys.star.planets){ const q=planetPos(p); const d=dist(q.x,q.y,G.sys.x,G.sys.y); if(d<bd){bd=d;best=p;} }
+  return {planet:best,d:bd};
+}
+function drawSystem(){
+  clear(); starfield(21,0,0,200,0.45);
+  const st=G.sys.star;
+  const g=ctx.createRadialGradient(W/2,H/2,2,W/2,H/2,52);
+  g.addColorStop(0,"#ffffff"); g.addColorStop(0.25,st.col); g.addColorStop(1,"rgba(0,0,0,0)");
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(W/2,H/2,52,0,7); ctx.fill();
+  ctx.strokeStyle="rgba(34,49,78,.85)";
+  for(const p of st.planets){ ctx.beginPath(); ctx.ellipse(W/2,H/2,p.orbit*1.35,p.orbit*0.78,0,0,7); ctx.stroke(); }
+  const near=nearestPlanet();
+  for(const p of st.planets){
+    const q=planetPos(p), T=PTYPES[p.type];
+    ctx.fillStyle=T.col[2]; ctx.beginPath(); ctx.arc(q.x,q.y,p.rad,0,7); ctx.fill();
+    ctx.fillStyle=T.col[0]; ctx.beginPath(); ctx.arc(q.x-p.rad*0.3,q.y-p.rad*0.3,p.rad*0.62,0,7); ctx.fill();
+    if(p.starport){
+      ctx.strokeStyle="#f2a33c";
+      ctx.beginPath(); ctx.arc(q.x,q.y,p.rad+6+Math.sin(G.t*0.06),0,7); ctx.stroke();
+      text("ARTH · STARPORT",q.x+p.rad+8,q.y+4,"#f2a33c",10);
+    } else {
+      text(p.name,q.x+p.rad+5,q.y+4,p===near.planet?"#57d8d8":"#5c7099",10);
+    }
+  }
+  drawShipIcon(G.sys.x,G.sys.y,G.sys.ang,1.25);
+  text(st.name.toUpperCase()+" SYSTEM",16,26,"#7f92ad",11,"left",3);
+}
+
+/* ============================================================
+   SCENE: ORBIT
+============================================================ */
+function drawOrbit(){
+  clear(); starfield(31,0,0,180,0.5);
+  const p=G.planet, T=PTYPES[p.type];
+  const cx=250, cy=H/2, R=165, t=G.t*0.0035;
+  ctx.save(); ctx.beginPath(); ctx.arc(cx,cy,R,0,7); ctx.clip();
+  ctx.fillStyle=T.col[1]; ctx.fillRect(cx-R,cy-R,R*2,R*2);
+  const r=rngFor(SEED,"orb",p.key);
+  for(let i=0;i<70;i++){
+    const a=r()*Math.PI*2, rr=r()*R, sz=8+r()*46;
+    const x=cx+Math.cos(a+t)*rr, y=cy+Math.sin(a)*rr*0.9;
+    ctx.fillStyle=T.col[Math.floor(r()*T.col.length)];
+    ctx.globalAlpha=0.75; ctx.beginPath(); ctx.ellipse(x,y,sz,sz*0.6,a,0,7); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  const sh=ctx.createRadialGradient(cx-55,cy-55,20,cx,cy,R*1.15);
+  sh.addColorStop(0,"rgba(255,255,255,.20)"); sh.addColorStop(0.5,"rgba(0,0,0,0)"); sh.addColorStop(1,"rgba(0,0,0,.85)");
+  ctx.fillStyle=sh; ctx.fillRect(cx-R,cy-R,R*2,R*2);
+  ctx.restore();
+  ctx.strokeStyle="#22314e"; ctx.beginPath(); ctx.arc(cx,cy,R,0,7); ctx.stroke();
+  const oa=G.t*0.012;
+  drawShipIcon(cx+Math.cos(oa)*(R+26), cy+Math.sin(oa)*(R+26)*0.72, oa+Math.PI/2, 1.1);
+  if(p.starport){
+    const sa=-G.t*0.008;
+    const sx=cx+Math.cos(sa)*(R+46), sy=cy+Math.sin(sa)*(R+46)*0.72;
+    ctx.strokeStyle="#f2a33c"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.ellipse(sx,sy,14,5,sa,0,7); ctx.stroke(); ctx.lineWidth=1;
+    ctx.fillStyle="#131e33"; ctx.fillRect(sx-4,sy-7,8,14);
+    ctx.strokeStyle="#57d8d8"; ctx.strokeRect(sx-4,sy-7,8,14);
+    text("STARPORT",sx+18,sy+4,"#f2a33c",9);
+  }
+
+  const bx=470;
+  text("ORBIT · "+p.name.toUpperCase(),bx,58,"#f2a33c",13,"left",3);
+  frame(bx,72,W-bx-30,H-150,"#22314e");
+  const rows=[["Class",p.tname],["Gravity",p.grav+" G"],["Temperature",p.temp+" °C"],["Atmosphere",p.atmo]];
+  let y=100;
+  rows.forEach(function(rw){ text(rw[0],bx+14,y,"#7f92ad",11.5); text(rw[1],W-46,y,"#d7e2f2",11.5,"right"); y+=22; });
+  y+=8;
+  ctx.strokeStyle="#22314e"; ctx.beginPath(); ctx.moveTo(bx+12,y-12); ctx.lineTo(W-42,y-12); ctx.stroke();
+  if(p.scanned){
+    const mm=p.minerals>0.9?"abundant":p.minerals>0.55?"moderate":p.minerals>0.2?"sparse":"negligible";
+    const ll=p.life>0.7?"dense biosphere":p.life>0.35?"scattered life":p.life>0.1?"traces of life":"sterile";
+    text("Minerals",bx+14,y,"#7f92ad",11.5); text(mm,W-46,y,"#57d8d8",11.5,"right"); y+=22;
+    text("Biomass",bx+14,y,"#7f92ad",11.5); text(ll,W-46,y,"#7ec96f",11.5,"right"); y+=22;
+    text("Anomalies",bx+14,y,"#7f92ad",11.5); text(p.ruins?"artificial structures":"none",W-46,y,p.ruins?"#f2a33c":"#7f92ad",11.5,"right"); y+=30;
+  } else {
+    text("Sensors are not aimed at the surface.",bx+14,y,"#7f92ad",11.5); y+=22;
+    text("Run a scan before you land.",bx+14,y,"#7f92ad",11.5); y+=30;
+  }
+  if(p.starport) text("Docking clearance available.",bx+14,y,"#f2a33c",11.5);
+  else if(!p.land) text("No solid surface. Landing impossible.",bx+14,y,"#e0524a",11.5);
+  else if(p.temp>420||p.grav>3.2) text("Conditions will tear the terrain vehicle apart.",bx+14,y,"#e0524a",11.5);
+}
+
+/* ============================================================
+   SCENE: PLANET SURFACE
+============================================================ */
+const TS=24, SW=76, SH=56;
+function noiseMap(w,h,r,cells){
+  const cw=cells, ch=Math.round(cells*h/w);
+  const grid=[]; for(let y=0;y<=ch;y++){ grid.push([]); for(let x=0;x<=cw;x++) grid[y].push(r()); }
+  const out=[];
+  for(let y=0;y<h;y++){
+    out.push([]);
+    for(let x=0;x<w;x++){
+      const fx=x/w*cw, fy=y/h*ch;
+      const x0=Math.floor(fx),y0=Math.floor(fy),tx=fx-x0,ty=fy-y0;
+      const sx=tx*tx*(3-2*tx), sy=ty*ty*(3-2*ty);
+      const a=grid[y0][x0], b=grid[y0][x0+1], c=grid[y0+1][x0], d=grid[y0+1][x0+1];
+      out[y].push((a*(1-sx)+b*sx)*(1-sy)+(c*(1-sx)+d*sx)*sy);
+    }
+  }
+  return out;
+}
+function weightedElement(r,rich){
+  for(let tries=0;tries<40;tries++){
+    const e=ELEMENTS[Math.floor(r()*ELEMENTS.length)];
+    if(r()< e.w*(0.5+rich)*3.2) return e;
+  }
+  return ELEMENTS[ELEMENTS.length-1];
+}
+function genSurface(p){
+  if(surfaceCache[p.key]) return surfaceCache[p.key];
+  const r=rngFor(SEED,"surf",p.key);
+  const a=noiseMap(SW,SH,r,7), b=noiseMap(SW,SH,r,15);
+  const el=[]; for(let y=0;y<SH;y++){ el.push([]); for(let x=0;x<SW;x++) el[y].push(a[y][x]*0.65+b[y][x]*0.35); }
+  const dep={}, ruins={};
+  const count=Math.round(14+p.minerals*70*(0.6+r()*0.8));
+  for(let i=0;i<count;i++){
+    const x=ri(r,0,SW-1), y=ri(r,0,SH-1), e=weightedElement(r,p.minerals);
+    dep[x+","+y]={el:e, q:ri(r,3,4+Math.round(p.minerals*14))};
+  }
+  if(p.ruins){ const n=ri(r,1,2); for(let i=0;i<n;i++) ruins[ri(r,4,SW-5)+","+ri(r,4,SH-5)]={taken:false}; }
+  const creatures=[];
+  const cn=Math.round(p.life*22);
+  const CN=["Glark","Tarn","Sivak","Mimic","Plasmoid","Oxyl","Dune worm","Crystal moth","Flint hydra","Zark"];
+  for(let i=0;i<cn;i++){
+    creatures.push({
+      x:ri(r,2,SW-3)*TS, y:ri(r,2,SH-3)*TS,
+      vx:0,vy:0, name:pick(r,CN),
+      hostile:r()<0.42, hp:12+Math.round(r()*25),
+      val:120+Math.round(r()*1600*(0.4+p.life)), alive:true,
+      col:pick(r,["#7ec96f","#57d8d8","#e0524a","#f2a33c","#c9a0ff"])
+    });
+  }
+  const s={el:el,dep:dep,ruins:ruins,creatures:creatures,type:p.type};
+  surfaceCache[p.key]=s; return s;
+}
+function terrainAt(s,x,y){
+  const v=s.el[y][x], T=PTYPES[s.type];
+  const i=v<0.34?0:v<0.5?1:v<0.68?2:3;
+  return {col:T.col[i], lvl:i, hazard:(s.type==="molten"&&i===0)||(s.type==="ocean"&&i===0)||(s.type==="acid"&&i===0)};
+}
+function land(){
+  const p=G.planet;
+  if(G.ship.fuel<1){ logMsg("Not enough fuel to land and lift off again.","r"); return; }
+  G.ship.fuel-=1;
+  const s=genSurface(p);
+  let vx=Math.floor(SW/2),vy=Math.floor(SH/2);
+  for(let i=0;i<200;i++){ if(!terrainAt(s,vx,vy).hazard) break; vx=(vx+3)%SW; vy=(vy+2)%SH; }
+  G.surface={p:p,s:s,x:vx*TS+TS/2,y:vy*TS+TS/2,hp:70,hpMax:70,mined:0,cam:{x:0,y:0}};
+  p.visited=true;
+  G.scene="surface";
+  logMsg("Terrain vehicle deployed on "+p.name+". Terrain: "+p.tname.toLowerCase()+".","c");
+  refresh();
+}
+function updateSurface(){
+  const v=G.surface, s=v.s, sp=2.6;
+  let dx=0,dy=0;
+  if(keys.ArrowLeft)dx-=1; if(keys.ArrowRight)dx+=1;
+  if(keys.ArrowUp)dy-=1; if(keys.ArrowDown)dy+=1;
+  if(dx||dy){ const l=Math.hypot(dx,dy);
+    v.x=Math.max(6,Math.min(SW*TS-6,v.x+dx/l*sp));
+    v.y=Math.max(6,Math.min(SH*TS-6,v.y+dy/l*sp));
+    v.ang=Math.atan2(dy,dx);
+  }
+  const tx=Math.floor(v.x/TS), ty=Math.floor(v.y/TS);
+  if(terrainAt(s,tx,ty).hazard){ v.hp-=0.14; if(G.t%110===0) logMsg("The vehicle's hull is corroding in this terrain.","r"); }
+  for(const c of s.creatures){
+    if(!c.alive) continue;
+    const d=dist(c.x,c.y,v.x,v.y);
+    if(c.hostile && d<160){ const a=Math.atan2(v.y-c.y,v.x-c.x); c.x+=Math.cos(a)*1.15; c.y+=Math.sin(a)*1.15; }
+    else if(G.t%40===0){ c.vx=(Math.random()-0.5)*1.6; c.vy=(Math.random()-0.5)*1.6; }
+    else { c.x=Math.max(0,Math.min(SW*TS,c.x+(c.vx||0)*0.5)); c.y=Math.max(0,Math.min(SH*TS,c.y+(c.vy||0)*0.5)); }
+    if(c.hostile && d<20){ v.hp-=0.22; if(G.t%90===0) logMsg("A "+c.name+" is attacking the vehicle!","r"); }
+  }
+  if(v.hp<=0){ v.hp=0; wreckVehicle(); }
+  v.cam.x=Math.max(0,Math.min(SW*TS-W, v.x-W/2));
+  v.cam.y=Math.max(0,Math.min(SH*TS-H, v.y-H/2));
+  G.stardate+=0.0006;
+}
+function wreckVehicle(){
+  logMsg("The terrain vehicle is destroyed. The crew evacuates by escape pod.","r");
+  const lost=Math.floor(cargoUsed()*0.4);
+  if(lost>0){
+    let rem=lost;
+    for(const k in G.cargo){ const take=Math.min(rem,G.cargo[k].q); G.cargo[k].q-=take; rem-=take; if(G.cargo[k].q<=0) delete G.cargo[k]; if(rem<=0)break; }
+    logMsg(lost+" units of cargo lost in the crash.","r");
+  }
+  G.ship.hull=Math.max(5,G.ship.hull-10);
+  G.scene="orbit"; refresh();
+}
+function drawSurface(){
+  const v=G.surface, s=v.s;
+  clear("#000");
+  const x0=Math.floor(v.cam.x/TS), y0=Math.floor(v.cam.y/TS);
+  for(let y=y0;y<Math.min(SH,y0+Math.ceil(H/TS)+2);y++){
+    for(let x=x0;x<Math.min(SW,x0+Math.ceil(W/TS)+2);x++){
+      const t=terrainAt(s,x,y);
+      const sx=x*TS-v.cam.x, sy=y*TS-v.cam.y;
+      ctx.fillStyle=t.col; ctx.fillRect(sx,sy,TS,TS);
+      ctx.fillStyle="rgba(0,0,0,"+(0.05+((x*7+y*13)%5)*0.012)+")"; ctx.fillRect(sx,sy,TS,TS);
+      const k=x+","+y;
+      if(s.dep[k]){
+        ctx.fillStyle="rgba(87,216,216,.9)";
+        ctx.beginPath(); ctx.moveTo(sx+TS/2,sy+6); ctx.lineTo(sx+TS-6,sy+TS-7); ctx.lineTo(sx+6,sy+TS-7); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle="rgba(255,255,255,.5)"; ctx.stroke();
+      }
+      if(s.ruins[k]&&!s.ruins[k].taken){
+        ctx.fillStyle="#f2a33c";
+        ctx.fillRect(sx+5,sy+TS-12,4,10); ctx.fillRect(sx+11,sy+TS-17,4,15); ctx.fillRect(sx+17,sy+TS-9,4,7);
+      }
+    }
+  }
+  for(const c of s.creatures){
+    if(!c.alive) continue;
+    const sx=c.x-v.cam.x, sy=c.y-v.cam.y;
+    if(sx<-20||sy<-20||sx>W+20||sy>H+20) continue;
+    ctx.fillStyle=c.col;
+    ctx.beginPath(); ctx.arc(sx,sy,7,0,7); ctx.fill();
+    if(c.hostile){ ctx.strokeStyle="rgba(224,82,74,.85)"; ctx.beginPath(); ctx.arc(sx,sy,11,0,7); ctx.stroke(); }
+  }
+  const vx=v.x-v.cam.x, vy=v.y-v.cam.y;
+  ctx.save(); ctx.translate(vx,vy); ctx.rotate(v.ang||0);
+  ctx.fillStyle="#1b2a45"; ctx.fillRect(-9,-7,18,14);
+  ctx.strokeStyle="#f2a33c"; ctx.strokeRect(-9,-7,18,14);
+  ctx.fillStyle="#57d8d8"; ctx.fillRect(3,-3,5,6);
+  ctx.restore();
+  const rx=W-118, ry=18, rs=100, range=520;
+  ctx.fillStyle="rgba(6,10,20,.85)"; ctx.fillRect(rx,ry,rs,rs); frame(rx,ry,rs,rs,"#22314e");
+  for(const k in s.dep){
+    const pr=k.split(","), px=pr[0]*TS, py=pr[1]*TS;
+    if(dist(px,py,v.x,v.y)>range) continue;
+    ctx.fillStyle="#57d8d8"; ctx.fillRect(rx+rs/2+(px-v.x)/range*rs/2, ry+rs/2+(py-v.y)/range*rs/2,2,2);
+  }
+  for(const k in s.ruins){ if(s.ruins[k].taken) continue;
+    const pr=k.split(","), px=pr[0]*TS, py=pr[1]*TS;
+    if(dist(px,py,v.x,v.y)>range) continue;
+    ctx.fillStyle="#f2a33c"; ctx.fillRect(rx+rs/2+(px-v.x)/range*rs/2, ry+rs/2+(py-v.y)/range*rs/2,3,3);
+  }
+  for(const c of s.creatures){ if(!c.alive) continue;
+    if(dist(c.x,c.y,v.x,v.y)>range) continue;
+    ctx.fillStyle=c.hostile?"#e0524a":"#7ec96f";
+    ctx.fillRect(rx+rs/2+(c.x-v.x)/range*rs/2, ry+rs/2+(c.y-v.y)/range*rs/2,2,2);
+  }
+  ctx.fillStyle="#fff"; ctx.fillRect(rx+rs/2-1,ry+rs/2-1,2,2);
+  text("SENSOR",rx,ry-5,"#7f92ad",9,"left",2);
+  ctx.fillStyle="rgba(6,10,20,.85)"; ctx.fillRect(12,H-46,210,34); frame(12,H-46,210,34,"#22314e");
+  text("VEHICLE",20,H-30,"#7f92ad",10,"left",2);
+  ctx.fillStyle="#0a1120"; ctx.fillRect(20,H-24,190,6);
+  ctx.fillStyle=v.hp/v.hpMax>0.4?"#7ec96f":"#e0524a"; ctx.fillRect(20,H-24,190*(v.hp/v.hpMax),6);
+}
+function doMine(){
+  const v=G.surface,s=v.s;
+  const tx=Math.floor(v.x/TS), ty=Math.floor(v.y/TS), k=tx+","+ty;
+  if(s.ruins[k]&&!s.ruins[k].taken){
+    s.ruins[k].taken=true;
+    addCargo(ARTIFACT,1,5000,"art");
+    logMsg("Ancient artifact excavated! The alloy matches no known period.","a");
+    refresh(); return;
+  }
+  const d=s.dep[k];
+  if(!d){ logMsg("Sensors read no deposit beneath the vehicle.","m"); return; }
+  const free=G.ship.cargoMax-cargoUsed();
+  if(free<=0){ logMsg("Cargo hold is full. Nowhere to put the ore.","r"); return; }
+  const q=Math.min(d.q, free, 2+Math.floor(Math.random()*5));
+  addCargo(d.el.n,q,d.el.v,"min");
+  d.q-=q; v.mined+=q;
+  if(d.q<=0) delete s.dep[k];
+  logMsg("Mined "+q+" units of "+d.el.n+" ("+fmt(d.el.v)+" cr/unit).","g");
+  refresh();
+}
+function doCapture(){
+  const v=G.surface,s=v.s;
+  let best=null,bd=1e9;
+  for(const c of s.creatures){ if(!c.alive)continue; const d=dist(c.x,c.y,v.x,v.y); if(d<bd){bd=d;best=c;} }
+  if(!best||bd>46){ logMsg("No life form within reach of the capture beam.","m"); return; }
+  if(G.ship.cargoMax-cargoUsed()<=0){ logMsg("Cargo hold is full — no room for live specimens.","r"); return; }
+  if(Math.random()<0.62){
+    best.alive=false;
+    addCargo("Specimen: "+best.name,1,best.val,"bio");
+    logMsg("Specimen captured: "+best.name+" (valued at "+fmt(best.val)+" cr).","g");
+  } else {
+    logMsg("The "+best.name+" slips out of the beam.","m");
+    if(best.hostile){ v.hp-=6; logMsg("It strikes back at the vehicle.","r"); }
+  }
+  refresh();
+}
+function liftoff(){
+  logMsg("Terrain vehicle recovered. Returning to orbit.","c");
+  G.scene="orbit"; G.surface=null; refresh();
+}
+
+/* ============================================================
+   SCENE: COMBAT
+============================================================ */
+function startCombat(){
+  const r=Math.random;
+  const race=RACES[Math.floor(r()*RACES.length)];
+  const lvl=1+Math.floor(r()*3)+Math.floor(G.distTravelled/4000);
+  const hm=Math.round((45+lvl*22)*race.pow);
+  G.combat={
+    race:race, name:race.n+" "+pick(r,["cruiser","patrol","frigate","hunter","scout"]),
+    hull:hm, hullMax:hm, shields:Math.round(14*lvl*race.pow), shieldsMax:Math.round(14*lvl*race.pow),
+    weapon:Math.max(1,Math.round(lvl*race.pow)), lvl:lvl,
+    hostile:(race.pow>1.1)||r()<0.4, round:1, evade:false, hailed:false, ended:false
+  };
+  G.ship.shields=Math.min(shieldMax(),G.ship.shields);
+  G.scene="combat";
+  logMsg("ENCOUNTER: a "+G.combat.name+" drops out of the flux.",G.combat.hostile?"r":"a");
+  if(G.combat.hostile) logMsg("Their weapons are charged and trained on us.","r");
+  refresh();
+}
+function drawCombat(){
+  clear(); starfield(51,G.t,0,220,0.6);
+  const c=G.combat;
+  drawShipIcon(150,H/2+50,0,3.4,"#f2a33c");
+  ctx.save(); ctx.translate(W-190,H/2-60); ctx.rotate(Math.PI);
+  ctx.fillStyle=c.hostile?"#e0524a":"#57d8d8";
+  ctx.beginPath(); ctx.moveTo(26,0); ctx.lineTo(-14,16); ctx.lineTo(-6,0); ctx.lineTo(-14,-16); ctx.closePath(); ctx.fill();
+  ctx.fillRect(-16,-22,8,44);
+  ctx.restore();
+  if(c.shields>0){ ctx.strokeStyle="rgba(87,216,216,"+(0.25+0.4*c.shields/c.shieldsMax)+")"; ctx.beginPath(); ctx.arc(W-190,H/2-60,44,0,7); ctx.stroke(); }
+  if(G.ship.shields>0){ ctx.strokeStyle="rgba(87,216,216,"+(0.25+0.4*G.ship.shields/Math.max(1,shieldMax()))+")"; ctx.beginPath(); ctx.arc(150,H/2+50,40,0,7); ctx.stroke(); }
+  if(G.flash>0){
+    ctx.strokeStyle=G.flashCol||"#f2a33c"; ctx.lineWidth=2+G.flash*0.4;
+    ctx.beginPath(); ctx.moveTo(G.flashFrom[0],G.flashFrom[1]); ctx.lineTo(G.flashTo[0],G.flashTo[1]); ctx.stroke();
+    ctx.lineWidth=1; G.flash--;
+  }
+  bar(40,40,300,"ISS EXCALIBUR","hull",G.ship.hull,hullMax(),"#f2a33c","shields",G.ship.shields,shieldMax());
+  bar(W-340,40,300,c.name.toUpperCase(),"hull",c.hull,c.hullMax,"#e0524a","shields",c.shields,c.shieldsMax);
+  text("Round "+c.round,W/2,H-24,"#7f92ad",11,"center",2);
+}
+function bar(x,y,w,title,l1,v1,m1,col,l2,v2,m2){
+  ctx.fillStyle="rgba(6,10,20,.8)"; ctx.fillRect(x,y,w,72); frame(x,y,w,72,"#22314e");
+  text(title,x+10,y+18,col,11,"left",1.5);
+  text(l1,x+10,y+38,"#7f92ad",10); text(Math.round(v1)+"/"+Math.round(m1),x+w-10,y+38,"#d7e2f2",10,"right");
+  ctx.fillStyle="#0a1120"; ctx.fillRect(x+10,y+42,w-20,5);
+  ctx.fillStyle=col; ctx.fillRect(x+10,y+42,(w-20)*Math.max(0,v1/m1),5);
+  text(l2,x+10,y+62,"#7f92ad",10); text(Math.round(v2)+"/"+Math.round(m2),x+w-10,y+62,"#d7e2f2",10,"right");
+  ctx.fillStyle="#0a1120"; ctx.fillRect(x+10,y+66,w-20,4);
+  ctx.fillStyle="#57d8d8"; ctx.fillRect(x+10,y+66,(w-20)*Math.max(0,v2/Math.max(1,m2)),4);
+}
+function beam(from,to,col){ G.flash=8; G.flashFrom=from; G.flashTo=to; G.flashCol=col; }
+function combatAction(a){
+  const c=G.combat; if(!c||c.ended) return;
+  let skip=false;
+  if(a==="fire"){
+    const dmg=Math.round((7+G.ship.weaponClass*7)*(0.7+Math.random()*0.7));
+    beam([170,H/2+50],[W-190,H/2-60],"#f2a33c");
+    let d=dmg;
+    if(c.shields>0){ const abs=Math.min(c.shields,d); c.shields-=abs; d-=abs; }
+    c.hull-=d;
+    logMsg("Laser strike: "+dmg+" damage to the "+c.name+".","a");
+    c.hostile=true;
+  } else if(a==="shield"){
+    const g=Math.round(shieldMax()*0.45);
+    G.ship.shields=Math.min(shieldMax(),G.ship.shields+g);
+    logMsg("Shields recharged (+"+g+").","c");
+  } else if(a==="evade"){
+    c.evade=true; logMsg("Evasive maneuvers engaged.","c");
+  } else if(a==="flee"){
+    const ch=0.28+G.ship.engineClass*0.13-c.lvl*0.05;
+    if(Math.random()<ch){ logMsg("We break away into the flux.","g"); c.ended=true; endCombat(); return; }
+    logMsg("The escape attempt fails — they are faster.","r");
+  } else if(a==="hail"){
+    c.hailed=true;
+    logMsg("["+c.race.n+"] "+c.race.hail,"c");
+    if(c.race.pow<=0.75 && Math.random()<0.75){
+      logMsg("They withdraw and send a gift as a sign of goodwill.","g");
+      const gift=400+Math.floor(Math.random()*2200);
+      G.credits+=gift; logMsg("Received "+fmt(gift)+" credits.","g");
+      c.ended=true; endCombat(); return;
+    }
+    if(c.race.dis==="traders"&&Math.random()<0.5){
+      logMsg("The Thrynn offer a good price for part of the cargo.","g");
+      let sold=0,val=0;
+      for(const k in G.cargo){ if(G.cargo[k].kind==="art") continue; const q=Math.min(G.cargo[k].q,10); sold+=q; val+=q*G.cargo[k].v*1.25; G.cargo[k].q-=q; if(G.cargo[k].q<=0)delete G.cargo[k]; if(sold>=25)break; }
+      if(sold>0){ G.credits+=Math.round(val); logMsg("Sold "+sold+" units for "+fmt(val)+" credits.","g"); }
+      c.ended=true; endCombat(); return;
+    }
+    skip=!c.hostile;
+  }
+  if(c.hull<=0){ enemyDestroyed(); return; }
+  if(c.hostile && !skip) enemyTurn();
+  c.round++;
+  if(G.ship.hull<=0){ G.scene="dead"; refresh(); return; }
+  refresh();
+}
+function enemyTurn(){
+  const c=G.combat;
+  if(c.hull<c.hullMax*0.25 && c.race.pow<1 && Math.random()<0.6){
+    logMsg("The "+c.name+" withdraws, badly damaged.","g"); c.ended=true; endCombat(); return;
+  }
+  let dmg=Math.round((6+c.weapon*6)*(0.7+Math.random()*0.7));
+  if(c.evade&&Math.random()<0.5){ logMsg("Their shot misses thanks to the maneuver.","c"); c.evade=false; return; }
+  c.evade=false;
+  beam([W-210,H/2-60],[150,H/2+50],"#e0524a");
+  if(G.ship.shields>0){ const abs=Math.min(G.ship.shields,dmg); G.ship.shields-=abs; dmg-=abs; }
+  G.ship.hull-=dmg;
+  logMsg("The "+c.name+" fires: "+dmg+" damage to the hull.","r");
+  if(G.ship.hull<=0) G.ship.hull=0;
+}
+function enemyDestroyed(){
+  const c=G.combat;
+  logMsg("The "+c.name+" bursts into a quiet ball of plasma.","a");
+  const cr=600+c.lvl*450+Math.floor(Math.random()*900);
+  G.credits+=cr; logMsg("Salvage recovered for "+fmt(cr)+" credits.","g");
+  if(Math.random()<0.35){
+    const e=ELEMENTS[Math.floor(Math.random()*8)];
+    const q=addCargo(e.n,ri(Math.random,3,10),e.v,"min");
+    if(q>0) logMsg("From the wreckage: "+q+" units of "+e.n+".","g");
+  }
+  c.ended=true; endCombat();
+}
+function endCombat(){
+  G.combat=null;
+  G.scene = G.sys ? "system" : "hyper";
+  if(G.scene==="hyper"){
+    G.ship.x=Math.max(20,Math.min(GW-20,G.ship.x+(Math.random()-0.5)*90));
+    G.ship.y=Math.max(20,Math.min(GH-20,G.ship.y+(Math.random()-0.5)*90));
+  }
+  refresh();
+}
+
+/* ============================================================
+   SCENE: ENDINGS
+============================================================ */
+function drawEnd(){
+  clear(); starfield(99,0,0,340,0.9);
+  const cx=W/2, cy=200;
+  const g=ctx.createRadialGradient(cx,cy,4,cx,cy,120+Math.sin(G.t*0.03)*10);
+  g.addColorStop(0,"#fff"); g.addColorStop(0.3,"#f2a33c"); g.addColorStop(1,"rgba(0,0,0,0)");
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,130,0,7); ctx.fill();
+  text("THE ARCHIVE OPENS",W/2,300,"#f2a33c",22,"center",6);
+  const lines=[
+    "The five artifacts arrange themselves on the table at the starport.",
+    "The Ancients did not vanish — they fled, setting the stars alight behind them",
+    "to burn something that had been sleeping between them.",
+    "",
+    "The wave of flares is coming this way. You have the coordinates and months to act.",
+    "The Empire has no fleet. It has one ship, and a crew that already knows the road.",
+    "",
+    "· END OF THE FIRST MISSION ·"
+  ];
+  lines.forEach(function(l,i){ text(l,W/2,340+i*22,i===7?"#57d8d8":"#a9bad2",12.5,"center"); });
+}
+function drawDead(){
+  clear("#0a0406"); starfield(13,0,0,120,0.4);
+  text("HULL BREACHED",W/2,H/2-30,"#e0524a",26,"center",6);
+  text("The ISS Excalibur breaks apart. The signal fades.",W/2,H/2+6,"#a9bad2",13,"center");
+  text("Stardate "+G.stardate.toFixed(1)+" · "+fmt(G.credits)+" credits · "+G.artifactsDelivered+" artifacts delivered",W/2,H/2+34,"#7f92ad",11.5,"center");
+}
+
+/* ============================================================
+   UI
+============================================================ */
+function A(id,label,opt){ opt=opt||{}; return {id:id,label:label,key:opt.key,cls:opt.cls,dis:opt.dis,cost:opt.cost,wide:opt.wide}; }
+function renderActions(list,oneCol){
+  elActions.className=oneCol?"one":"";
+  elActions.innerHTML=list.map(function(a){
+    return '<button class="btn '+(a.cls||"")+(a.wide?" wide":"")+'" data-a="'+a.id+'"'+(a.dis?" disabled":"")+'>'+
+      a.label+(a.cost?'<span class="cost">'+a.cost+'</span>':'')+(a.key?'<span class="k">'+a.key+'</span>':'')+'</button>';
+  }).join("");
+}
+elActions.addEventListener("click",function(e){
+  const b=e.target.closest("button[data-a]"); if(b&&!b.disabled) act(b.dataset.a);
+});
+const UPCOST=[0,5000,12000,24000,45000];
+function upCost(cls){ return UPCOST[cls]||0; }
+
+function refresh(){
+  elDate.textContent="Stardate "+G.stardate.toFixed(1);
+  const s=G.ship;
+  let st="", acts=[], hint="";
+
+  function shipRows(){
+    return ''+
+    row("Credits",fmt(G.credits)+" cr","ok")+
+    row("Hull",Math.round(s.hull)+"/"+hullMax(), s.hull/hullMax()<0.35?"bad":"")+
+    barHtml(s.hull/hullMax(), s.hull/hullMax()<0.35?"alert":"leaf")+
+    row("Fuel (endurium)",s.fuel.toFixed(1)+"/"+s.fuelMax, s.fuel<15?"bad":s.fuel<35?"warn":"")+
+    barHtml(s.fuel/s.fuelMax,"amber")+
+    row("Cargo hold",cargoUsed()+"/"+s.cargoMax)+
+    barHtml(cargoUsed()/s.cargoMax,"")+
+    '<hr class="sep">'+
+    row("Engines","class "+s.engineClass)+row("Shields","class "+s.shieldClass)+
+    row("Lasers","class "+s.weaponClass)+row("Armor","class "+s.armorClass)+
+    row("Artifacts", G.artifactsDelivered+"/5", G.artifactsDelivered>0?"ok":"");
+  }
+  function cargoTable(){
+    const keys=Object.keys(G.cargo).filter(function(k){return G.cargo[k].q>0;});
+    if(!keys.length) return '<div class="empty">The cargo hold is empty.</div>';
+    return '<table class="cargo">'+keys.map(function(k){
+      return '<tr><td>'+k+'</td><td class="q">'+G.cargo[k].q+'</td><td class="v">'+fmt(G.cargo[k].v*G.cargo[k].q)+'</td></tr>';
+    }).join("")+'</table>';
+  }
+
+  switch(G.scene){
+    case "intro":
+      elCap.textContent="Briefing";
+      st=row("Ship","ISS Excalibur")+row("Class","exploration")+row("Crew","6")+
+         '<hr class="sep"><div class="empty">Everything not already in the hold has to be found.</div>';
+      acts=[A("start","Take command",{cls:"hot",wide:true})];
+      hint="Arrow keys fly the ship. <b>Enter</b> runs the primary action for the current screen.";
+      break;
+
+    case "port":
+      elCap.textContent="Starport Arth";
+      if(G.portMenu==="main"){
+        st=shipRows();
+        acts=[
+          A("m_trade","Trade depot",{key:"1"}),
+          A("m_ship","Shipyard",{key:"2"}),
+          A("refuel","Buy fuel",{cost:"400 cr/unit",key:"3"}),
+          A("repair","Repair hull",{cost:"60 cr/point",key:"4"}),
+          A("deliver","Deliver artifacts",{cls:"hot",wide:true,dis:!G.cargo[ARTIFACT]}),
+          A("launch","Launch",{cls:"hot",wide:true,key:"Enter"})
+        ];
+        hint="Sell your cargo, load endurium and launch. <b>Enter</b> — launch.";
+      } else if(G.portMenu==="trade"){
+        st='<div class="row"><span class="lbl">Cargo</span><span class="val">'+cargoUsed()+"/"+s.cargoMax+'</span></div>'+cargoTable()+
+           '<hr class="sep">'+row("Credits",fmt(G.credits)+" cr","ok");
+        acts=[
+          A("sellall","Sell everything",{cls:"hot",wide:true,cost:"artifacts excluded"}),
+          A("sellmin","Sell minerals only",{wide:true}),
+          A("refine","Refine endurium into fuel",{wide:true,cost:"1 unit → 2 fuel"}),
+          A("back","Back",{wide:true,key:"Esc"})
+        ];
+        hint="Endurium can be sold or refined into fuel. Artifacts go to the archive, not the market.";
+      } else {
+        st=shipRows();
+        acts=[
+          A("up_eng","Engines → class "+(s.engineClass+1),{cost:s.engineClass>=5?"maxed":fmt(upCost(s.engineClass))+" cr",dis:s.engineClass>=5||G.credits<upCost(s.engineClass)}),
+          A("up_shd","Shields → class "+(s.shieldClass+1),{cost:s.shieldClass>=5?"maxed":fmt(upCost(s.shieldClass))+" cr",dis:s.shieldClass>=5||G.credits<upCost(s.shieldClass)}),
+          A("up_wpn","Lasers → class "+(s.weaponClass+1),{cost:s.weaponClass>=5?"maxed":fmt(upCost(s.weaponClass))+" cr",dis:s.weaponClass>=5||G.credits<upCost(s.weaponClass)}),
+          A("up_arm","Armor → class "+(s.armorClass+1),{cost:s.armorClass>=5?"maxed":fmt(upCost(s.armorClass))+" cr",dis:s.armorClass>=5||G.credits<upCost(s.armorClass)}),
+          A("up_cargo","Cargo pods +50",{cost:"9,000 cr",dis:G.credits<9000}),
+          A("up_tank","Fuel tank +50",{cost:"7,000 cr",dis:G.credits<7000}),
+          A("back","Back",{wide:true,key:"Esc"})
+        ];
+        hint="Better engines save fuel and help you outrun trouble. Armor raises maximum hull.";
+      }
+      break;
+
+    case "hyper": {
+      elCap.textContent="Hyperspace";
+      const n=nearestStar();
+      const dSol=dist(stars[0].x,stars[0].y,G.ship.x,G.ship.y);
+      st=shipRows()+'<hr class="sep">'+row("Nearest star",n.star.name)+row("Distance",Math.round(n.d)+" u",n.d<40?"ok":"")+
+         row("Sol (home port)",Math.round(dSol)+" u",dSol<40?"ok":"");
+      acts=[
+        A("enter","Enter system",{cls:"hot",key:"Enter",dis:n.d>40}),
+        A("scanmap","Deep sensor sweep",{}),
+        A("cargoinfo","Cargo manifest",{wide:true})
+      ];
+      hint = n.d<=40 ? "In range of <b>"+n.star.name+"</b>. Press <b>Enter</b> to enter the system."
+                     : "Fly with the arrow keys. Nearest star <b>"+n.star.name+"</b> at "+Math.round(n.d)+" u · Sol at "+Math.round(dSol)+" u (amber ring, arrow points home).";
+      break; }
+
+    case "system": {
+      elCap.textContent=G.sys.star.name+" system";
+      const np=nearestPlanet();
+      st=shipRows()+'<hr class="sep">'+row("Planets",String(G.sys.star.planets.length))+
+         row("Nearest",np.planet.name+(np.planet.starport?" · starport":""))+
+         row("Distance",Math.round(np.d)+" u",np.d<34?"ok":"");
+      acts=[
+        A("orbit","Enter orbit",{cls:"hot",key:"Enter",dis:np.d>34}),
+        A("leave","Leave system",{key:"Esc"}),
+        A("cargoinfo","Cargo manifest",{wide:true})
+      ];
+      hint = np.d<=34 ? "In range of <b>"+np.planet.name+"</b> ("+np.planet.tname.toLowerCase()+"). <b>Enter</b> — orbit."
+                      : "Steer toward a planet. Nearest: <b>"+np.planet.name+"</b>."+(G.sys.star.home?" Arth carries the starport.":"");
+      break; }
+
+    case "orbit": {
+      const p=G.planet;
+      elCap.textContent="Orbit · "+p.name;
+      const rough=p.land && (p.temp>420 || p.grav>3.2);
+      st=shipRows()+'<hr class="sep">'+row("Planet",p.name)+row("Class",p.tname)+
+         row("Scanned",p.scanned?"yes":"no",p.scanned?"ok":"warn")+
+         (p.starport?row("Facility","Starport Arth","ok"):"");
+      if(p.starport){
+        acts=[
+          A("dock","Dock at starport",{cls:"hot",wide:true,key:"Enter"}),
+          A("landing","Deploy terrain vehicle",{}),
+          A("unorbit","Leave orbit",{key:"Esc"})
+        ];
+        hint="Starport Arth is in orbit here. <b>Enter</b> — dock to trade, refuel, repair and deliver artifacts.";
+      } else {
+        acts=[
+          A("scan","Scan surface",{dis:p.scanned}),
+          A("landing","Deploy terrain vehicle",{cls:"hot",dis:!p.land,key:"Enter"}),
+          A("unorbit","Leave orbit",{wide:true,key:"Esc"})
+        ];
+        hint = !p.land ? "Gas giant — nothing to land on."
+             : rough ? "Harsh conditions: the vehicle will take damage on the surface."
+             : "Landing costs 1 unit of fuel. <b>Enter</b> — deploy the vehicle.";
+      }
+      break; }
+
+    case "surface": {
+      const v=G.surface;
+      elCap.textContent="Surface · "+v.p.name;
+      st=row("Vehicle",Math.round(v.hp)+"/"+v.hpMax, v.hp/v.hpMax<0.35?"bad":"")+
+         barHtml(v.hp/v.hpMax, v.hp/v.hpMax<0.35?"alert":"leaf")+
+         row("Cargo hold",cargoUsed()+"/"+s.cargoMax)+barHtml(cargoUsed()/s.cargoMax,"")+
+         row("Mined here",v.mined+" units")+'<hr class="sep">'+cargoTable();
+      acts=[
+        A("mine","Mine / excavate",{cls:"hot",key:"Enter"}),
+        A("capture","Capture specimen",{key:"C"}),
+        A("liftoff","Lift off",{wide:true,key:"L"})
+      ];
+      hint="Cyan triangles are deposits, amber shapes are ruins. Life forms ringed in red will attack. <b>Enter</b> — mine.";
+      break; }
+
+    case "combat": {
+      const c=G.combat;
+      elCap.textContent="Battle stations";
+      st=row("Contact",c.name)+row("Race",c.race.n+" · "+c.race.dis)+
+         row("Their hull",Math.max(0,Math.round(c.hull))+"/"+c.hullMax,"bad")+
+         row("Their shields",String(Math.max(0,Math.round(c.shields))))+'<hr class="sep">'+
+         row("Our hull",Math.round(s.hull)+"/"+hullMax(), s.hull/hullMax()<0.35?"bad":"")+
+         barHtml(s.hull/hullMax(), s.hull/hullMax()<0.35?"alert":"leaf")+
+         row("Our shields",Math.round(s.shields)+"/"+shieldMax())+
+         barHtml(s.shields/Math.max(1,shieldMax()),"");
+      acts=[
+        A("fire","Open fire",{cls:"danger",key:"Enter"}),
+        A("shield","Recharge shields",{}),
+        A("evade","Evasive maneuver",{}),
+        A("hail","Hail them",{dis:c.hailed}),
+        A("flee","Flee into the flux",{wide:true})
+      ];
+      hint="Shields absorb damage before the hull. Hailing peaceful races often ends the encounter without a shot.";
+      break; }
+
+    case "end":
+      elCap.textContent="Ancient archive";
+      st=row("Stardate",G.stardate.toFixed(1))+row("Credits",fmt(G.credits)+" cr","ok")+
+         row("Artifacts","5/5","ok")+row("Stars visited",String(stars.filter(function(x){return x.visited;}).length))+
+         '<hr class="sep">'+G.lore.map(function(l){return '<div class="empty" style="margin-bottom:6px">'+l+'</div>';}).join("");
+      acts=[A("restart","New game",{cls:"hot",wide:true})];
+      hint="Mission complete.";
+      break;
+
+    case "dead":
+      elCap.textContent="Ship lost";
+      st=row("Stardate",G.stardate.toFixed(1))+row("Credits",fmt(G.credits)+" cr")+
+         row("Artifacts",G.artifactsDelivered+"/5")+
+         '<hr class="sep"><div class="empty">Starport Arth will build another ship. Eventually.</div>';
+      acts=[A("restart","New game",{cls:"hot",wide:true})];
+      hint="";
+      break;
+  }
+  elStatus.innerHTML=st;
+  renderActions(acts, acts.length<=2);
+  elHint.innerHTML=hint;
+}
+function row(l,v,c){ return '<div class="row"><span class="lbl">'+l+'</span><span class="val '+(c||"")+'">'+v+'</span></div>'; }
+function barHtml(f,c){ return '<div class="bar '+(c||"")+'"><i style="width:'+Math.max(0,Math.min(100,f*100))+'%"></i></div>'; }
+
+/* ---------- Commands ---------- */
+function act(a){
+  const s=G.ship;
+  switch(a){
+    case "start": G.scene="port"; refresh(); return;
+    case "restart": newGame(); G.scene="intro"; renderLog(); refresh(); return;
+    case "m_trade": G.portMenu="trade"; refresh(); return;
+    case "m_ship": G.portMenu="ship"; refresh(); return;
+    case "back": G.portMenu="main"; refresh(); return;
+
+    case "refuel": {
+      const need=Math.floor(s.fuelMax-s.fuel);
+      if(need<=0){ logMsg("The tank is already full.","m"); return; }
+      const can=Math.min(need,Math.floor(G.credits/400));
+      if(can<=0){ logMsg("Not enough credits for fuel.","r"); return; }
+      G.credits-=can*400; s.fuel+=can;
+      logMsg("Loaded "+can+" units of endurium for "+fmt(can*400)+" credits.","c"); refresh(); return; }
+
+    case "repair": {
+      const need=Math.ceil(hullMax()-s.hull);
+      if(need<=0){ logMsg("The hull is in excellent condition.","m"); return; }
+      const can=Math.min(need,Math.floor(G.credits/60));
+      if(can<=0){ logMsg("Repairs are too expensive right now.","r"); return; }
+      G.credits-=can*60; s.hull+=can;
+      logMsg("Hull patched (+"+can+") for "+fmt(can*60)+" credits.","c"); refresh(); return; }
+
+    case "sellall": case "sellmin": {
+      let q=0,v=0;
+      for(const k in G.cargo){
+        const it=G.cargo[k];
+        if(it.kind==="art") continue;
+        if(a==="sellmin"&&it.kind!=="min") continue;
+        q+=it.q; v+=it.q*it.v; delete G.cargo[k];
+      }
+      if(!q){ logMsg("Nothing here to sell.","m"); return; }
+      G.credits+=v; logMsg("Sold "+q+" units of cargo for "+fmt(v)+" credits.","g"); refresh(); return; }
+
+    case "refine": {
+      const e=G.cargo["Endurium"];
+      if(!e||e.q<=0){ logMsg("No endurium in the hold.","m"); return; }
+      const space=Math.floor(s.fuelMax-s.fuel);
+      if(space<=0){ logMsg("The tank is full.","m"); return; }
+      const use=Math.min(e.q,Math.ceil(space/2));
+      const gain=Math.min(space,use*2);
+      e.q-=use; if(e.q<=0) delete G.cargo["Endurium"];
+      s.fuel+=gain;
+      logMsg("Refined "+use+" units of endurium → +"+gain+" fuel.","c"); refresh(); return; }
+
+    case "deliver": {
+      const it=G.cargo[ARTIFACT];
+      if(!it||it.q<=0){ logMsg("No artifacts in the hold.","m"); return; }
+      const n=it.q; delete G.cargo[ARTIFACT];
+      G.credits+=n*5000;
+      for(let i=0;i<n;i++){
+        if(G.artifactsDelivered<ARTIFACT_LORE.length){
+          const l=ARTIFACT_LORE[G.artifactsDelivered];
+          G.lore.push(l); logMsg("ARCHIVE: "+l,"a");
+        }
+        G.artifactsDelivered++;
+      }
+      logMsg("Delivered "+n+" artifact(s). Paid "+fmt(n*5000)+" credits.","g");
+      if(G.artifactsDelivered>=5) G.scene="end";
+      refresh(); return; }
+
+    case "up_eng": if(G.credits>=upCost(s.engineClass)&&s.engineClass<5){ G.credits-=upCost(s.engineClass); s.engineClass++; logMsg("Engines upgraded to class "+s.engineClass+".","c"); } refresh(); return;
+    case "up_shd": if(G.credits>=upCost(s.shieldClass)&&s.shieldClass<5){ G.credits-=upCost(s.shieldClass); s.shieldClass++; logMsg("Shields upgraded to class "+s.shieldClass+".","c"); } refresh(); return;
+    case "up_wpn": if(G.credits>=upCost(s.weaponClass)&&s.weaponClass<5){ G.credits-=upCost(s.weaponClass); s.weaponClass++; logMsg("Lasers upgraded to class "+s.weaponClass+".","c"); } refresh(); return;
+    case "up_arm": if(G.credits>=upCost(s.armorClass)&&s.armorClass<5){ G.credits-=upCost(s.armorClass); s.armorClass++; s.hull=hullMax(); logMsg("Armor reinforced to class "+s.armorClass+".","c"); } refresh(); return;
+    case "up_cargo": if(G.credits>=9000){ G.credits-=9000; s.cargoMax+=50; logMsg("Extra cargo pods fitted (+50).","c"); } refresh(); return;
+    case "up_tank": if(G.credits>=7000){ G.credits-=7000; s.fuelMax+=50; logMsg("Fuel tank extended (+50).","c"); } refresh(); return;
+
+    case "launch":
+      if(s.fuel<3){ logMsg("The port refuses launch clearance with a near-empty tank.","r"); return; }
+      G.scene="hyper"; G.sys=null; G.planet=null; G.surface=null;
+      logMsg("Launching from Arth. Hyperspace is open.","c"); refresh(); return;
+
+    case "enter": { const n=nearestStar(); if(n.d<=40) enterSystem(n.star); return; }
+    case "scanmap": {
+      const near=stars.filter(function(x){ return dist(x.x,x.y,G.ship.x,G.ship.y)<420; });
+      logMsg("Deep sweep: "+near.length+" stars within 420 u.","c");
+      near.slice(0,5).forEach(function(x){ logMsg("  · "+x.name+" (class "+x.cls+", "+Math.round(dist(x.x,x.y,G.ship.x,G.ship.y))+" u)","m"); });
+      return; }
+    case "cargoinfo": {
+      const keys=Object.keys(G.cargo);
+      if(!keys.length){ logMsg("The cargo hold is empty.","m"); return; }
+      let tot=0;
+      keys.forEach(function(k){ tot+=G.cargo[k].q*G.cargo[k].v; logMsg("  "+k+": "+G.cargo[k].q+" units · "+fmt(G.cargo[k].q*G.cargo[k].v)+" cr","m"); });
+      logMsg("Total cargo value: "+fmt(tot)+" credits.","c"); return; }
+
+    case "orbit": { const np=nearestPlanet(); if(np.d<=34){ G.planet=np.planet; G.scene="orbit";
+      logMsg("Orbit established around "+np.planet.name+".","c");
+      if(np.planet.starport) logMsg("Starport Arth is holding a dock open for us.","a");
+      refresh(); } return; }
+    case "leave": G.scene="hyper"; G.sys=null; logMsg("Leaving the system.","m"); refresh(); return;
+    case "scan": {
+      G.planet.scanned=true;
+      logMsg("Scan of "+G.planet.name+": minerals "+G.planet.minerals.toFixed(2)+", biomass "+G.planet.life.toFixed(2)+(G.planet.ruins?", artificial structures detected!":"."), G.planet.ruins?"a":"c");
+      refresh(); return; }
+    case "landing": if(G.planet.land) land(); else logMsg("No surface to land on.","r"); return;
+    case "unorbit": G.scene="system"; G.planet=null; refresh(); return;
+    case "dock":
+      if(!G.planet||!G.planet.starport){ logMsg("No docking facility here.","m"); return; }
+      G.scene="port"; G.portMenu="main"; G.surface=null;
+      logMsg("Docked at Starport Arth. Welcome back, captain.","c"); refresh(); return;
+
+    case "mine": doMine(); return;
+    case "capture": doCapture(); return;
+    case "liftoff": liftoff(); return;
+
+    case "fire": case "shield": case "evade": case "flee": case "hail": combatAction(a); return;
+  }
+}
+
+/* ---------- Keyboard ---------- */
+const keys={};
+window.addEventListener("keydown",function(e){
+  if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].indexOf(e.key)>=0) e.preventDefault();
+  keys[e.key]=true;
+  if(e.repeat) return;
+  const sc=G.scene;
+  if(e.key==="Enter"){
+    if(sc==="intro") act("start");
+    else if(sc==="port"&&G.portMenu==="main") act("launch");
+    else if(sc==="hyper") act("enter");
+    else if(sc==="system") act("orbit");
+    else if(sc==="orbit") act(G.planet&&G.planet.starport?"dock":"landing");
+    else if(sc==="surface") act("mine");
+    else if(sc==="combat") act("fire");
+    else if(sc==="end"||sc==="dead") act("restart");
+  }
+  if(e.key==="Escape"){
+    if(sc==="port"&&G.portMenu!=="main") act("back");
+    else if(sc==="system") act("leave");
+    else if(sc==="orbit") act("unorbit");
+  }
+  if(sc==="surface"){
+    if(e.key==="c"||e.key==="C") act("capture");
+    if(e.key==="l"||e.key==="L") act("liftoff");
+  }
+  if(sc==="port"&&G.portMenu==="main"){
+    if(e.key==="1") act("m_trade"); if(e.key==="2") act("m_ship");
+    if(e.key==="3") act("refuel");  if(e.key==="4") act("repair");
+  }
+});
+window.addEventListener("keyup",function(e){ keys[e.key]=false; });
+window.addEventListener("blur",function(){ for(const k in keys) keys[k]=false; });
+
+/* ---------- Main loop ---------- */
+let uiTick=0;
+function loop(){
+  G.t++;
+  if(G.scene==="hyper") updateHyper();
+  else if(G.scene==="system") updateSystem();
+  else if(G.scene==="surface") updateSurface();
+
+  switch(G.scene){
+    case "intro": drawIntro(); break;
+    case "port": drawPort(); break;
+    case "hyper": drawHyper(); break;
+    case "system": drawSystem(); break;
+    case "orbit": drawOrbit(); break;
+    case "surface": drawSurface(); break;
+    case "combat": drawCombat(); break;
+    case "end": drawEnd(); break;
+    case "dead": drawDead(); break;
+  }
+  if(++uiTick>12 && (G.scene==="hyper"||G.scene==="system"||G.scene==="surface")){ uiTick=0; refresh(); }
+  requestAnimationFrame(loop);
+}
+
+newGame();
+renderLog(); refresh(); loop();
+</script>
+</body>
+</html>

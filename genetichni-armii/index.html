@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Genetic Armies</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Saira+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:#20211b;        /* sand table under lamplight */
+  --ground-2:#2a2b23;
+  --panel:#191a15;
+  --line:#3d3e33;
+  --bone:#e8e0cd;
+  --bone-dim:#a8a291;
+  --brass:#c9a227;
+  --azure:#4f8ee0;
+  --gules:#d1503f;
+  --azure-soft:#25384f;
+  --gules-soft:#3f2723;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(120% 80% at 50% -10%, #2e2f26 0%, #1a1b16 60%, #141510 100%);
+  color:var(--bone);
+  font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  font-size:13px;
+  line-height:1.5;
+  padding:18px 14px 40px;
+}
+.wrap{max-width:980px;margin:0 auto}
+
+/* ---- masthead ---- */
+.head{display:flex;align-items:flex-end;gap:16px;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:16px;flex-wrap:wrap}
+h1{
+  font-family:'Saira Condensed',Impact,sans-serif;
+  font-weight:700;font-size:34px;letter-spacing:.06em;text-transform:uppercase;
+  margin:0;line-height:.95;color:var(--bone);
+}
+h1 span{color:var(--brass)}
+.sub{color:var(--bone-dim);font-size:11.5px;max-width:44ch;margin:0}
+.gen-badge{margin-left:auto;text-align:right}
+.gen-badge .n{font-family:'Saira Condensed',sans-serif;font-size:40px;font-weight:700;line-height:.9;color:var(--brass)}
+.gen-badge .l{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--bone-dim)}
+
+/* ---- sand table ---- */
+.table-wrap{position:relative;border:1px solid var(--line);background:var(--ground);border-radius:2px;overflow:hidden}
+canvas#arena{display:block;width:100%;height:auto;touch-action:none}
+.scoreline{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--panel);font-size:11px}
+.bar{flex:1;height:7px;background:#000;border:1px solid var(--line);position:relative;overflow:hidden}
+.bar i{position:absolute;top:0;bottom:0;display:block;transition:width .12s linear}
+.bar.a i{left:0;background:var(--azure)}
+.bar.b i{right:0;background:var(--gules)}
+.fname{font-family:'Saira Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;font-size:13px;font-weight:600}
+.fa{color:var(--azure)} .fb{color:var(--gules)}
+.verdict{position:absolute;left:0;right:0;top:44%;text-align:center;font-family:'Saira Condensed',sans-serif;
+  font-size:30px;letter-spacing:.14em;text-transform:uppercase;pointer-events:none;opacity:0;transition:opacity .3s;
+  text-shadow:0 2px 14px #000}
+.verdict.on{opacity:1}
+
+/* ---- controls ---- */
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+button{
+  font-family:'Saira Condensed',sans-serif;font-size:14px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;
+  background:var(--panel);color:var(--bone);border:1px solid var(--line);padding:7px 14px;border-radius:2px;cursor:pointer;
+}
+button:hover{border-color:var(--brass);color:var(--brass)}
+button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+button.primary{background:var(--brass);color:#1a1b16;border-color:var(--brass)}
+button.primary:hover{background:#e0b93a;color:#1a1b16}
+.seg{display:flex;border:1px solid var(--line);border-radius:2px;overflow:hidden}
+.seg button{border:0;border-right:1px solid var(--line);padding:7px 10px;font-size:12px}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--ground-2);color:var(--brass)}
+
+/* ---- factions ---- */
+.factions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+.fac{border:1px solid var(--line);background:var(--panel);border-radius:2px;padding:10px 11px}
+.fac.a{border-top:2px solid var(--azure)}
+.fac.b{border-top:2px solid var(--gules)}
+.fac h3{margin:0 0 2px;font-family:'Saira Condensed',sans-serif;font-size:17px;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+.fac .meta{color:var(--bone-dim);font-size:10.5px;margin-bottom:8px}
+.mode-row{display:flex;gap:6px;margin-bottom:9px}
+.mode-row button{flex:1;font-size:11px;padding:5px 4px;letter-spacing:.06em}
+
+/* chromosome — the signature element */
+.chrom{display:flex;gap:2px;height:34px;margin:8px 0 4px}
+.locus{flex:1;position:relative;background:#12130f;border:1px solid #2b2c24;overflow:hidden;cursor:default}
+.locus i{position:absolute;left:0;right:0;bottom:0;display:block;transition:height .35s cubic-bezier(.4,0,.2,1)}
+.locus b{position:absolute;left:0;right:0;top:1px;text-align:center;font-size:8px;font-weight:500;color:var(--bone-dim);letter-spacing:.04em}
+.locus.mut{box-shadow:inset 0 0 0 1px var(--brass)}
+.chrom-legend{display:flex;justify-content:space-between;font-size:9px;color:var(--bone-dim);letter-spacing:.1em;text-transform:uppercase}
+
+.comp{margin-top:10px}
+.unit-row{display:flex;align-items:center;gap:7px;padding:2px 0;font-size:11px}
+.unit-row .gly{width:16px;text-align:center}
+.unit-row .nm{width:82px;color:var(--bone-dim)}
+.unit-row .track{flex:1;height:6px;background:#12130f;border:1px solid #2b2c24}
+.unit-row .track i{display:block;height:100%;transition:width .35s}
+.unit-row .ct{width:22px;text-align:right;font-variant-numeric:tabular-nums}
+
+/* hand-command sliders */
+.manual{display:none;margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
+.manual.on{display:block}
+.slider-row{display:flex;align-items:center;gap:8px;font-size:10.5px;margin:3px 0}
+.slider-row label{width:96px;color:var(--bone-dim)}
+input[type=range]{flex:1;accent-color:var(--brass);height:16px}
+.slider-row .v{width:26px;text-align:right;font-variant-numeric:tabular-nums;color:var(--bone-dim)}
+
+/* ---- ledger / chart ---- */
+.ledger{margin-top:14px;border:1px solid var(--line);background:var(--panel);border-radius:2px;padding:10px 12px}
+.ledger h4{margin:0 0 6px;font-family:'Saira Condensed',sans-serif;font-size:14px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;color:var(--bone-dim)}
+canvas#chart{display:block;width:100%;height:auto}
+.tune{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:4px 18px;margin-top:10px}
+.notes{margin-top:14px;color:var(--bone-dim);font-size:11px;border-top:1px solid var(--line);padding-top:10px}
+.notes b{color:var(--bone);font-weight:500}
+.rps{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px}
+.rps span{white-space:nowrap}
+@media (max-width:640px){
+  .factions{grid-template-columns:1fr}
+  h1{font-size:26px}
+  .gen-badge{margin-left:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="head">
+    <div>
+      <h1>Genetic <span>armies</span></h1>
+      <p class="sub">Two factions are not commanded — they are <b>selected</b>. Each generation the weaker lineages die out, and the survivors interbreed and mutate against the army across the field.</p>
+    </div>
+    <div class="gen-badge"><div class="n" id="genN">0</div><div class="l">generation</div></div>
+  </header>
+
+  <div class="table-wrap">
+    <div class="scoreline">
+      <span class="fname fa">Azure</span>
+      <div class="bar a"><i id="hpA" style="width:100%"></i></div>
+      <span id="clock" style="color:var(--bone-dim);width:34px;text-align:center">0s</span>
+      <div class="bar b"><i id="hpB" style="width:100%"></i></div>
+      <span class="fname fb">Crimson</span>
+    </div>
+    <canvas id="arena" width="900" height="400"></canvas>
+    <div class="verdict" id="verdict"></div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="btnRun">▶ Run evolution</button>
+    <button id="btnStep">One generation</button>
+    <button id="btnFight">Restage battle</button>
+    <button id="btnReset">Reset</button>
+    <div class="seg" id="speedSeg" role="group" aria-label="Battle speed">
+      <button data-sp="1" class="on">×1</button><button data-sp="2">×2</button><button data-sp="5">×5</button><button data-sp="10">×10</button><button data-sp="20">×20</button><button data-sp="50">×50</button>
+    </div>
+  </div>
+
+  <div class="factions">
+    <section class="fac a" id="facA">
+      <h3 class="fa">Azure</h3>
+      <div class="meta" id="metaA">fitness — · wins —</div>
+      <div class="mode-row">
+        <button data-side="A" data-mode="evo" class="on">Evolves</button>
+        <button data-side="A" data-mode="man">You command</button>
+      </div>
+      <div class="chrom" id="chromA"></div>
+      <div class="chrom-legend"><span>composition genes</span><span>tactic genes</span></div>
+      <div class="comp" id="compA"></div>
+      <div class="manual" id="manA"></div>
+    </section>
+
+    <section class="fac b" id="facB">
+      <h3 class="fb">Crimson</h3>
+      <div class="meta" id="metaB">fitness — · wins —</div>
+      <div class="mode-row">
+        <button data-side="B" data-mode="evo" class="on">Evolves</button>
+        <button data-side="B" data-mode="man">You command</button>
+      </div>
+      <div class="chrom" id="chromB"></div>
+      <div class="chrom-legend"><span>composition genes</span><span>tactic genes</span></div>
+      <div class="comp" id="compB"></div>
+      <div class="manual" id="manB"></div>
+    </section>
+  </div>
+
+  <div class="ledger">
+    <h4>Fitness ledger <span style="letter-spacing:0;text-transform:none;font-size:10.5px">— solid: population average · faint: best lineage</span></h4>
+    <canvas id="chart" width="900" height="120"></canvas>
+    <div class="tune">
+      <div class="slider-row"><label>Population</label><input type="range" id="pPop" min="8" max="40" step="2" value="20"><span class="v" id="vPop">20</span></div>
+      <div class="slider-row"><label>Mutation %</label><input type="range" id="pMut" min="0" max="100" step="5" value="30"><span class="v" id="vMut">30</span></div>
+      <div class="slider-row"><label>Mutation strength</label><input type="range" id="pStr" min="2" max="40" step="2" value="12"><span class="v" id="vStr">12</span></div>
+      <div class="slider-row"><label>Budget (points)</label><input type="range" id="pBud" min="150" max="600" step="25" value="380"><span class="v" id="vBud">380</span></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <b>Playing against evolution:</b> switch a faction to "You command", set its genes, and run the evolution — the opponent will start reading you and building counters. Two people can each take a side and retune between generations.
+    <div class="rps" id="rps"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================ SIMULATION CORE ============================ */
+const W=900,H=400,DT=0.06,MAX_T=42,MAXU=34;
+
+const TYPES=[
+ {n:'Swordsman', g:'●', cost:12, hp:112, dmg:10.5,rng:16,  spd:38, rate:1.00, r:6.0},
+ {n:'Spearman',  g:'▲', cost:12, hp:110, dmg:10, rng:34,  spd:36, rate:1.05, r:6.0},
+ {n:'Archer',    g:'◆', cost:15, hp:55,  dmg:11.5,rng:145, spd:31, rate:1.10, r:5.0},
+ {n:'Horseman',  g:'➤', cost:20, hp:140, dmg:20, rng:18,  spd:72, rate:1.20, r:7.5},
+];
+// damage multiplier: [attacker][defender]
+const MULT=[
+ [1.00,1.05,1.00,0.90],
+ [0.90,1.00,0.90,1.35],
+ [1.00,1.20,1.00,0.85],
+ [1.30,0.80,1.45,1.00],
+];
+const GN=['SW','SP','AR','HO','AGG','FOC','SPR','FLK','GRD'];
+const GFULL=['swordsman share','spearman share','archer share','horseman share','aggression','focus fire','spreading','flanking','guarding archers'];
+const G={AGGR:4,FOCUS:5,SPREAD:6,FLANK:7,GUARD:8};
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+
+function randGenome(r){const g=[];for(let i=0;i<9;i++)g.push(r());return g}
+
+function composition(g,budget){
+  const w=[0,1,2,3].map(i=>Math.max(0.02,g[i]));
+  const s=w[0]+w[1]+w[2]+w[3];
+  const c=[0,0,0,0];let spent=0;
+  for(let i=0;i<4;i++){c[i]=Math.floor(budget*w[i]/s/TYPES[i].cost);spent+=c[i]*TYPES[i].cost}
+  for(let it=0;it<60;it++){
+    let best=-1,bv=-1;
+    for(let i=0;i<4;i++)if(TYPES[i].cost<=budget-spent){const v=w[i]/TYPES[i].cost;if(v>bv){bv=v;best=i}}
+    if(best<0)break;c[best]++;spent+=TYPES[best].cost;
+  }
+  let tot=c[0]+c[1]+c[2]+c[3];
+  while(tot>MAXU){let m=0;for(let i=1;i<4;i++)if(c[i]>c[m])m=i;c[m]--;tot--}
+  if(tot===0)c[0]=1;
+  return c;
+}
+
+function spawn(g,team,budget,rng,arr){
+  const c=composition(g,budget);
+  const depth=[0,1,2,1];
+  for(let t=0;t<4;t++){
+    const n=c[t];if(!n)continue;
+    const rows=Math.max(1,Math.min(n,7+Math.round(g[G.SPREAD]*5)));
+    const span=H*0.74*(0.5+0.5*g[G.SPREAD]);
+    for(let k=0;k<n;k++){
+      let x,y;
+      if(t===3){ // horse rides the wings
+        const wing=k%2?1:-1,idx=(k/2)|0;
+        y=H/2+wing*(H*0.46*(0.2+0.62*g[G.FLANK]))-wing*idx*13; // horse rides the wings
+        x=208-((idx%3)*15);
+      }else{
+        const col=(k/rows)|0,row=k%rows;
+        y=H/2-span/2+(rows>1?span*row/(rows-1):0)+(rng()-0.5)*7;
+        x=230-depth[t]*(26+g[G.SPREAD]*16)-col*15;
+      }
+      y=clamp(y,14,H-14);
+      const px=team===0?x:W-x;
+      const ty=TYPES[t];
+      arr.push({team,t,x:px,y,ox:px,oy:y,hp:ty.hp,mhp:ty.hp,cool:rng()*0.5,tgt:null,fx:team===0?1:-1,fy:0,alive:true});
+    }
+  }
+  return c;
+}
+
+function combined(c){        // mixed armies fight better — the arms screen one another
+  let tot=0;for(let i=0;i<4;i++)tot+=c[i]*TYPES[i].cost;
+  if(!tot)return 1;
+  let sim=0;for(let i=0;i<4;i++){const p=c[i]*TYPES[i].cost/tot;sim+=p*p}
+  return 1+0.085*(1/sim-1);
+}
+function createBattle(gA,gB,seed,budget,record){
+  const rng=mulberry32(seed>>>0);
+  const uA=[],uB=[];
+  const cA=spawn(gA,0,budget,rng,uA);
+  const cB=spawn(gB,1,budget,rng,uB);
+  const units=[];
+  for(let i=0,j=0;i<uA.length||j<uB.length;){ // interleave so neither side updates first
+    if(i<uA.length)units.push(uA[i++]);
+    if(j<uB.length)units.push(uB[j++]);
+  }
+  let hp0=[0,0];for(const u of units)hp0[u.team]+=u.mhp;
+  return{rng,units,g:[gA,gB],hp0,hp:[hp0[0],hp0[1]],comp:[cA,cB],cb:[combined(cA),combined(cB)],
+    t:0,tick:0,over:false,win:-1,shots:[],record:!!record,doneT:0,grid:new Map()};
+}
+
+const CELL=30;
+function dist2(x,y){return Math.sqrt(x*x+y*y)}
+function gkey(x,y){return(((x*(1/CELL))|0)<<6)|((y*(1/CELL))|0)}
+
+function stepBattle(st){
+  const u=st.units,rng=st.rng;
+  if(st.over){st.doneT+=DT;return}
+  st.t+=DT;st.tick++;
+  // spatial grid
+  const grid=st.grid;grid.clear();
+  const cen=[[0,0,0],[0,0,0]]; // centroid of own archers
+  for(const a of u){
+    if(!a.alive)continue;
+    const k=gkey(a.x,a.y);let c=grid.get(k);if(!c){c=[];grid.set(k,c)}c.push(a);
+    if(a.t===2){cen[a.team][0]+=a.x;cen[a.team][1]+=a.y;cen[a.team][2]++}
+  }
+  for(let s=0;s<2;s++)if(cen[s][2]){cen[s][0]/=cen[s][2];cen[s][1]/=cen[s][2]}
+  const teamArr=[[],[]];
+  for(const a of u)if(a.alive)teamArr[a.team].push(a);
+  if(!teamArr[0].length||!teamArr[1].length){
+    st.over=true;st.win=teamArr[0].length?0:(teamArr[1].length?1:-1);return;
+  }
+
+  for(const a of u){
+    if(!a.alive)continue;
+    const ty=TYPES[a.t],g=st.g[a.team];
+    a.ox=a.x;a.oy=a.y;a.cool-=DT;
+
+    // pick a target
+    if(!a.tgt||!a.tgt.alive||st.tick%7===(a.team*3)%7){
+      let best=null,bs=1e9;
+      const gx=(a.x*(1/CELL))|0,gy=(a.y*(1/CELL))|0;
+      for(let i=-2;i<=2;i++)for(let j=-2;j<=2;j++){
+        const c=grid.get(((gx+i)<<6)|(gy+j));if(!c)continue;
+        for(let q=0;q<c.length;q++){
+          const e=c[q];
+          if(e.team===a.team||!e.alive)continue;
+          const d=dist2(e.x-a.x,e.y-a.y);
+          const sc=d*(1-0.45*g[G.FOCUS]*(1-e.hp/e.mhp));
+          if(sc<bs){bs=sc;best=e}
+        }
+      }
+      if(!best){
+        const en=teamArr[1-a.team];
+        for(let s=0;s<6;s++){
+          const e=en[(rng()*en.length)|0];if(!e||!e.alive)continue;
+          const d=dist2(e.x-a.x,e.y-a.y);if(d<bs){bs=d;best=e}
+        }
+      }
+      a.tgt=best;
+    }
+    const tg=a.tgt;if(!tg)continue;
+    let dx=tg.x-a.x,dy=tg.y-a.y,d=dist2(dx,dy)||1;
+    a.fx=dx/d;a.fy=dy/d;
+    const reach=ty.rng+ty.r+TYPES[tg.t].r;
+
+    // movement
+    let vx=0,vy=0,sp=ty.spd;
+    if(d>160)sp*=0.5+0.5*g[G.AGGR];
+    if(a.t===2&&d<reach*0.42&&g[G.AGGR]<0.8){vx=-dx/d;vy=-dy/d;sp*=0.85}     // archers back off
+    else if(d>reach*0.9){
+      vx=dx/d;vy=dy/d;
+      if(a.t===3&&d>90){const f=g[G.FLANK]*0.85;vx+=-dy/d*f*(a.y<H/2?-1:1);vy+=dx/d*f*(a.y<H/2?-1:1)}
+      if(a.t!==2&&a.t!==3&&cen[a.team][2]&&g[G.GUARD]>0.45){
+        const gd=dist2(a.x-cen[a.team][0],a.y-cen[a.team][1]),lim=90+(1-g[G.GUARD])*220;
+        if(gd>lim){vx+=(cen[a.team][0]-a.x)/gd*1.5;vy+=(cen[a.team][1]-a.y)/gd*1.5}
+      }
+    }
+    // keep clear of friendly units
+    const sx=(a.x*(1/CELL))|0,sy=(a.y*(1/CELL))|0;
+    for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++){
+      const c=grid.get(((sx+i)<<6)|(sy+j));if(!c)continue;
+      for(let q=0;q<c.length;q++){
+        const o=c[q];
+        if(o===a||o.team!==a.team||!o.alive)continue;
+        const ddx=a.x-o.x,ddy=a.y-o.y,dd=dist2(ddx,ddy)||0.01,min=ty.r+TYPES[o.t].r+1.5;
+        if(dd<min){vx+=ddx/dd*1.35;vy+=ddy/dd*1.35}
+      }
+    }
+    const vl=dist2(vx,vy);
+    if(vl>0.01){a.x=clamp(a.x+vx/vl*sp*DT,8,W-8);a.y=clamp(a.y+vy/vl*sp*DT,10,H-10)}
+
+    // strike
+    if(d<=reach&&a.cool<=0&&!(a.t===2&&d<28)){
+      const dmg=ty.dmg*MULT[a.t][tg.t]*st.cb[a.team]*(0.85+0.3*rng());
+      tg.hp-=dmg;st.hp[tg.team]-=dmg;
+      a.cool=ty.rate*(0.9+0.2*rng());
+      if(st.record&&a.t===2)st.shots.push({x1:a.x,y1:a.y,x2:tg.x,y2:tg.y,l:0.22,team:a.team});
+      if(tg.hp<=0){tg.alive=false;tg.hp=0}
+    }
+  }
+  if(st.record){for(let i=st.shots.length-1;i>=0;i--){st.shots[i].l-=DT;if(st.shots[i].l<=0)st.shots.splice(i,1)}}
+  if(st.hp[0]<=0||st.hp[1]<=0||st.t>=MAX_T){
+    st.over=true;
+    const a=Math.max(0,st.hp[0])/st.hp0[0],b=Math.max(0,st.hp[1])/st.hp0[1];
+    st.win=(a<=0&&b<=0)?-1:(a>b?0:b>a?1:-1);
+    if(st.t>=MAX_T&&a>0&&b>0)st.win=-1;
+  }
+}
+
+function scoreOf(st){
+  const a=Math.max(0,st.hp[0])/st.hp0[0],b=Math.max(0,st.hp[1])/st.hp0[1];
+  let s=0.5+0.5*(a-b);
+  if(st.win===0)s+=0.14;else if(st.win===1)s-=0.14;
+  return clamp(s,0,1);
+}
+function runBattle(gA,gB,seed,budget){
+  const flip=(seed&1)===1;   // swap sides every other battle to cancel any field bias
+  const st=createBattle(flip?gB:gA,flip?gA:gB,seed,budget,false);
+  let guard=0;
+  while(!st.over&&guard++<Math.ceil(MAX_T/DT))stepBattle(st);
+  const s=scoreOf(st),w=st.win;
+  return flip?{s:1-s,win:w<0?-1:1-w}:{s,win:w};
+}
+
+/* ============================ EVOLUTION ============================ */
+const P={pop:20,mut:0.30,str:0.12,budget:380};
+let seed=1234;
+const state={
+  gen:0,running:false,speed:1,
+  mode:{A:'evo',B:'evo'},
+  manual:{A:[0.45,0.25,0.5,0.3,0.6,0.4,0.5,0.4,0.5],B:[0.35,0.4,0.35,0.4,0.5,0.5,0.5,0.5,0.5]},
+  pop:{A:[],B:[]},hof:{A:[],B:[]},
+  best:{A:null,B:null},prev:{A:null,B:null},
+  hist:[],lastWins:{A:0,B:0,D:0},
+  queue:[],evaluating:false
+};
+
+function mkInd(g){return{g,sum:0,n:0,fit:0.5,w:0,l:0}}
+function initPop(){
+  const r=mulberry32(seed++);
+  for(const s of['A','B']){
+    state.pop[s]=[];
+    for(let i=0;i<P.pop;i++)state.pop[s].push(mkInd(state.mode[s]==='man'?state.manual[s].slice():randGenome(r)));
+    state.hof[s]=[state.pop[s][0].g.slice()];
+    state.best[s]=state.pop[s][0].g.slice();
+    state.prev[s]=state.best[s].slice();
+  }
+  state.gen=0;state.hist=[];state.queue=[];
+}
+function resizePop(){
+  for(const s of['A','B']){
+    const p=state.pop[s];const r=mulberry32(seed++);
+    while(p.length<P.pop)p.push(mkInd(state.mode[s]==='man'?state.manual[s].slice():randGenome(r)));
+    while(p.length>P.pop)p.pop();
+  }
+}
+function tour(p,r){let b=p[(r()*p.length)|0];for(let i=0;i<2;i++){const c=p[(r()*p.length)|0];if(c.fit>b.fit)b=c}return b}
+function cross(a,b,r){const c=[];for(let i=0;i<9;i++){c.push(r()<0.5?a[i]:b[i]);if(r()<0.25)c[i]=clamp(a[i]*0.5+b[i]*0.5,0,1)}return c}
+function mutate(g,r,mut,str){for(let i=0;i<9;i++)if(r()<mut){g[i]=clamp(g[i]+(r()+r()+r()-1.5)*0.9*str,0,1)}return g}
+
+function buildQueue(){
+  const r=mulberry32(seed++);
+  const q=[];
+  const A=state.pop.A,B=state.pop.B;
+  for(const p of A){p.sum=0;p.n=0;p.w=0;p.l=0}
+  for(const p of B){p.sum=0;p.n=0;p.w=0;p.l=0}
+  for(let k=0;k<2;k++){          // two shuffled pairings — everyone meets the same number of foes
+    const perm=B.map((_,i)=>i);
+    for(let i=perm.length-1;i>0;i--){const j=(r()*(i+1))|0;const t=perm[i];perm[i]=perm[j];perm[j]=t}
+    for(let i=0;i<A.length;i++)q.push({a:A[i],b:B[perm[i%B.length]]});
+  }
+  for(let i=0;i<A.length;i++){   // plus one bout against the other side's past champions
+    q.push({a:A[i],b:mkInd(state.hof.B[(r()*state.hof.B.length)|0]),ghost:'b'});
+    q.push({a:mkInd(state.hof.A[(r()*state.hof.A.length)|0]),b:B[i%B.length],ghost:'a'});
+  }
+  state.queue=q;state.lastWins={A:0,B:0,D:0};
+}
+function processQueue(ms){
+  const t0=performance.now();
+  while(state.queue.length&&performance.now()-t0<ms){
+    const task=state.queue.shift();
+    const res=runBattle(task.a.g,task.b.g,seed++,P.budget);
+    if(task.ghost!=='a'){task.a.sum+=res.s;task.a.n++;if(res.win===0)task.a.w++;else if(res.win===1)task.a.l++}
+    if(task.ghost!=='b'){task.b.sum+=1-res.s;task.b.n++;if(res.win===1)task.b.w++;else if(res.win===0)task.b.l++}
+    if(res.win===0)state.lastWins.A++;else if(res.win===1)state.lastWins.B++;else state.lastWins.D++;
+  }
+  return state.queue.length===0;
+}
+function breed(){
+  const r=mulberry32(seed++);
+  const rec={};
+  for(const s of['A','B']){
+    const p=state.pop[s];
+    for(const ind of p)ind.fit=ind.n?ind.sum/ind.n:0.5;
+    const sorted=p.slice().sort((x,y)=>y.fit-x.fit);
+    rec[s]={best:sorted[0].fit,avg:p.reduce((a,x)=>a+x.fit,0)/p.length};
+    state.prev[s]=state.best[s]?state.best[s].slice():sorted[0].g.slice();
+    state.best[s]=sorted[0].g.slice();
+    if(state.mode[s]==='man'){
+      state.pop[s]=p.map(()=>mkInd(state.manual[s].slice()));
+      continue;
+    }
+    state.hof[s].push(sorted[0].g.slice());if(state.hof[s].length>10)state.hof[s].shift();
+    const next=[mkInd(sorted[0].g.slice()),mkInd(sorted[1].g.slice())];
+    while(next.length<p.length){
+      const c=mutate(cross(tour(p,r).g,tour(p,r).g,r),r,P.mut,P.str);
+      if(r()<0.14)c[(r()*4)|0]=r();   // macro-mutation: one whole arm is reborn at once
+      next.push(mkInd(c));
+    }
+    if(next.length>5){                 // scouts: fresh blood and one extreme doctrine
+      next[next.length-1]=mkInd(randGenome(r));
+      if(r()<0.55){const pure=[0.03,0.03,0.03,0.03,r(),r(),r(),r(),r()];pure[(r()*4)|0]=1;next[next.length-2]=mkInd(pure)}
+    }
+    state.pop[s]=next;
+  }
+  state.gen++;
+  state.hist.push({g:state.gen,a:rec.A.best,b:rec.B.best,aa:rec.A.avg,ba:rec.B.avg});
+  if(state.hist.length>200)state.hist.shift();
+  renderPanels();drawChart();
+  document.getElementById('genN').textContent=state.gen;
+}
+
+/* ============================ RENDERING ============================ */
+const cv=document.getElementById('arena'),cx=cv.getContext('2d');
+const chartC=document.getElementById('chart'),chx=chartC.getContext('2d');
+const COL=['#4f8ee0','#d1503f'],COLD=['#8fbcf0','#eb8a7c'];
+function fitCanvas(c){
+  const dpr=Math.min(2,window.devicePixelRatio||1),w=c.clientWidth;
+  const ratio=c===cv?H/W:120/900;
+  c.width=w*dpr;c.height=w*ratio*dpr;c.style.height=(w*ratio)+'px';
+  const g=c.getContext('2d');g.setTransform(dpr*w/(c===cv?W:900),0,0,dpr*w/(c===cv?W:900),0,0);
+}
+function drawArena(st,alpha){
+  cx.clearRect(0,0,W,H);
+  // sand table
+  cx.fillStyle='#20211b';cx.fillRect(0,0,W,H);
+  cx.strokeStyle='rgba(232,224,205,.045)';cx.lineWidth=1;
+  for(let x=0;x<=W;x+=60){cx.beginPath();cx.moveTo(x,0);cx.lineTo(x,H);cx.stroke()}
+  for(let y=0;y<=H;y+=60){cx.beginPath();cx.moveTo(0,y);cx.lineTo(W,y);cx.stroke()}
+  cx.strokeStyle='rgba(201,162,39,.22)';cx.setLineDash([6,8]);
+  cx.beginPath();cx.moveTo(W/2,0);cx.lineTo(W/2,H);cx.stroke();cx.setLineDash([]);
+  if(!st)return;
+  // arrow flights
+  for(const s of st.shots){
+    cx.strokeStyle=COL[s.team];cx.globalAlpha=Math.max(0,s.l/0.22)*0.8;cx.lineWidth=1;
+    cx.beginPath();cx.moveTo(s.x1,s.y1);cx.lineTo(s.x2,s.y2);cx.stroke();
+  }
+  cx.globalAlpha=1;
+  for(const u of st.units){
+    if(!u.alive)continue;
+    const x=u.ox+(u.x-u.ox)*alpha,y=u.oy+(u.y-u.oy)*alpha,ty=TYPES[u.t];
+    cx.save();cx.translate(x,y);
+    const hpf=u.hp/u.mhp;
+    cx.fillStyle=COL[u.team];cx.globalAlpha=0.45+0.55*hpf;
+    cx.strokeStyle='rgba(0,0,0,.55)';cx.lineWidth=1;
+    if(u.t===0){cx.beginPath();cx.arc(0,0,ty.r,0,6.2832);cx.fill();cx.stroke()}
+    else if(u.t===1){cx.rotate(Math.atan2(u.fy,u.fx)+Math.PI/2);cx.beginPath();cx.moveTo(0,-ty.r-1);cx.lineTo(ty.r*0.85,ty.r*0.8);cx.lineTo(-ty.r*0.85,ty.r*0.8);cx.closePath();cx.fill();cx.stroke()}
+    else if(u.t===2){cx.beginPath();cx.moveTo(0,-ty.r);cx.lineTo(ty.r*0.8,0);cx.lineTo(0,ty.r);cx.lineTo(-ty.r*0.8,0);cx.closePath();cx.fill();cx.stroke()}
+    else{cx.rotate(Math.atan2(u.fy,u.fx));cx.beginPath();cx.moveTo(ty.r+2,0);cx.lineTo(-ty.r*0.7,ty.r*0.75);cx.lineTo(-ty.r*0.2,0);cx.lineTo(-ty.r*0.7,-ty.r*0.75);cx.closePath();cx.fill();cx.stroke()}
+    cx.restore();
+    if(hpf<0.99){
+      cx.globalAlpha=1;cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(x-6,y-ty.r-5,12,2);
+      cx.fillStyle=hpf>0.5?COLD[u.team]:'#e5b567';cx.fillRect(x-6,y-ty.r-5,12*hpf,2);
+    }
+    cx.globalAlpha=1;
+  }
+}
+function drawChart(){
+  const w=900,h=120;
+  chx.clearRect(0,0,w,h);
+  chx.fillStyle='#12130f';chx.fillRect(0,0,w,h);
+  chx.strokeStyle='rgba(232,224,205,.10)';chx.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=h*i/4;chx.beginPath();chx.moveTo(0,y);chx.lineTo(w,y);chx.stroke()}
+  chx.strokeStyle='rgba(201,162,39,.35)';chx.setLineDash([4,5]);
+  chx.beginPath();chx.moveTo(0,h/2);chx.lineTo(w,h/2);chx.stroke();chx.setLineDash([]);
+  chx.fillStyle='#a8a291';chx.font='10px "IBM Plex Mono",monospace';
+  chx.fillText('parity 0.50',6,h/2-4);
+  const H2=state.hist;
+  if(H2.length<2){chx.fillText('no generations yet',w/2-58,h/2+18);return}
+  const n=H2.length;
+  const line=(key,col,wd,al)=>{
+    chx.strokeStyle=col;chx.lineWidth=wd;chx.globalAlpha=al;chx.beginPath();
+    H2.forEach((p,i)=>{const x=i/(n-1)*(w-8)+4,y=h-clamp(p[key],0,1)*h;i?chx.lineTo(x,y):chx.moveTo(x,y)});
+    chx.stroke();chx.globalAlpha=1;
+  };
+  line('a',COL[0],1,.3);line('b',COL[1],1,.3);
+  line('aa',COL[0],1.8,1);line('ba',COL[1],1.8,1);
+}
+
+/* ============================ INTERFACE ============================ */
+function chromHTML(side){
+  let s='';
+  for(let i=0;i<9;i++)s+=`<div class="locus" id="lc${side}${i}" title="${GFULL[i]}"><i></i><b>${GN[i]}</b></div>`;
+  return s;
+}
+function compHTML(side){
+  let s='';
+  for(let i=0;i<4;i++)s+=`<div class="unit-row"><span class="gly" style="color:${side==='A'?COL[0]:COL[1]}">${TYPES[i].g}</span><span class="nm">${TYPES[i].n}</span><span class="track"><i id="tr${side}${i}"></i></span><span class="ct" id="ct${side}${i}">0</span></div>`;
+  return s;
+}
+function manualHTML(side){
+  let s='';
+  for(let i=0;i<9;i++)s+=`<div class="slider-row"><label>${GFULL[i]}</label><input type="range" min="0" max="100" value="50" data-side="${side}" data-gene="${i}"><span class="v" id="mv${side}${i}">50</span></div>`;
+  return s;
+}
+for(const s of['A','B']){
+  document.getElementById('chrom'+s).innerHTML=chromHTML(s);
+  document.getElementById('comp'+s).innerHTML=compHTML(s);
+  document.getElementById('man'+s).innerHTML=manualHTML(s);
+}
+document.getElementById('rps').innerHTML=TYPES.map(t=>`<span>${t.g} ${t.n} · ${t.cost} pts</span>`).join('')+
+ '<span style="color:var(--brass)">● swords beat ▲ spears beat ➤ horse beats ◆ archers beat ● swords · archers can\'t shoot at close range · mixed armies earn a combined-arms bonus</span>';
+
+function renderPanels(){
+  for(const s of['A','B']){
+    const g=state.best[s],prev=state.prev[s]||g;
+    const col=s==='A'?COL[0]:COL[1];
+    for(let i=0;i<9;i++){
+      const el=document.getElementById('lc'+s+i);
+      el.querySelector('i').style.height=(6+g[i]*94)+'%';
+      
+      el.querySelector('i').style.background=i<4?col:'rgba(201,162,39,.75)';
+      el.classList.toggle('mut',Math.abs(g[i]-prev[i])>0.06);
+    }
+    const c=composition(g,P.budget),tot=Math.max(1,c[0]+c[1]+c[2]+c[3]);
+    for(let i=0;i<4;i++){
+      document.getElementById('tr'+s+i).style.width=(c[i]/tot*100)+'%';
+      document.getElementById('tr'+s+i).style.background=col;
+      document.getElementById('ct'+s+i).textContent=c[i];
+    }
+    const last=state.hist[state.hist.length-1];
+    const fit=last?(s==='A'?last.a:last.b):null;
+    const wins=s==='A'?state.lastWins.A:state.lastWins.B;
+    document.getElementById('meta'+s).textContent=
+      `fitness ${fit?fit.toFixed(3):'—'} · wins ${state.gen?wins:'—'} · ${state.mode[s]==='man'?'hand-commanded':'selection'}`;
+  }
+}
+function syncManualSliders(side){
+  document.querySelectorAll(`input[data-side="${side}"]`).forEach(inp=>{
+    const i=+inp.dataset.gene;inp.value=Math.round(state.manual[side][i]*100);
+    document.getElementById('mv'+side+i).textContent=inp.value;
+  });
+}
+document.querySelectorAll('input[data-gene]').forEach(inp=>{
+  inp.addEventListener('input',()=>{
+    const s=inp.dataset.side,i=+inp.dataset.gene;
+    state.manual[s][i]=inp.value/100;
+    document.getElementById('mv'+s+i).textContent=inp.value;
+    if(state.mode[s]==='man'){
+      state.pop[s]=state.pop[s].map(()=>mkInd(state.manual[s].slice()));
+      state.best[s]=state.manual[s].slice();
+      renderPanels();
+    }
+  });
+});
+document.querySelectorAll('.mode-row button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    const s=b.dataset.side,m=b.dataset.mode;
+    state.mode[s]=m;
+    document.querySelectorAll(`.mode-row button[data-side="${s}"]`).forEach(x=>x.classList.toggle('on',x===b));
+    document.getElementById('man'+s).classList.toggle('on',m==='man');
+    if(m==='man'){
+      state.manual[s]=state.best[s]?state.best[s].slice():state.manual[s];
+      syncManualSliders(s);
+      state.pop[s]=state.pop[s].map(()=>mkInd(state.manual[s].slice()));
+      state.best[s]=state.manual[s].slice();
+    }
+    state.queue=[];ex=null;renderPanels();
+  });
+});
+document.querySelectorAll('input[data-gene]').forEach(inp=>{
+  inp.addEventListener('change',()=>{if(state.mode[inp.dataset.side]==='man')ex=null});
+});
+const btnRun=document.getElementById('btnRun');
+btnRun.addEventListener('click',()=>{
+  state.running=!state.running;
+  btnRun.textContent=state.running?'❚❚ Pause evolution':'▶ Run evolution';
+});
+document.getElementById('btnStep').addEventListener('click',()=>{
+  if(!state.queue.length)buildQueue();
+  while(!processQueue(30)){}
+  breed();
+});
+document.getElementById('btnFight').addEventListener('click',()=>{ex=null});
+document.getElementById('btnReset').addEventListener('click',()=>{
+  state.running=false;btnRun.textContent='▶ Run evolution';
+  initPop();ex=null;renderPanels();drawChart();document.getElementById('genN').textContent='0';
+});
+document.querySelectorAll('#speedSeg button').forEach(b=>b.addEventListener('click',()=>{
+  state.speed=+b.dataset.sp;
+  document.querySelectorAll('#speedSeg button').forEach(x=>x.classList.toggle('on',x===b));
+}));
+const sl=[['pPop','vPop',v=>{P.pop=+v;resizePop();state.queue=[]}],
+          ['pMut','vMut',v=>P.mut=v/100],
+          ['pStr','vStr',v=>P.str=v/100],
+          ['pBud','vBud',v=>{P.budget=+v;ex=null}]];
+sl.forEach(([id,vid,fn])=>{
+  const el=document.getElementById(id);
+  el.addEventListener('input',()=>{document.getElementById(vid).textContent=el.value;fn(el.value);renderPanels()});
+});
+
+/* ============================ MAIN LOOP ============================ */
+let ex=null,acc=0,exPause=0,lastT=performance.now();
+const verdict=document.getElementById('verdict');
+function newExhibition(){
+  ex=createBattle(state.best.A||randGenome(Math.random),state.best.B||randGenome(Math.random),seed++,P.budget,true);
+  exPause=0;acc=0;verdict.classList.remove('on');
+}
+function loop(now){
+  const dt=Math.min(0.1,(now-lastT)/1000);lastT=now;
+  // evolution
+  if(state.running){
+    if(!state.queue.length)buildQueue();
+    if(processQueue(11))breed();
+  }
+  // exhibition battle
+  if(!ex)newExhibition();
+  acc+=dt*state.speed;
+  let guard=0;
+  const cap=Math.max(12,Math.ceil(state.speed*3));  // enough steps to honour ×50
+  while(acc>=DT&&guard++<cap){stepBattle(ex);acc-=DT}
+  if(acc>DT*cap)acc=0;
+  drawArena(ex,clamp(acc/DT,0,1));
+  document.getElementById('hpA').style.width=clamp(ex.hp[0]/ex.hp0[0]*100,0,100)+'%';
+  document.getElementById('hpB').style.width=clamp(ex.hp[1]/ex.hp0[1]*100,0,100)+'%';
+  document.getElementById('clock').textContent=Math.floor(ex.t)+'s';
+  if(ex.over){
+    verdict.classList.add('on');
+    verdict.textContent=ex.win===0?'Azure holds the field':ex.win===1?'Crimson holds the field':'Stalemate';
+    verdict.style.color=ex.win===0?COL[0]:ex.win===1?COL[1]:'#e8e0cd';
+    exPause+=dt;                                     // hold on the verdict in real time
+    if(exPause>1.1)newExhibition();
+  }
+  requestAnimationFrame(loop);
+}
+function boot(){
+  fitCanvas(cv);fitCanvas(chartC);
+  initPop();renderPanels();drawChart();
+  syncManualSliders('A');syncManualSliders('B');
+  requestAnimationFrame(loop);
+}
+window.addEventListener('resize',()=>{fitCanvas(cv);fitCanvas(chartC);drawChart()});
+boot();
+</script>
+</body>
+</html>

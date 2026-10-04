@@ -1,0 +1,2548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mechanical Computer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0A1517; --panel:#102225; --raised:#163034; --edge:#20454A; --edge2:#2E6068;
+  --verdigris:#5FBFA6; --brass:#D8A63D; --bone:#EFE8D7; --muted:#7C9799; --rust:#C4573A;
+  --display:'Bodoni Moda',Georgia,serif;
+  --body:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+html{background:var(--ink)}
+body{background:var(--ink);color:var(--bone);font-family:var(--body);font-size:15px;line-height:1.55;
+  position:relative;min-height:100%}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(ellipse at 50% -10%,#17383d 0%,transparent 60%)}
+h1,h2{margin:0;font-weight:400}
+button{font-family:var(--body);cursor:pointer}
+
+.shell{max-width:1460px;margin:0 auto;padding:18px 20px 60px}
+header.top{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;border-bottom:1px solid var(--edge);
+  padding-bottom:14px;margin-bottom:18px}
+.brand{font-family:var(--display);font-size:30px}
+.brand em{font-style:italic;color:var(--brass)}
+.locator{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.top-actions{margin-left:auto;display:flex;gap:8px}
+.btn{background:transparent;border:1px solid var(--edge);color:var(--bone);padding:7px 13px;border-radius:2px;
+  font-size:13px;transition:.15s}
+.btn:hover:not([disabled]){border-color:var(--verdigris);color:var(--verdigris)}
+.btn:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.btn.primary{border-color:var(--brass);color:var(--brass)}
+.btn.primary:hover{background:var(--brass);color:var(--ink)}
+.btn[disabled]{opacity:.35;cursor:not-allowed}
+.btn.icon{padding:5px 10px;font-family:var(--mono);font-size:13px;line-height:1}
+
+.layout{display:grid;grid-template-columns:300px minmax(0,1fr) 250px;gap:20px;align-items:start}
+@media(max-width:1140px){.layout{grid-template-columns:1fr}}
+
+.card{background:var(--panel);border:1px solid var(--edge);border-radius:3px;padding:16px}
+.card + .card{margin-top:14px}
+.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.ptitle{font-family:var(--display);font-size:25px;line-height:1.15;margin-bottom:10px}
+.prose{font-size:14px;color:#CFD9D6}
+.prose p{margin:0 0 10px}
+.objective{border-left:2px solid var(--brass);padding-left:11px;margin:12px 0;font-size:14px}
+.constraints{list-style:none;padding:0;margin:8px 0 0;font-size:13px;color:var(--muted)}
+.constraints li:before{content:"—  ";color:var(--edge)}
+
+.map{display:flex;flex-direction:column;gap:1px}
+.map-ch{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:10px 0 4px}
+.map-row{display:flex;gap:9px;align-items:center;background:none;border:0;padding:5px 6px;border-radius:2px;
+  color:var(--muted);text-align:left;font-size:13px;width:100%}
+.map-row:hover:not([disabled]){background:var(--raised);color:var(--bone)}
+.map-row[disabled]{opacity:.4}
+.map-row.active{color:var(--brass)}
+.map-num{font-family:var(--mono);font-size:11px;width:18px;flex:none}
+.map-dot{width:7px;height:7px;border-radius:50%;border:1px solid var(--edge);flex:none}
+.map-row.done .map-dot{background:var(--verdigris);border-color:var(--verdigris)}
+.map-row.active .map-dot{border-color:var(--brass)}
+
+/* ---------- workbench ---------- */
+.bench-wrap{background:var(--panel);border:1px solid var(--edge);border-radius:3px;display:flex;flex-direction:column}
+.bench-head{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--edge);flex-wrap:wrap}
+.bench-title{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.tools{margin-left:auto;display:flex;gap:6px;align-items:center}
+.zoomlabel{font-family:var(--mono);font-size:11px;color:var(--muted);min-width:38px;text-align:center}
+.viewport{position:relative;overflow:auto;height:440px;scrollbar-width:thin;
+  background-image:linear-gradient(var(--raised) 1px,transparent 1px),linear-gradient(90deg,var(--raised) 1px,transparent 1px);
+  background-size:26px 26px}
+.bench-wrap:fullscreen{border:0;border-radius:0}
+.bench-wrap:fullscreen .viewport{height:calc(100vh - 42px)}
+.sizer{position:relative}
+.canvas{position:absolute;left:0;top:0;width:600px;height:300px;transform-origin:0 0}
+#wires{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+#wires path.hit{pointer-events:stroke;stroke:transparent;stroke-width:16;cursor:pointer;fill:none}
+
+.comp{position:absolute;background:var(--raised);border:1px solid var(--edge2);border-radius:3px;
+  padding:0 46px 8px 46px;min-width:150px;z-index:2;user-select:none}
+.comp.dragging{z-index:9;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.comp.sel{border-color:var(--brass);box-shadow:0 0 0 1px var(--brass)}
+.comp.sel .grip{color:var(--brass)}
+.grip{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+  text-align:center;padding:5px 0 6px;cursor:grab;border-bottom:1px solid var(--edge);margin:0 -46px 7px;
+  background:rgba(0,0,0,.18)}
+.grip:active{cursor:grabbing}
+.comp-kill{position:absolute;top:2px;right:4px;background:none;border:0;color:var(--edge2);font-size:15px;
+  line-height:1;padding:2px 5px;z-index:3}
+.comp-kill:hover{color:var(--rust)}
+
+.port{position:absolute;width:14px;height:14px;border-radius:50%;background:var(--panel);border:2px solid var(--muted);
+  padding:0;transform:translateY(-50%);z-index:4}
+.port:hover{border-color:var(--verdigris);background:var(--verdigris)}
+.port.value{border-radius:2px}
+.port.armed{background:var(--brass);border-color:var(--brass);box-shadow:0 0 0 5px rgba(216,166,61,.22)}
+.port.in{left:-8px} .port.out{right:-8px}
+.plabel{position:absolute;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--muted);
+  transform:translateY(-50%);white-space:nowrap;pointer-events:none}
+.plabel.in{left:10px} .plabel.out{right:10px}
+
+.dial{display:block;margin:0 auto}
+.dial .face{fill:var(--panel);stroke:var(--edge2)}
+.dial .ring{fill:none;stroke:var(--edge);stroke-width:1}
+.dial .digit{font-family:var(--mono);font-size:12px;fill:var(--muted);text-anchor:middle;dominant-baseline:central;
+  transition:transform .22s cubic-bezier(.3,1.5,.5,1)}
+.dial .digit.on{fill:var(--bone);font-weight:600}
+.dial .pointer{fill:var(--brass)}
+.rotor{transition:transform .22s cubic-bezier(.3,1.5,.5,1);transform-origin:50px 50px}
+@media (prefers-reduced-motion:reduce){.rotor,.dial .digit{transition:none}}
+.readchip{font-family:var(--mono);font-size:15px;text-align:center;color:var(--bone);margin-top:2px}
+
+.crank-btn{display:block;margin:2px auto 0;background:var(--panel);border:1px solid var(--brass);color:var(--brass);
+  font-family:var(--mono);font-size:11px;letter-spacing:.12em;padding:7px 16px;border-radius:2px}
+.crank-btn:hover{background:var(--brass);color:var(--ink)}
+.crank-btn:active{transform:scale(.95)}
+.bell{width:42px;height:42px;margin:2px auto;border-radius:50%;border:1px solid var(--edge2);display:flex;
+  align-items:center;justify-content:center;font-family:var(--mono);font-size:15px;color:var(--muted)}
+.bell.lit{border-color:var(--brass);color:var(--brass);box-shadow:0 0 18px rgba(216,166,61,.35)}
+.screen{min-width:58px;height:40px;margin:2px auto;border:1px solid var(--edge2);background:#08191B;border-radius:2px;
+  display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:22px;color:var(--verdigris)}
+.screen.blank{color:var(--edge2)}
+.cam{width:44px;height:44px;margin:2px auto;border-radius:50%;border:2px dashed var(--brass);display:flex;
+  align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;color:var(--brass)}
+.lever{display:block;margin:2px auto;width:46px;height:56px;background:var(--panel);border:1px solid var(--edge2);
+  border-radius:2px;position:relative;color:var(--muted);font-family:var(--mono);font-size:12px}
+.lever b{position:absolute;bottom:2px;left:0;right:0;font-weight:400}
+.lever-arm{position:absolute;left:21px;bottom:16px;width:4px;height:24px;background:var(--muted);
+  transform-origin:50% 100%;transform:rotate(28deg);transition:transform .18s}
+.lever.up{border-color:var(--brass);color:var(--brass)}
+.lever.up .lever-arm{background:var(--brass);transform:rotate(-28deg)}
+.chip{margin:2px auto;padding:9px 12px;border:1px solid var(--edge2);border-radius:2px;font-family:var(--mono);
+  font-size:11px;color:var(--muted);text-align:center;width:max-content}
+.chip.on{color:var(--verdigris);border-color:var(--verdigris)}
+.drum{display:flex;gap:5px;margin:2px auto;padding:6px;border:1px solid var(--edge2);border-radius:2px;width:max-content}
+.slot{display:flex;flex-direction:column;align-items:center;gap:3px;padding:3px 4px;border-radius:2px}
+.slot.on{background:rgba(216,166,61,.16);box-shadow:inset 0 0 0 1px var(--brass)}
+.slot i{width:9px;height:9px;border-radius:50%;border:1px solid var(--edge2);display:block}
+.slot i.on{background:var(--brass);border-color:var(--brass)}
+.slot u{font-family:var(--mono);font-size:9px;color:var(--muted);text-decoration:none}
+.picker{margin:2px auto;padding:6px 12px;border:1px solid var(--edge2);border-radius:2px;text-align:center;
+  min-height:86px;display:flex;flex-direction:column;justify-content:center;gap:4px}
+.picker span{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.picker b{font-family:var(--mono);font-size:20px;color:var(--verdigris);font-weight:400}
+.arm{margin:2px auto;padding:9px 12px;border:1px solid var(--edge2);border-radius:2px;font-family:var(--mono);
+  font-size:11px;color:var(--verdigris);text-align:center;width:max-content}
+
+.tests{margin-top:14px}
+.trow{display:flex;gap:10px;align-items:baseline;font-size:13px;padding:6px 0;border-bottom:1px solid var(--raised)}
+.tmark{font-family:var(--mono);font-size:12px;width:16px;flex:none}
+.tmark.pass{color:var(--verdigris)} .tmark.fail{color:var(--rust)}
+.tdetail{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto;text-align:right}
+.verdict{margin-top:12px;font-size:14px}
+.verdict.pass{color:var(--verdigris)} .verdict.fail{color:var(--rust)}
+
+.part{display:flex;gap:10px;align-items:flex-start;background:none;border:1px solid var(--edge);border-radius:2px;
+  color:var(--bone);padding:9px 10px;width:100%;text-align:left;margin-bottom:7px;font-size:13px}
+.part:hover:not([disabled]){border-color:var(--verdigris)}
+.part[disabled]{opacity:.35;cursor:not-allowed}
+.part small{display:block;color:var(--muted);font-size:11px;line-height:1.4}
+.part .qty{font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:auto;flex:none}
+.hint{border-left:2px solid var(--edge);padding:8px 0 8px 11px;margin-bottom:9px;font-size:13px;color:#CFD9D6}
+
+.hint b{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:3px}
+.answer{margin-top:6px}
+.answer .row{padding:5px 0;border-bottom:1px solid var(--raised)}
+.answer .row:last-child{border-bottom:0}
+.answer .from,.answer .to{display:block;font-size:12px;line-height:1.35}
+.answer .to{padding-left:14px;color:var(--muted)}
+.answer .hint b,.answer b{all:unset;font-family:var(--mono);font-size:11px;color:var(--brass)}
+.answer .step{font-size:12px;color:var(--verdigris);padding:5px 0}
+
+.veil{position:fixed;inset:0;background:rgba(5,12,13,.82);display:flex;align-items:center;justify-content:center;
+  padding:20px;z-index:50}
+.veil[hidden]{display:none}
+.modal{background:var(--panel);border:1px solid var(--brass);border-radius:3px;max-width:560px;width:100%;
+  padding:26px;max-height:88vh;overflow:auto}
+.modal.wide{max-width:940px}
+.modal h2{font-family:var(--display);font-size:27px;margin-bottom:6px}
+.reflect{border:1px solid var(--edge);border-radius:2px;padding:13px;margin:16px 0;font-size:14px}
+.reflect b{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--brass);margin-bottom:5px}
+.modal-actions{display:flex;gap:9px;justify-content:flex-end;margin-top:18px}
+.lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:16px;margin-top:14px}
+.lib-card{border:1px solid var(--edge);border-radius:3px;padding:12px}
+.lib-card h3{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--brass);margin:0 0 8px;font-weight:500}
+.lib-card svg{display:block;margin:0 auto 10px;background:#0B1B1E;border-radius:2px}
+.lib-card p{margin:0 0 7px;font-size:12.5px;line-height:1.5;color:#CFD9D6}
+.lib-card p b{color:var(--verdigris);font-weight:500}
+.lib-stroke{stroke:var(--edge2);fill:none;stroke-width:2}
+.lib-metal{fill:#1B3438;stroke:var(--muted);stroke-width:1.5}
+.lib-brass{fill:none;stroke:var(--brass);stroke-width:2}
+.lib-brass-f{fill:var(--brass)}
+.lib-txt{font-family:var(--mono);font-size:13px;fill:var(--bone);text-anchor:middle;dominant-baseline:central}
+@keyframes lib-spin{to{transform:rotate(360deg)}}
+@keyframes lib-nudge{0%,55%,100%{transform:translateX(0)}25%{transform:translateX(10px)}}
+@keyframes lib-pawl{0%,60%,100%{transform:rotate(0deg)}30%{transform:rotate(-16deg)}}
+@keyframes lib-follow{0%,55%,100%{transform:translateX(0)}22%{transform:translateX(11px)}}
+@keyframes lib-swing{0%,10%{transform:rotate(0deg)}45%,55%{transform:rotate(34deg)}90%,100%{transform:rotate(0deg)}}
+@keyframes lib-tap{0%,72%,100%{transform:rotate(0deg)}82%{transform:rotate(-24deg)}}
+@keyframes lib-shutter{0%,45%{transform:translateY(0)}60%,90%{transform:translateY(-46px)}100%{transform:translateY(0)}}
+@keyframes lib-travel{0%,55%{transform:translateX(0)}60%{transform:translateX(0)}88%,100%{transform:translateX(150px)}}
+@keyframes lib-flip{0%,45%{transform:rotate(0deg)}55%,100%{transform:rotate(38deg)}}
+@keyframes lib-wipe{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+@keyframes lib-drum{to{transform:translateX(-132px)}}
+@keyframes lib-feel{0%,70%{transform:rotate(0deg)}80%,95%{transform:rotate(7deg)}100%{transform:rotate(0deg)}}
+@keyframes lib-latch{0%,45%{transform:rotate(0deg)}55%,100%{transform:rotate(-46deg)}}
+@keyframes lib-ring{0%,70%{opacity:0}80%{opacity:.9}100%{opacity:0}}
+.a-spin{animation:lib-spin 4s linear infinite}
+.a-spin-step{animation:lib-spin 6s steps(10) infinite}
+.a-nudge{animation:lib-nudge 4s linear infinite}
+.a-pawl{animation:lib-pawl .6s linear infinite}
+.a-follow{animation:lib-follow 1s linear infinite}
+.a-swing{animation:lib-swing 3s ease-in-out infinite}
+.a-tap{animation:lib-tap 2s ease-in-out infinite}
+.a-ring{animation:lib-ring 2s ease-in-out infinite}
+.a-shutter{animation:lib-shutter 3s ease-in-out infinite}
+.a-travel{animation:lib-travel 3s linear infinite}
+.a-flip{animation:lib-flip 3s ease-in-out infinite}
+.a-wipe{animation:lib-wipe 6s steps(4) infinite}
+.a-drumroll{animation:lib-drum 6s steps(4) infinite}
+.a-feel{animation:lib-feel 6s ease-in-out infinite}
+.a-latch{animation:lib-latch 4s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){
+  .a-spin,.a-spin-step,.a-nudge,.a-pawl,.a-follow,.a-swing,.a-tap,.a-ring,
+  .a-shutter,.a-travel,.a-flip,.a-wipe,.a-drumroll,.a-feel,.a-latch{animation:none}
+}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--raised);border:1px solid var(--edge2);
+  padding:9px 16px;border-radius:2px;font-size:13px;z-index:60}
+.toast[hidden]{display:none}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <h1 class="brand">Mechanical <em>Computer</em></h1>
+    <span class="locator" id="locator"></span>
+    <div class="top-actions">
+      <button class="btn" id="btn-library">Parts library</button>
+      <button class="btn" id="btn-tidy">Tidy layout</button>
+      <button class="btn" id="btn-clear">Clear rods</button>
+      <button class="btn" id="btn-reset">Reset progress</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div>
+      <section class="card">
+        <div class="eyebrow" id="p-eyebrow"></div>
+        <h2 class="ptitle" id="p-title"></h2>
+        <div class="prose" id="p-problem"></div>
+        <div class="objective" id="p-objective"></div>
+        <div class="eyebrow" style="margin-top:14px">Rules of the bench</div>
+        <ul class="constraints" id="p-constraints"></ul>
+      </section>
+      <section class="card">
+        <div class="eyebrow">Campaign</div>
+        <div class="map" id="map"></div>
+      </section>
+    </div>
+
+    <div>
+      <div class="bench-wrap" id="bench-wrap">
+        <div class="bench-head">
+          <span class="bench-title">Workbench</span>
+          <span class="zoomlabel" id="wirecount"></span>
+          <div class="tools">
+            <button class="btn icon" id="z-out" title="Zoom out">−</button>
+            <span class="zoomlabel" id="z-label">100%</span>
+            <button class="btn icon" id="z-in" title="Zoom in">+</button>
+            <button class="btn icon" id="z-fit" title="Reset zoom">⤢</button>
+            <button class="btn icon" id="z-full" title="Full screen">⛶</button>
+          </div>
+        </div>
+        <div class="viewport" id="viewport">
+          <div class="sizer" id="sizer"><div class="canvas" id="canvas"><svg id="wires"></svg></div></div>
+        </div>
+      </div>
+      <section class="card tests">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span class="eyebrow" style="margin:0">Test bench</span>
+          <button class="btn primary" id="btn-test" style="margin-left:auto">Run tests</button>
+        </div>
+        <div id="test-results"></div>
+      </section>
+    </div>
+
+    <div>
+      <section class="card">
+        <div class="eyebrow">Parts bin</div>
+        <div id="parts"></div>
+      </section>
+      <section class="card">
+        <div class="eyebrow">Hints</div>
+        <div id="hints"></div>
+        <button class="btn" id="btn-hint" style="width:100%">Ask for a hint</button>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="veil" id="veil" hidden><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* =================== SIM-START =================== *
+ * LAYER 1 — SIMULATION MODEL
+ * Components, ports, rods, signal propagation. No DOM, no pixels, no puzzles.
+ *
+ * Two kinds of signal:
+ *   pulse — a momentary push. It happens at an instant and is then over.
+ *   value — a continuous reading, like the angle of a shaft. Always true.
+ * ================================================= */
+const DEFS = {
+  crank: {
+    label:'Crank', blurb:'Push it once and it sends a single pulse down its output rod.',
+    ins:[], outs:[{id:'OUT',kind:'pulse'}],
+    init:()=>({}), onPulse:()=>{}
+  },
+  wheel: {
+    label:'Number wheel', blurb:'Holds one digit. Steps one notch forward or backward at a time.',
+    ins:[{id:'STEP+',kind:'pulse'},{id:'STEP-',kind:'pulse'}],
+    outs:[{id:'CARRY',kind:'pulse'},{id:'BORROW',kind:'pulse'},{id:'VALUE',kind:'value'}],
+    init:(c)=>({pos:c.start||0}),
+    onPulse:(c,port,emit)=>{
+      const N=c.N;
+      if(port==='STEP+'){ const from=c.pos; c.pos=(c.pos+1)%N; if(from===N-1) emit('CARRY'); }
+      else if(port==='STEP-'){ const from=c.pos; c.pos=(c.pos-1+N)%N; if(from===0) emit('BORROW'); }
+    }
+  },
+  bell: {
+    label:'Signal bell', blurb:'Rings each time a pulse reaches it and remembers the count.',
+    ins:[{id:'IN',kind:'pulse'}], outs:[],
+    init:()=>({count:0}),
+    onPulse:(c,port)=>{ if(port==='IN') c.count++; }
+  },
+  readout: {
+    label:'Readout', blurb:'Shows the value of whatever shaft it is connected to, at all times.',
+    ins:[{id:'IN',kind:'value'}], outs:[],
+    init:()=>({}), onPulse:()=>{}
+  },
+  repeater: {
+    label:'Cam', blurb:'One pulse in, a fixed number of pulses out. The count is cut into the cam.',
+    ins:[{id:'IN',kind:'pulse'}], outs:[{id:'OUT',kind:'pulse'}],
+    init:()=>({}),
+    onPulse:(c,port,emit)=>{ if(port==='IN') for(let i=0;i<c.times;i++) emit('OUT'); }
+  },
+  lever: {
+    label:'Lever', blurb:'A hand lever with two positions, up or down. Click it to change it.',
+    ins:[], outs:[{id:'STATE',kind:'value'}],
+    init:(c)=>({pos:c.start||0}), onPulse:()=>{}
+  },
+  gate: {
+    label:'Gate', blurb:'Lets a pulse through only while its ENABLE shaft is raised.',
+    ins:[{id:'IN',kind:'pulse'},{id:'ENABLE',kind:'value'}], outs:[{id:'OUT',kind:'pulse'}],
+    init:()=>({}),
+    onPulse:(c,port,emit,ctx)=>{ if(port==='IN'&&readPort(ctx.machine,c.id,'ENABLE')) emit('OUT'); }
+  },
+  selector: {
+    label:'Selector', blurb:'Sends the pulse down one of two paths, chosen by its PICK shaft.',
+    ins:[{id:'IN',kind:'pulse'},{id:'PICK',kind:'value'}],
+    outs:[{id:'OUT-0',kind:'pulse'},{id:'OUT-1',kind:'pulse'}],
+    init:()=>({}),
+    onPulse:(c,port,emit,ctx)=>{
+      if(port!=='IN') return;
+      emit(readPort(ctx.machine,c.id,'PICK')?'OUT-1':'OUT-0');
+    }
+  },
+  picker: {
+    label:'Picker', blurb:'Four reading shafts in, one out. ADDR chooses which of them is passed on.',
+    ins:[{id:'ADDR',kind:'value'},{id:'IN-0',kind:'value'},{id:'IN-1',kind:'value'},
+         {id:'IN-2',kind:'value'},{id:'IN-3',kind:'value'}],
+    outs:[{id:'VALUE',kind:'value'}],
+    init:()=>({}), onPulse:()=>{}
+  },
+  zero: {
+    label:'Zero detector', blurb:'Feels a wheel and reports whether it is resting at zero.',
+    ins:[{id:'WATCH',kind:'value'}],
+    outs:[{id:'IS-ZERO',kind:'value'},{id:'NOT-ZERO',kind:'value'}],
+    init:()=>({}), onPulse:()=>{}
+  },
+  latch: {
+    label:'Latch', blurb:'A pawl that stays where it was knocked. SET raises it, CLEAR drops it, and it remembers in between.',
+    ins:[{id:'SET',kind:'pulse'},{id:'CLEAR',kind:'pulse'}],
+    outs:[{id:'STATE',kind:'value'}],
+    init:(c)=>({pos:c.start||0}),
+    onPulse:(c,port)=>{ if(port==='SET') c.pos=1; else if(port==='CLEAR') c.pos=0; }
+  },
+  seq2: {
+    label:'Distributor · 2', blurb:'Sends the first pulse to OUT-0, the next to OUT-1, then starts again.',
+    ins:[{id:'IN',kind:'pulse'}],
+    outs:[{id:'OUT-0',kind:'pulse'},{id:'OUT-1',kind:'pulse'},{id:'STEP',kind:'value'}],
+    init:()=>({step:0}),
+    onPulse:(c,port,emit)=>{ if(port!=='IN') return; emit('OUT-'+c.step); c.step=(c.step+1)%2; }
+  },
+  seq4: {
+    label:'Distributor · 4', blurb:'Deals each pulse to the next of four outputs in turn, over and over.',
+    ins:[{id:'IN',kind:'pulse'}],
+    outs:[{id:'OUT-0',kind:'pulse'},{id:'OUT-1',kind:'pulse'},{id:'OUT-2',kind:'pulse'},
+          {id:'OUT-3',kind:'pulse'},{id:'STEP',kind:'value'}],
+    init:()=>({step:0}),
+    onPulse:(c,port,emit)=>{ if(port!=='IN') return; emit('OUT-'+c.step); c.step=(c.step+1)%4; }
+  },
+  drum: {
+    label:'Program drum', blurb:'A barrel with pegs in two tracks. Each slot names one operation; ADVANCE turns it to the next.',
+    ins:[{id:'ADVANCE',kind:'pulse'}],
+    outs:[{id:'TRACK-A',kind:'value'},{id:'TRACK-B',kind:'value'},{id:'SLOT',kind:'value'}],
+    init:(c)=>({slot:c.start||0}),
+    onPulse:(c,port)=>{ if(port==='ADVANCE') c.slot=(c.slot+1)%c.program.length; }
+  },
+  transfer: {
+    label:'Transfer arm', blurb:'Reads a wheel through COUNT. When triggered it sends out that many pulses.',
+    ins:[{id:'TRIGGER',kind:'pulse'},{id:'COUNT',kind:'value'}], outs:[{id:'OUT',kind:'pulse'}],
+    init:()=>({}),
+    onPulse:(c,port,emit,ctx)=>{
+      if(port!=='TRIGGER') return;
+      const n=readPort(ctx.machine,c.id,'COUNT');
+      for(let i=0;i<(n||0);i++) emit('OUT');
+    }
+  }
+};
+
+function makeMachine(puzzle){
+  const m={comps:{},wires:[],seq:0};
+  (puzzle.fixed||[]).forEach(spec=>addComp(m,spec.type,spec,true));
+  return m;
+}
+function addComp(m,type,spec,fixed){
+  spec=spec||{};
+  const id=spec.id||(type+'_'+(++m.seq));
+  const base={id,type,fixed:!!fixed,label:spec.label||DEFS[type].label,
+              N:spec.N||10,start:spec.start||0,times:spec.times||1,
+              program:spec.program||[[0,0]],
+              x:spec.x!==undefined?spec.x:40,y:spec.y!==undefined?spec.y:40};
+  m.comps[id]=Object.assign(base,DEFS[type].init(base));
+  return m.comps[id];
+}
+function removeComp(m,id){ delete m.comps[id]; m.wires=m.wires.filter(w=>w.from!==id&&w.to!==id); }
+function portDef(type,dir,id){ return DEFS[type][dir==='in'?'ins':'outs'].find(p=>p.id===id); }
+
+/* A rod is legal when it joins an output to an input of the same signal kind.
+   Outputs may fan out freely: one shaft can drive several parts.
+   Several rods may push the same PULSE input — two levers can shove the same
+   lever, and the pushes simply happen one after another. A VALUE input takes
+   one rod only, because two shafts cannot both hold a dial at a reading. */
+function canWire(m,from,fromPort,to,toPort){
+  if(!m.comps[from]||!m.comps[to]) return 'missing part';
+  if(from===to) return 'a part cannot drive itself';
+  const a=portDef(m.comps[from].type,'out',fromPort), b=portDef(m.comps[to].type,'in',toPort);
+  if(!a||!b) return 'that is not an output feeding an input';
+  if(a.kind!==b.kind) return a.kind==='pulse'?'a pulse rod cannot feed a reading dial'
+                                             :'a reading shaft cannot deliver a pulse';
+  if(b.kind==='value'&&m.wires.some(w=>w.to===to&&w.toPort===toPort))
+    return 'a reading input takes one shaft only';
+  if(m.wires.some(w=>w.from===from&&w.fromPort===fromPort&&w.to===to&&w.toPort===toPort))
+    return 'that rod is already there';
+  return null;
+}
+function addWire(m,from,fromPort,to,toPort){
+  const bad=canWire(m,from,fromPort,to,toPort);
+  if(bad) return bad;
+  m.wires.push({from,fromPort,to,toPort});
+  return null;
+}
+/* Reads whatever value-shaft feeds the given input port. A shaft may pass
+   through a picker, which is why this is written as a short chain rather than
+   a single lookup. The depth guard stops a loop of pickers hanging the bench. */
+function valueOf(m,id,port,depth){
+  depth=depth||0; if(depth>10) return null;
+  const c=m.comps[id]; if(!c) return null;
+  if(c.type==='picker'){
+    const a=readPort(m,id,'ADDR',depth+1)||0;
+    return readPort(m,id,'IN-'+a,depth+1);
+  }
+  if(c.type==='drum'){
+    const ins=(c.program&&c.program[c.slot])||[0,0];
+    if(port==='TRACK-A') return ins[0];
+    if(port==='TRACK-B') return ins[1];
+    return c.slot;
+  }
+  if(c.type==='seq2'||c.type==='seq4') return c.step;
+  if(c.type==='zero'){
+    const v=readPort(m,id,'WATCH',depth+1);
+    if(v===null) return null;
+    return port==='NOT-ZERO' ? (v?1:0) : (v?0:1);
+  }
+  return c.pos!==undefined?c.pos:null;
+}
+function readPort(m,compId,portId,depth){
+  const w=m.wires.find(x=>x.to===compId&&x.toPort===portId);
+  return w?valueOf(m,w.from,w.fromPort,(depth||0)+1):null;
+}
+function readValue(m,compId){ return readPort(m,compId,'IN'); }
+
+/* One push travels all the way through the linkage before the next one starts.
+   That is depth-first, and it is not a detail: if a later part of the machine
+   ran before the end of the current push, a program drum could advance while
+   the pulse from the previous slot was still finding its way through the
+   selectors. Rods are followed in the order they were built, so the same
+   machine and the same input always give the same result. */
+function firePulse(m,compId,portId){
+  const trace=[]; const stack=[{id:compId,port:portId,depth:0}]; let guard=0;
+  const ctx={machine:m};
+  while(stack.length&&guard++<200000){
+    const job=stack.pop();
+    const c=m.comps[job.id]; if(!c) continue;
+    const outbox=[];
+    if(job.port==='OUT'&&c.type==='crank') outbox.push('OUT');
+    else DEFS[c.type].onPulse(c,job.port,p=>outbox.push(p),ctx);
+    const targets=[];
+    for(const out of outbox){
+      for(const w of m.wires){
+        if(w.from===job.id&&w.fromPort===out){
+          trace.push({wire:w,depth:job.depth});
+          targets.push({id:w.to,port:w.toPort,depth:job.depth+1});
+        }
+      }
+    }
+    for(let i=targets.length-1;i>=0;i--) stack.push(targets[i]);
+  }
+  return trace;
+}
+function resetState(m){ for(const id in m.comps){ const c=m.comps[id]; Object.assign(c,DEFS[c.type].init(c)); } }
+function cloneMachine(m){
+  const n={comps:{},wires:m.wires.map(w=>Object.assign({},w)),seq:m.seq};
+  for(const id in m.comps) n.comps[id]=Object.assign({},m.comps[id]);
+  return n;
+}
+/* =================== SIM-END =================== */
+
+/* =================== PUZZLES-START =================== *
+ * LAYER 2 — PUZZLE RULES
+ * Objectives, allowed parts, test cases. Grading drives the machine and reads
+ * the result: it never inspects how the player arranged anything.
+ * ===================================================== */
+function T(crank,times){ return {crank,times}; }
+
+const PUZZLES=[
+{
+ id:'p1', chapter:'Chapter 1 · Motion and state', title:'One Step at a Time', concept:'state changes',
+ problem:`A number wheel sits on the bench. It has ten notches cut into its rim and it is resting in notch 0. Beside it is a crank. Turning the crank sends one push down whatever rod is attached to it — and right now, nothing is attached.`,
+ objective:'Connect the crank so that one turn moves the wheel forward by exactly one notch.',
+ constraints:['Click an output port, then an input port, to run a rod between them.','Click a rod to remove it.','Drag a part by its name plate to move it.'],
+ fixed:[{type:'crank',id:'turn',label:'Crank',x:60,y:70},
+        {type:'wheel',id:'units',label:'Units wheel',N:10,x:330,y:50}],
+ parts:[],
+ tests:[
+  {label:'No turns at all',actions:[],expect:[{comp:'units',prop:'pos',eq:0}]},
+  {label:'One turn',actions:[T('turn',1)],expect:[{comp:'units',prop:'pos',eq:1}]},
+  {label:'Four turns',actions:[T('turn',4)],expect:[{comp:'units',prop:'pos',eq:4}]}
+ ],
+ hints:[
+  'The crank works. The wheel works. Nothing joins them, so the push has nowhere to go. Look at the small circles on the edges of both parts.',
+  'A circle on the right edge of a part is something it sends out. A circle on the left edge is something it accepts. Signals travel out of one part and into another.',
+  'The crank has one output, OUT. The wheel has two inputs, STEP+ and STEP−. Only one of those moves the wheel forward.',
+  'Click the OUT circle on the right of the crank, then click the STEP+ circle on the left of the wheel. Then press TURN and watch.'
+ ],
+ explain:`You have just built the smallest possible machine that remembers something.
+
+The wheel has exactly ten conditions it can be in, and it is always in exactly one of them. That condition is its <b>state</b>. The crank does not carry a number — it only carries a push. All the number lives in the wheel.
+
+This split runs through every computer ever built: something that <i>holds</i> a condition, and something that <i>changes</i> it.`,
+ reflect:'The wheel shows 4. It has no record of whether it got there by four forward turns, or by six forward turns and two backward ones. Is that forgetfulness a flaw, or exactly what makes the wheel useful?'
+},
+{
+ id:'p2', chapter:'Chapter 1 · Motion and state', title:'There and Back', concept:'reversible operations',
+ problem:`Your counter can only climb. A clerk using this machine will make mistakes, and a machine that cannot undo a mistake has to be dismantled every time someone miscounts. The wheel already has a second input on its left edge that you have not used.`,
+ objective:'Add a second crank so the machine can step the wheel backward as well as forward.',
+ constraints:['The forward crank must keep working.','Each crank drives one input of the wheel.'],
+ fixed:[{type:'crank',id:'fwd',label:'Forward crank',x:60,y:50},
+        {type:'wheel',id:'units',label:'Units wheel',N:10,x:340,y:60}],
+ parts:[{type:'crank',max:1}],
+ dropAt:{x:60,y:230},
+ tests:[
+  {label:'Five forward',actions:[T('fwd',5)],expect:[{comp:'units',prop:'pos',eq:5}]},
+  {label:'Five forward, two back',actions:[T('fwd',5),{crankIdx:'added',times:2}],expect:[{comp:'units',prop:'pos',eq:3}]},
+  {label:'Four forward, four back',actions:[T('fwd',4),{crankIdx:'added',times:4}],expect:[{comp:'units',prop:'pos',eq:0}]}
+ ],
+ hints:[
+  'Look at the parts bin on the right. You are allowed one more part.',
+  'The wheel already knows how to go backward — nothing is telling it to. STEP− is waiting.',
+  'Add a crank from the parts bin, then run a rod from its OUT to the wheel\u2019s STEP− input. Leave the first rod alone.',
+  'Two cranks, two rods, one wheel. Crank one feeds STEP+. Crank two feeds STEP−. Nothing else changes.'
+ ],
+ explain:`Forward and backward are <b>inverse operations</b>: run one, then the other, and the machine is exactly where it started.
+
+That property is rarer and more valuable than it looks. Addition can be undone by subtraction. Loading a value into a wheel cannot be undone at all — the old number is simply gone. When you build storage in a later chapter, that difference will decide what your machine can and cannot recover.`,
+ reflect:'Turning back four notches undoes four forward turns. Suppose a part could only be pushed into place and never pulled out. What would you have to add to the machine to still be able to undo it?'
+},
+{
+ id:'p3', chapter:'Chapter 1 · Motion and state', title:'Four Positions Only', concept:'how many states a part has',
+ problem:`Not every wheel in a workshop has ten notches. A wheel cut for the seasons has four. One crank drives both wheels through the same shaft, so both receive the same push at the same moment — yet they will not agree for long.`,
+ objective:'Drive both the ten-notch wheel and the four-notch wheel from the single crank.',
+ constraints:['One output may feed several inputs — a shaft can drive more than one thing.','Only one crank is allowed.'],
+ fixed:[{type:'crank',id:'turn',label:'Crank',x:60,y:130},
+        {type:'wheel',id:'ten',label:'Ten-notch wheel',N:10,x:340,y:30},
+        {type:'wheel',id:'four',label:'Four-notch wheel',N:4,x:340,y:250}],
+ parts:[],
+ tests:[
+  {label:'Three turns',actions:[T('turn',3)],expect:[{comp:'ten',prop:'pos',eq:3},{comp:'four',prop:'pos',eq:3}]},
+  {label:'Six turns',actions:[T('turn',6)],expect:[{comp:'ten',prop:'pos',eq:6},{comp:'four',prop:'pos',eq:2}]},
+  {label:'Twelve turns',actions:[T('turn',12)],expect:[{comp:'ten',prop:'pos',eq:2},{comp:'four',prop:'pos',eq:0}]}
+ ],
+ hints:[
+  'Both wheels must move on every single turn of the crank. Neither is allowed to sit still.',
+  'You are not short of parts. You are short of rods.',
+  'An output port is not used up by the first rod you attach to it. Click the crank\u2019s OUT again after wiring the first wheel.',
+  'Wire crank OUT to the ten-notch wheel\u2019s STEP+. Then click crank OUT a second time and wire it to the four-notch wheel\u2019s STEP+.'
+ ],
+ explain:`Six pushes leave one wheel showing 6 and the other showing 2. Neither is wrong. Each reports the pushes it received <i>counted around its own rim</i> — what mathematicians call working modulo four, or modulo ten.
+
+The number of positions a part has is a design decision, not a fact of nature. Ten is convenient because people have ten fingers. Later machines chose two positions per part, because a part that only has to be up or down can be made small, fast and cheap. Everything in this game works the same way with two notches as with ten.`,
+ reflect:'The four-notch wheel loses information: after twelve turns it shows 0, and so does a wheel nobody ever touched. What would you add to the bench to tell those two situations apart?'
+},
+{
+ id:'p4', chapter:'Chapter 1 · Motion and state', title:'Read the Machine', concept:'readable output',
+ problem:`Reading a number off the rim of a spinning wheel is fine for one wheel on one bench. It is hopeless once the machine has a dozen of them buried inside a cabinet. A readout panel has been delivered — but it does not accept pulses, and its port is a different shape.`,
+ objective:'Make the readout panel show the wheel\u2019s digit at all times, while the crank still drives the wheel.',
+ constraints:['Square ports carry a continuous reading. Round ports carry a momentary pulse.','A rod can only join two ports of the same shape.'],
+ fixed:[{type:'crank',id:'turn',label:'Crank',x:50,y:110},
+        {type:'wheel',id:'units',label:'Units wheel',N:10,x:310,y:80},
+        {type:'readout',id:'panel',label:'Readout panel',x:610,y:120}],
+ parts:[],
+ tests:[
+  {label:'Wheel at rest',actions:[],expect:[{comp:'panel',prop:'value',eq:0}]},
+  {label:'After two turns',actions:[T('turn',2)],expect:[{comp:'panel',prop:'value',eq:2},{comp:'units',prop:'pos',eq:2}]},
+  {label:'After seven turns',actions:[T('turn',7)],expect:[{comp:'panel',prop:'value',eq:7}]}
+ ],
+ hints:[
+  'The crank still has to reach the wheel. That part of the job has not changed.',
+  'Count the wheel\u2019s outputs. There are three, and one of them is not shaped like the others.',
+  'CARRY and BORROW are pulses — things that happen at a moment. VALUE is a reading — something simply true, continuously, like the angle of a shaft.',
+  'Two rods. Crank OUT to wheel STEP+. Wheel VALUE to panel IN.'
+ ],
+ explain:`Your machine now carries two genuinely different sorts of signal.
+
+A <b>pulse</b> is an event. It exists at an instant and then it is over. A <b>value</b> is a level — the wheel\u2019s shaft is at position 7 continuously, whether anyone is looking or not.
+
+Real machines keep this distinction too. In later electrical computers the same split appears as edges and levels, and confusing the two is a classic way to build something that almost works. Notice that reading the wheel does not disturb it: the panel takes a copy and the wheel keeps its digit.`,
+ reflect:'The panel reads the wheel without changing it. Can you think of any way of reading something that would necessarily destroy it? What would that cost a machine?'
+},
+{
+ id:'p5', chapter:'Chapter 2 · Counting', title:'Zero Through Nine', concept:'a digit',
+ problem:`The bench has been cleared. You have a crate of parts and an order from a clerk: build the plainest possible counting machine. It must show every digit from 0 to 9 in turn and it must be readable without leaning over the mechanism.`,
+ objective:'Build a working counter from scratch: a crank, a ten-notch wheel and a readout.',
+ constraints:['Nothing is pre-assembled this time.','At most one crank, one wheel and one readout.'],
+ fixed:[], parts:[{type:'crank',max:1},{type:'wheel',max:1,N:10},{type:'readout',max:1}],
+ dropAt:{x:60,y:80},
+ tests:[
+  {label:'Starts at zero',actions:[],expect:[{comp:'#readout',prop:'value',eq:0}]},
+  {label:'One turn shows 1',actions:[{crankIdx:'#crank',times:1}],expect:[{comp:'#readout',prop:'value',eq:1}]},
+  {label:'Five turns show 5',actions:[{crankIdx:'#crank',times:5}],expect:[{comp:'#readout',prop:'value',eq:5}]},
+  {label:'Nine turns show 9',actions:[{crankIdx:'#crank',times:9}],expect:[{comp:'#readout',prop:'value',eq:9}]}
+ ],
+ hints:[
+  'You have built this machine before. Nothing new is required — only the parts and the two rods.',
+  'Take one part at a time from the bin on the right and wire it before adding the next.',
+  'The crank drives the wheel with a pulse. The wheel feeds the panel with a value.',
+  'Add crank, wheel and readout. Wire crank OUT to wheel STEP+, and wheel VALUE to readout IN.'
+ ],
+ explain:`This little machine is a <b>decimal digit</b>: one part with exactly ten distinguishable conditions, plus a way to read it.
+
+It is worth naming what you cannot do with it. It cannot show 10. It cannot show 47. A single wheel is a fixed-width container and it holds exactly one digit no matter how hard you crank. Every real computer has this same limit — a modern machine stores numbers in containers 64 positions wide, and the day a number does not fit, the same trouble arrives that is about to arrive on your bench.`,
+ reflect:'Before you turn the page: you need this machine to reach 10. You may add parts but you may not cut more notches into the wheel. What are you going to do?'
+},
+{
+ id:'p6', chapter:'Chapter 2 · Counting', title:'The Tenth Turn', concept:'overflow',
+ problem:`Turn the counter past 9 and it quietly rolls to 0. Nothing announces it. A clerk reading the panel an hour later cannot tell whether the machine counted three items or thirteen. A signal bell has been delivered: it rings every time a pulse arrives, and remembers how many times it rang.`,
+ objective:'Wire the bell so it rings exactly once each time the wheel rolls over from 9 to 0 — and at no other time.',
+ constraints:['The bell must not ring on ordinary turns.','A backward step through zero is a different event and must not ring this bell.','Both cranks must still drive the wheel.'],
+ fixed:[{type:'crank',id:'fwd',label:'Forward crank',x:50,y:40},
+        {type:'crank',id:'back',label:'Backward crank',x:50,y:220},
+        {type:'wheel',id:'units',label:'Units wheel',N:10,x:320,y:90},
+        {type:'bell',id:'bell',label:'Signal bell',x:620,y:120}],
+ parts:[],
+ tests:[
+  {label:'Nine turns, no rollover',actions:[T('fwd',9)],expect:[{comp:'units',prop:'pos',eq:9},{comp:'bell',prop:'count',eq:0}]},
+  {label:'Ten turns, one rollover',actions:[T('fwd',10)],expect:[{comp:'units',prop:'pos',eq:0},{comp:'bell',prop:'count',eq:1}]},
+  {label:'Twenty-five turns',actions:[T('fwd',25)],expect:[{comp:'units',prop:'pos',eq:5},{comp:'bell',prop:'count',eq:2}]},
+  {label:'Backward past zero must not ring',actions:[T('back',1)],expect:[{comp:'units',prop:'pos',eq:9},{comp:'bell',prop:'count',eq:0}]},
+  {label:'Both cranks still work',actions:[T('fwd',3),T('back',1)],expect:[{comp:'units',prop:'pos',eq:2},{comp:'bell',prop:'count',eq:0}]}
+ ],
+ hints:[
+  'The wheel already produces the signal you need. You have simply never attached anything to it.',
+  'Look again at the wheel\u2019s three outputs. One fires when it rolls forward past its last notch; one fires when it rolls backward past its first.',
+  'CARRY fires on the step from 9 to 0. BORROW fires on the step from 0 to 9. The bell wants only one of them.',
+  'Wire both cranks as before, then run a rod from the wheel\u2019s CARRY output to the bell\u2019s IN.'
+ ],
+ explain:`The bell rings on the transition, not on the position.
+
+This matters more than it sounds. Landing on 0 by stepping <i>backward</i> from 1 is an ordinary step. Landing on 0 by stepping <i>forward</i> from 9 is an <b>overflow</b> — the wheel ran out of notches and started again. Same resting position, entirely different event. A machine watching only the position could not tell them apart, which is why the wheel emits a separate pulse at the moment it wraps.
+
+You now hold the one signal that makes big numbers possible. It is called the <b>carry</b>.`,
+ reflect:'The bell has counted two rollovers and the wheel shows 5. Together those two facts pin down how many turns the crank made. What number is it — and what does that suggest about where the bell should really be wired?'
+},
+{
+ id:'p7', chapter:'Chapter 2 · Counting', title:'Carry the One', concept:'carry between digits',
+ problem:`The bell told you when the units wheel ran out of room, but a bell cannot hold a number. A second wheel has been mounted beside the first. If the units wheel could push the tens wheel forward at the exact moment it rolls over, the pair would count far past nine — and nobody would have to watch a bell.`,
+ objective:'Build a two-digit counter. One crank drives it, and the two readouts must show the tens and units of the number of turns.',
+ constraints:['One crank only. You never drive the tens wheel by hand.','Both digits must be readable.'],
+ fixed:[{type:'crank',id:'turn',label:'Crank',x:40,y:150},
+        {type:'wheel',id:'units',label:'Units wheel',N:10,x:290,y:250},
+        {type:'wheel',id:'tens',label:'Tens wheel',N:10,x:290,y:30},
+        {type:'readout',id:'dUnits',label:'Units readout',x:600,y:290},
+        {type:'readout',id:'dTens',label:'Tens readout',x:600,y:70}],
+ parts:[],
+ tests:[
+  {label:'Seven turns → 07',actions:[T('turn',7)],expect:[{comp:'dTens',prop:'value',eq:0},{comp:'dUnits',prop:'value',eq:7}]},
+  {label:'Ten turns → 10',actions:[T('turn',10)],expect:[{comp:'dTens',prop:'value',eq:1},{comp:'dUnits',prop:'value',eq:0}]},
+  {label:'Forty-seven turns → 47',actions:[T('turn',47)],expect:[{comp:'dTens',prop:'value',eq:4},{comp:'dUnits',prop:'value',eq:7}]},
+  {label:'Ninety-nine turns → 99',actions:[T('turn',99)],expect:[{comp:'dTens',prop:'value',eq:9},{comp:'dUnits',prop:'value',eq:9}]},
+  {label:'One hundred turns → 00 again',actions:[T('turn',100)],expect:[{comp:'dTens',prop:'value',eq:0},{comp:'dUnits',prop:'value',eq:0}]}
+ ],
+ hints:[
+  'The crank must reach exactly one wheel. Decide which one, and be strict about it.',
+  'The tens wheel needs to advance once per ten turns of the crank. Something on the bench already fires exactly once per ten turns.',
+  'The units wheel\u2019s CARRY is an output that produces a pulse. The tens wheel\u2019s STEP+ is an input that accepts a pulse. They fit.',
+  'Crank OUT → units STEP+. Units CARRY → tens STEP+. Then units VALUE → units readout, tens VALUE → tens readout. Four rods.'
+ ],
+ explain:`This is <b>positional notation</b> made out of metal.
+
+The wheels are identical. Nothing about the upper wheel says "tens" — its meaning comes entirely from where it sits in the chain. It advances once for every ten advances of its neighbour, so its digit is worth ten times as much. That is the whole idea behind writing 47 rather than making forty-seven marks.
+
+Blaise Pascal built exactly this in 1642, and the carry was the hard part: a falling weight called a <i>sautoir</i> was lifted as the units wheel passed nine and dropped to shove the tens wheel round. Your rod is an honest picture of what that linkage does, though a real one must survive the force of nine wheels carrying at once — a genuine engineering problem this simulation does not model.`,
+ reflect:'On turn 100 the whole machine returned to 00. Is that the same kind of event as a single wheel rolling over, or a different one? Where would you attach a bell to catch it?'
+},
+{
+ id:'p8', chapter:'Chapter 2 · Counting', title:'Count to 999', concept:'multi-digit numbers and register overflow',
+ problem:`The clerk now wants three digits, and wants to be warned when even three digits are not enough. Three wheels, three readouts and the bell are on the bench. The pattern you need has already been established — the question is whether you have seen the pattern, or only memorised one machine.`,
+ objective:'Build a three-digit counter driven by one crank, with the bell ringing when the whole number rolls over from 999 to 000.',
+ constraints:['One crank only.','All three digits must be readable.','The bell must ring for the whole number, not for a single digit.'],
+ fixed:[{type:'crank',id:'turn',label:'Crank',x:30,y:180},
+        {type:'wheel',id:'units',label:'Units wheel',N:10,x:250,y:340},
+        {type:'wheel',id:'tens',label:'Tens wheel',N:10,x:250,y:180},
+        {type:'wheel',id:'huns',label:'Hundreds wheel',N:10,x:250,y:20},
+        {type:'readout',id:'dUnits',label:'Units readout',x:500,y:360},
+        {type:'readout',id:'dTens',label:'Tens readout',x:500,y:200},
+        {type:'readout',id:'dHuns',label:'Hundreds readout',x:500,y:40},
+        {type:'bell',id:'bell',label:'Overflow bell',x:730,y:20}],
+ parts:[],
+ tests:[
+  {label:'Ninety-nine → 099',actions:[T('turn',99)],expect:[{comp:'dHuns',prop:'value',eq:0},{comp:'dTens',prop:'value',eq:9},{comp:'dUnits',prop:'value',eq:9},{comp:'bell',prop:'count',eq:0}]},
+  {label:'One hundred → 100',actions:[T('turn',100)],expect:[{comp:'dHuns',prop:'value',eq:1},{comp:'dTens',prop:'value',eq:0},{comp:'dUnits',prop:'value',eq:0}]},
+  {label:'Five hundred and six → 506',actions:[T('turn',506)],expect:[{comp:'dHuns',prop:'value',eq:5},{comp:'dTens',prop:'value',eq:0},{comp:'dUnits',prop:'value',eq:6},{comp:'bell',prop:'count',eq:0}]},
+  {label:'Nine hundred and ninety-nine → 999, no bell',actions:[T('turn',999)],expect:[{comp:'dHuns',prop:'value',eq:9},{comp:'dTens',prop:'value',eq:9},{comp:'dUnits',prop:'value',eq:9},{comp:'bell',prop:'count',eq:0}]},
+  {label:'One thousand → 000, bell rings once',actions:[T('turn',1000)],expect:[{comp:'dHuns',prop:'value',eq:0},{comp:'dTens',prop:'value',eq:0},{comp:'dUnits',prop:'value',eq:0},{comp:'bell',prop:'count',eq:1}]}
+ ],
+ hints:[
+  'The two-digit machine was a chain. A chain does not care how long it is.',
+  'Each wheel takes its pushes from the wheel below it and passes its rollover to the wheel above.',
+  'The hundreds wheel is the end of the chain. When it rolls over there is no fourth wheel to receive the carry — which is exactly the moment the clerk wants to know about.',
+  'Crank → units STEP+. Units CARRY → tens STEP+. Tens CARRY → hundreds STEP+. Hundreds CARRY → bell IN. Then each wheel\u2019s VALUE to its own readout.'
+ ],
+ explain:`Three wheels wired in a chain form a <b>register</b>: a fixed-width container for a number, made of identical parts whose meaning comes from position.
+
+The last carry in the chain has nowhere to go, and that is not a fault in your wiring — it is the definition of the machine\u2019s capacity. Your register holds 0 to 999 and no more. Add a fourth wheel and it holds 0 to 9999. No arrangement of finite parts holds every number, so every real machine has a width and a bell.
+
+Modern processors still ring this bell. It is called the carry flag, and a program that ignores it gets wrong answers silently — exactly as your clerk would.`,
+ reflect:'You have built a machine that counts by one. To add 25 somebody must turn the crank twenty-five times and count carefully — the very job the machine was supposed to take over. What would have to change so the machine could add 25 in a single operation?'
+},
+
+/* ---------------- Chapter 3 ---------------- */
+{
+ id:'p9', chapter:'Chapter 3 · Arithmetic', title:'Add Five in One Turn', concept:'one action standing for many',
+ problem:`Adding 25 by hand means twenty-five careful turns, and the clerk loses count somewhere around eleven. The workshop has delivered a cam: a disc with notches cut into its edge. One push on its input makes it deliver a fixed number of pushes on its output. This one has five notches.`,
+ objective:'Wire the machine so that a single turn of the crank adds exactly 5 to the two-digit counter.',
+ constraints:['One turn of the crank, five notches of movement.','The counter must carry properly past 9.'],
+ fixed:[{type:'crank',id:'turn',label:'Crank',x:30,y:170},
+        {type:'repeater',id:'cam',label:'Cam · ×5',times:5,x:250,y:170},
+        {type:'wheel',id:'units',label:'Units wheel',N:10,x:490,y:270},
+        {type:'wheel',id:'tens',label:'Tens wheel',N:10,x:490,y:40},
+        {type:'readout',id:'dUnits',label:'Units readout',x:790,y:300},
+        {type:'readout',id:'dTens',label:'Tens readout',x:790,y:70}],
+ parts:[],
+ tests:[
+  {label:'One turn → 05',actions:[T('turn',1)],expect:[{comp:'dTens',prop:'value',eq:0},{comp:'dUnits',prop:'value',eq:5}]},
+  {label:'Two turns → 10',actions:[T('turn',2)],expect:[{comp:'dTens',prop:'value',eq:1},{comp:'dUnits',prop:'value',eq:0}]},
+  {label:'Seven turns → 35',actions:[T('turn',7)],expect:[{comp:'dTens',prop:'value',eq:3},{comp:'dUnits',prop:'value',eq:5}]},
+  {label:'Twenty turns → 00 again',actions:[T('turn',20)],expect:[{comp:'dTens',prop:'value',eq:0},{comp:'dUnits',prop:'value',eq:0}]}
+ ],
+ hints:[
+  'The crank should not touch a wheel at all this time. Something goes between them.',
+  'The cam takes one pulse and gives back five. Put it in the path.',
+  'Crank OUT feeds the cam IN. The cam OUT feeds the units wheel. The carry chain from the last chapter is unchanged.',
+  'Crank OUT → cam IN. Cam OUT → units STEP+. Units CARRY → tens STEP+. Then both VALUE ports to their readouts.'
+ ],
+ explain:`You have just built the first thing in this game that deserves to be called an <b>operation</b> rather than a movement.
+
+Turning the crank once no longer means "advance one notch". It means "add five", and the five is stored in the shape of the cam, not in the effort of the operator. The machine now contains a number that nobody has to remember.
+
+This is the same trick as multiplication by repeated addition, seen from the other end, and it is the foundation of every instruction a computer has ever had: a single command that stands for a fixed amount of work.`,
+ reflect:'The five lives in the cam. To add seven instead you must fetch a different cam from the drawer. What would you need on the bench so the amount could be changed without swapping parts?'
+},
+{
+ id:'p10', chapter:'Chapter 3 · Arithmetic', title:'Add Two Numbers', concept:'addition',
+ problem:`A cam can only add the number cut into it. The clerk wants to add whatever number he happens to have. A transfer arm has arrived: it feels the position of a wheel through its COUNT shaft, and when triggered it delivers exactly that many pushes.`,
+ objective:'Set the input wheel with its own crank, then make one press of the ADD crank add that number into the two-digit accumulator.',
+ constraints:['The ADD crank must add the input wheel\u2019s current value, whatever it is.','The accumulator keeps its total between additions.','The input wheel is not part of the accumulator.'],
+ fixed:[{type:'crank',id:'setB',label:'Set input',x:30,y:30},
+        {type:'wheel',id:'B',label:'Input wheel',N:10,x:250,y:20},
+        {type:'readout',id:'dB',label:'Input readout',x:520,y:40},
+        {type:'crank',id:'add',label:'ADD crank',x:30,y:250},
+        {type:'transfer',id:'arm',label:'Transfer arm',x:250,y:250},
+        {type:'wheel',id:'A',label:'Accumulator units',N:10,x:480,y:370},
+        {type:'wheel',id:'At',label:'Accumulator tens',N:10,x:480,y:175},
+        {type:'readout',id:'dA',label:'Units readout',x:730,y:400},
+        {type:'readout',id:'dAt',label:'Tens readout',x:730,y:200}],
+ parts:[],
+ tests:[
+  {label:'Input 3, add once → 03',actions:[T('setB',3),T('add',1)],expect:[{comp:'dAt',prop:'value',eq:0},{comp:'dA',prop:'value',eq:3}]},
+  {label:'Input 7, add twice → 14',actions:[T('setB',7),T('add',2)],expect:[{comp:'dAt',prop:'value',eq:1},{comp:'dA',prop:'value',eq:4}]},
+  {label:'Input 9, add three times → 27',actions:[T('setB',9),T('add',3)],expect:[{comp:'dAt',prop:'value',eq:2},{comp:'dA',prop:'value',eq:7}]},
+  {label:'Input 0, add → still 00',actions:[T('setB',0),T('add',1)],expect:[{comp:'dAt',prop:'value',eq:0},{comp:'dA',prop:'value',eq:0}]},
+  {label:'Add 4, wind input up to 7, add again → 11',actions:[T('setB',4),T('add',1),T('setB',3),T('add',1)],expect:[{comp:'dAt',prop:'value',eq:1},{comp:'dA',prop:'value',eq:1}]},
+  {label:'Adding must not disturb the input wheel',actions:[T('setB',6),T('add',2)],expect:[{comp:'dB',prop:'value',eq:6}]}
+ ],
+ hints:[
+  'The arm needs two different things: something to feel, and something to set it off. They arrive on different kinds of port.',
+  'COUNT is square — it wants a reading. TRIGGER is round — it wants a pulse.',
+  'The input wheel\u2019s VALUE tells the arm how far to swing. The ADD crank tells it when. The arm\u2019s OUT drives the accumulator, which still needs its own carry chain.',
+  'Set-input crank → B STEP+. B VALUE → arm COUNT and also → input readout. ADD crank → arm TRIGGER. Arm OUT → A STEP+. A CARRY → At STEP+. Both accumulator wheels → their readouts.'
+ ],
+ explain:`This is <b>addition</b>, and it is worth being precise about what just happened.
+
+The arm converted a <i>value</i> — a shaft resting at position 7 — into a <i>count of pulses</i>. That conversion is the entire trick. Nothing in the machine knows arithmetic; the accumulator simply receives seven pushes and its carry chain sorts out the digits.
+
+Notice too that the two numbers play different roles. The input wheel is read and left alone. The accumulator is changed and keeps its result for next time. That asymmetry — one operand consumed, one operand updated in place — is exactly how the accumulator worked in real machines from the Pascaline to the earliest electronic computers.`,
+ reflect:'Your accumulator holds two digits, so it dies at 99. If you added a hundreds wheel, what single rod would you have to add — and does anything else in the machine need to change?'
+},
+{
+ id:'p11', chapter:'Chapter 3 · Arithmetic', title:'Below Zero', concept:'borrowing',
+ problem:`Count the machine up to 30 and then step it back once. The units wheel drops from 0 to 9 correctly — and the tens wheel sits there showing 3. Your machine says 39. Somewhere the counter has to learn that going below zero in one column costs something in the next.`,
+ objective:'Make the two-digit counter count down correctly as well as up.',
+ constraints:['The forward chain must keep working.','Both cranks drive the units wheel only.'],
+ fixed:[{type:'crank',id:'up',label:'Count up',x:30,y:60},
+        {type:'crank',id:'down',label:'Count down',x:30,y:300},
+        {type:'wheel',id:'units',label:'Units wheel',N:10,x:290,y:250},
+        {type:'wheel',id:'tens',label:'Tens wheel',N:10,x:290,y:30},
+        {type:'readout',id:'dUnits',label:'Units readout',x:600,y:280},
+        {type:'readout',id:'dTens',label:'Tens readout',x:600,y:60}],
+ parts:[],
+ tests:[
+  {label:'Up 30, down 1 → 29',actions:[T('up',30),T('down',1)],expect:[{comp:'dTens',prop:'value',eq:2},{comp:'dUnits',prop:'value',eq:9}]},
+  {label:'Up 30, down 11 → 19',actions:[T('up',30),T('down',11)],expect:[{comp:'dTens',prop:'value',eq:1},{comp:'dUnits',prop:'value',eq:9}]},
+  {label:'Up 40, down 40 → 00',actions:[T('up',40),T('down',40)],expect:[{comp:'dTens',prop:'value',eq:0},{comp:'dUnits',prop:'value',eq:0}]},
+  {label:'Up 5, down 5 → 00',actions:[T('up',5),T('down',5)],expect:[{comp:'dTens',prop:'value',eq:0},{comp:'dUnits',prop:'value',eq:0}]},
+  {label:'Down 1 from zero → 99',actions:[T('down',1)],expect:[{comp:'dTens',prop:'value',eq:9},{comp:'dUnits',prop:'value',eq:9}]},
+  {label:'Up 62, down 7 → 55',actions:[T('up',62),T('down',7)],expect:[{comp:'dTens',prop:'value',eq:5},{comp:'dUnits',prop:'value',eq:5}]}
+ ],
+ hints:[
+  'You already solved this problem once, in the other direction. Look at what you built for counting up and ask what its mirror image would be.',
+  'The units wheel has an output you have used only once, back when the bell was on the bench.',
+  'CARRY fires when the wheel rolls forward past 9. BORROW fires when it rolls backward past 0. The tens wheel has an input for each direction.',
+  'Up crank → units STEP+. Down crank → units STEP−. Units CARRY → tens STEP+. Units BORROW → tens STEP−. Plus the two readouts.'
+ ],
+ explain:`<b>Borrowing</b> is not a new mechanism. It is the carry running backwards.
+
+That symmetry is the reason the same column of wheels can serve both addition and subtraction. Look at the last test: stepping down from 00 gives 99, not −1. The register has no way to represent a negative number, so it wraps, exactly as it wrapped at the top. Whether 99 means "ninety-nine" or "minus one" is a decision made by whoever reads the machine, not by the machine.
+
+That is not a quirk of your bench. Modern processors do the identical thing, and the convention that lets the top of the range stand for negative numbers is called two's complement.`,
+ reflect:'After stepping down from 00 the machine shows 99. What extra part would you need for the machine itself to know that it had gone below zero, rather than leaving the clerk to guess?'
+},
+{
+ id:'p12', chapter:'Chapter 3 · Arithmetic', title:'Take It Away', concept:'subtraction',
+ problem:`The accumulator can be filled and the transfer arm can deliver any number of pushes. Nothing so far has told the arm which direction those pushes should go. The clerk wants a machine that takes the input number away from the running total.`,
+ objective:'Fill the accumulator with the FILL crank, set the input wheel, then make one press of SUBTRACT remove that number from the total.',
+ constraints:['Both digits must end up correct, including when the units column runs out.','The FILL crank must still add to the accumulator.'],
+ fixed:[{type:'crank',id:'setB',label:'Set input',x:30,y:20},
+        {type:'wheel',id:'B',label:'Input wheel',N:10,x:250,y:10},
+        {type:'crank',id:'sub',label:'SUBTRACT',x:30,y:230},
+        {type:'transfer',id:'arm',label:'Transfer arm',x:250,y:230},
+        {type:'crank',id:'fill',label:'FILL',x:30,y:410},
+        {type:'wheel',id:'A',label:'Accumulator units',N:10,x:480,y:350},
+        {type:'wheel',id:'At',label:'Accumulator tens',N:10,x:480,y:115},
+        {type:'readout',id:'dA',label:'Units readout',x:730,y:380},
+        {type:'readout',id:'dAt',label:'Tens readout',x:730,y:140}],
+ parts:[],
+ tests:[
+  {label:'Fill 50, take 3 → 47',actions:[T('fill',50),T('setB',3),T('sub',1)],expect:[{comp:'dAt',prop:'value',eq:4},{comp:'dA',prop:'value',eq:7}]},
+  {label:'Fill 20, take 7 → 13',actions:[T('fill',20),T('setB',7),T('sub',1)],expect:[{comp:'dAt',prop:'value',eq:1},{comp:'dA',prop:'value',eq:3}]},
+  {label:'Fill 9, take 9 → 00',actions:[T('fill',9),T('setB',9),T('sub',1)],expect:[{comp:'dAt',prop:'value',eq:0},{comp:'dA',prop:'value',eq:0}]},
+  {label:'Fill 31, take 4 twice → 23',actions:[T('fill',31),T('setB',4),T('sub',2)],expect:[{comp:'dAt',prop:'value',eq:2},{comp:'dA',prop:'value',eq:3}]},
+  {label:'Fill 15, take 6 → 09',actions:[T('fill',15),T('setB',6),T('sub',1)],expect:[{comp:'dAt',prop:'value',eq:0},{comp:'dA',prop:'value',eq:9}]}
+ ],
+ hints:[
+  'The arm does not care which direction it is pushing. Whatever its OUT is attached to decides that.',
+  'The accumulator needs the borrow chain from the previous puzzle, and it needs its forward chain too, because FILL still has to work.',
+  'Input VALUE → arm COUNT. SUBTRACT crank → arm TRIGGER. Now choose which input of the accumulator the arm\u2019s OUT should drive.',
+  'Arm OUT → A STEP−, and A BORROW → At STEP−. FILL → A STEP+ with A CARRY → At STEP+. Set-input crank → B STEP+, B VALUE → arm COUNT.'
+ ],
+ explain:`Subtraction turned out to need no new mechanism at all — only a rod attached to a different port.
+
+That is worth sitting with. The transfer arm converts a number into a count of pushes; the accumulator has two ways to receive pushes; and the choice of which one is wired decides whether the machine adds or subtracts. A machine that could <i>change that choice on command</i> would be able to do either operation without being rebuilt.
+
+Nobody has given you the part that makes that choice yet. When they do, in Chapter 4, it will be called a selector, and it is the difference between a machine that does one job and a machine that can be told what to do.`,
+ reflect:'Right now the direction is decided by where you attached the rod — permanently. Sketch what a part would need in order to send a pulse to STEP+ or to STEP− depending on a lever. How many inputs and outputs would it have?'
+},
+{
+ id:'p13', chapter:'Chapter 3 · Arithmetic', title:'Times Table', concept:'algorithms built from simpler operations',
+ problem:`The clerk wants multiplication. The workshop has no multiplier and does not intend to build one — there is only a cam with four notches, a transfer arm and an accumulator. Multiplication will have to be assembled out of the operations you already possess.`,
+ objective:'Make one turn of the crank leave the accumulator holding the input number multiplied by four.',
+ constraints:['One turn of the crank produces the whole result.','The accumulator starts at zero and must carry properly.'],
+ fixed:[{type:'crank',id:'setB',label:'Set input',x:30,y:20},
+        {type:'wheel',id:'B',label:'Input wheel',N:10,x:250,y:10},
+        {type:'crank',id:'go',label:'MULTIPLY',x:30,y:240},
+        {type:'repeater',id:'cam',label:'Cam · ×4',times:4,x:250,y:250},
+        {type:'transfer',id:'arm',label:'Transfer arm',x:430,y:245},
+        {type:'wheel',id:'A',label:'Accumulator units',N:10,x:620,y:370},
+        {type:'wheel',id:'At',label:'Accumulator tens',N:10,x:620,y:120},
+        {type:'readout',id:'dA',label:'Units readout',x:860,y:400},
+        {type:'readout',id:'dAt',label:'Tens readout',x:860,y:150}],
+ parts:[],
+ tests:[
+  {label:'3 × 4 → 12',actions:[T('setB',3),T('go',1)],expect:[{comp:'dAt',prop:'value',eq:1},{comp:'dA',prop:'value',eq:2}]},
+  {label:'7 × 4 → 28',actions:[T('setB',7),T('go',1)],expect:[{comp:'dAt',prop:'value',eq:2},{comp:'dA',prop:'value',eq:8}]},
+  {label:'9 × 4 → 36',actions:[T('setB',9),T('go',1)],expect:[{comp:'dAt',prop:'value',eq:3},{comp:'dA',prop:'value',eq:6}]},
+  {label:'0 × 4 → 00',actions:[T('setB',0),T('go',1)],expect:[{comp:'dAt',prop:'value',eq:0},{comp:'dA',prop:'value',eq:0}]},
+  {label:'2 × 4 twice → 16',actions:[T('setB',2),T('go',2)],expect:[{comp:'dAt',prop:'value',eq:1},{comp:'dA',prop:'value',eq:6}]}
+ ],
+ hints:[
+  'Multiplying by four means adding the same number four times. You already have a part that adds a number once, and a part that turns one pulse into four.',
+  'Which one comes first? Ask what each part needs from the other: the cam needs a pulse, the arm needs a pulse and a reading.',
+  'The cam should not drive the accumulator directly — that would add four, not four lots of the input. The cam should be setting off the arm.',
+  'MULTIPLY crank → cam IN. Cam OUT → arm TRIGGER. Input VALUE → arm COUNT. Arm OUT → A STEP+. A CARRY → At STEP+. Readouts on both accumulator wheels.'
+ ],
+ explain:`You have written your first <b>algorithm</b> — a result obtained not by a part that knows how to do it, but by a sequence of simpler operations arranged in the right order.
+
+Nothing on that bench multiplies. The cam repeats, the arm adds, the wheels carry. Multiplication is what those three things <i>amount to</i> when connected in that order, and connecting them in a different order gives a different result rather than an error.
+
+This is the point where the game stops being about parts. Everything from here on is about arranging operations in time: which happens first, which repeats, and which depends on the result of the last one.`,
+ reflect:'To multiply by seven you must fetch a seven-notch cam. To multiply by whatever the clerk happens to want, the number of repetitions would itself have to come from a wheel. What would that part have to be able to do that the cam cannot?'
+},
+
+/* ---------------- Chapter 4 ---------------- */
+{
+ id:'p14', chapter:'Chapter 4 · Storage', title:'Hold It Still', concept:'a register holds its value',
+ problem:`In a real cabinet one shaft drives everything, and it never stops turning. A wheel bolted straight onto that shaft is useless as storage — it changes whenever anything else in the machine moves. A gate has arrived: it passes a pulse only while its ENABLE shaft is raised, and a hand lever can raise it.`,
+ objective:'Wire the wheel so the drive shaft reaches it only while the lever is up, and it keeps its number while the lever is down.',
+ constraints:['The drive crank must be free to turn at any time.','The wheel must not move at all while the lever is down.'],
+ fixed:[{type:'crank',id:'drive',label:'Drive shaft',x:30,y:110},
+        {type:'gate',id:'g',label:'Gate',x:250,y:100},
+        {type:'lever',id:'hold',label:'Write lever',x:250,y:280},
+        {type:'wheel',id:'R',label:'Register wheel',N:10,x:490,y:80},
+        {type:'readout',id:'dR',label:'Register readout',x:730,y:110}],
+ parts:[],
+ tests:[
+  {label:'Lever down: five turns change nothing',actions:[{lever:'hold',to:0},T('drive',5)],expect:[{comp:'dR',prop:'value',eq:0}]},
+  {label:'Lever up: three turns count',actions:[{lever:'hold',to:1},T('drive',3)],expect:[{comp:'dR',prop:'value',eq:3}]},
+  {label:'Up two, down five: still 2',actions:[{lever:'hold',to:1},T('drive',2),{lever:'hold',to:0},T('drive',5)],expect:[{comp:'dR',prop:'value',eq:2}]},
+  {label:'Up four, down three, up one: 5',actions:[{lever:'hold',to:1},T('drive',4),{lever:'hold',to:0},T('drive',3),{lever:'hold',to:1},T('drive',1)],expect:[{comp:'dR',prop:'value',eq:5}]},
+  {label:'Lever down from the start: nothing at all',actions:[{lever:'hold',to:0},T('drive',12)],expect:[{comp:'dR',prop:'value',eq:0}]}
+ ],
+ hints:[
+  'The crank must no longer reach the wheel directly. Something has to stand between them.',
+  'The gate has two inputs of different shapes: one accepts the push, one accepts a reading that decides whether the push gets through.',
+  'The lever produces a value — 1 when up, 0 when down. The gate\u2019s ENABLE wants exactly that.',
+  'Drive OUT → gate IN. Lever STATE → gate ENABLE. Gate OUT → register STEP+. Register VALUE → readout.'
+ ],
+ explain:`A wheel that changes whenever anything moves is not storage. Storage is the ability to <b>refuse</b> to change.
+
+That is the whole content of this puzzle, and it is easy to under-rate. Everything before now was about making things move. A register is the opposite idea: a number that stays put while the rest of the machine works around it, and changes only when something explicitly says so.
+
+The lever is a <b>write enable</b>. Every memory ever built has one, from a mechanical latch to a chip: the storage element and the signal granting permission to disturb it are separate parts.`,
+ reflect:'The lever is thrown by hand. If the machine were to raise and lower it on its own, what would be deciding when — and how would that thing know?'
+},
+{
+ id:'p15', chapter:'Chapter 4 · Storage', title:'Copy It Across', concept:'moving data between registers',
+ problem:`Two registers sit on the bench and the clerk wants the second to end up holding whatever the first one holds. There is no part on this bench that copies. There is a transfer arm, which adds — and a second transfer arm, which you may aim wherever you like.`,
+ objective:'Make CLEAR followed by COPY leave register 2 holding exactly the same number as register 1, without disturbing register 1.',
+ constraints:['Register 1 must be unchanged by the operation.','CLEAR alone must leave register 2 at zero, whatever it held.','Doing CLEAR then COPY twice over must give the same answer as doing it once.'],
+ fixed:[{type:'crank',id:'setR1',label:'Set register 1',x:20,y:20},
+        {type:'wheel',id:'R1',label:'Register 1',N:10,x:220,y:10},
+        {type:'readout',id:'dR1',label:'Register 1 readout',x:460,y:40},
+        {type:'crank',id:'clear',label:'CLEAR',x:20,y:230},
+        {type:'transfer',id:'armClear',label:'Clearing arm',x:220,y:225},
+        {type:'crank',id:'copy',label:'COPY',x:20,y:390},
+        {type:'transfer',id:'armCopy',label:'Copying arm',x:220,y:385},
+        {type:'wheel',id:'R2',label:'Register 2',N:10,x:470,y:270},
+        {type:'readout',id:'dR2',label:'Register 2 readout',x:710,y:300}],
+ parts:[],
+ tests:[
+  {label:'Set 6, clear, copy → 6',actions:[T('setR1',6),T('clear',1),T('copy',1)],expect:[{comp:'dR2',prop:'value',eq:6},{comp:'dR1',prop:'value',eq:6}]},
+  {label:'Doing it twice gives the same 4',actions:[T('setR1',4),T('clear',1),T('copy',1),T('clear',1),T('copy',1)],expect:[{comp:'dR2',prop:'value',eq:4}]},
+  {label:'Copying a zero gives zero',actions:[T('setR1',0),T('clear',1),T('copy',1)],expect:[{comp:'dR2',prop:'value',eq:0}]},
+  {label:'CLEAR empties a full register',actions:[T('setR1',7),T('copy',1),T('clear',1)],expect:[{comp:'dR2',prop:'value',eq:0}]},
+  {label:'Set 9, clear, copy → 9 and the source survives',actions:[T('setR1',9),T('clear',1),T('copy',1)],expect:[{comp:'dR2',prop:'value',eq:9},{comp:'dR1',prop:'value',eq:9}]}
+ ],
+ hints:[
+  'Adding into an empty register is the same thing as copying into it. So the question is how to empty one.',
+  'A transfer arm sends out as many pulses as the wheel it is reading. What happens if an arm reads the very wheel it drives — backwards?',
+  'The clearing arm reads register 2 and steps register 2 down. The copying arm reads register 1 and steps register 2 up.',
+  'Set crank → R1 STEP+. R1 VALUE → copying arm COUNT and to its readout. CLEAR → clearing arm TRIGGER, R2 VALUE → clearing arm COUNT, clearing arm OUT → R2 STEP−. COPY → copying arm TRIGGER, copying arm OUT → R2 STEP+. R2 VALUE → its readout.'
+ ],
+ explain:`Copying turned out to be two operations, not one: empty the destination, then add the source into it.
+
+Notice what the clearing arm does. It reads a register and subtracts that same amount from it — a machine subtracting a number from itself to reach a known state. There is no "erase" in mechanism. Emptying is something you <i>compute</i>.
+
+Notice also the order. CLEAR then COPY gives the right answer; COPY then CLEAR gives zero. The parts are identical, the wiring is identical, and only the sequence differs. You have just met the problem the whole of Chapter 5 exists to solve: at the moment, the correct order lives in the operator\u2019s head, not in the machine.`,
+ reflect:'You pressed two cranks in a particular order. What would a part have to do to press them for you — and how would it know which comes first?'
+},
+{
+ id:'p16', chapter:'Chapter 4 · Storage', title:'Which One Gets It', concept:'control signals',
+ problem:`Back in Chapter 3 the direction of an operation was decided by where you bolted the rod, permanently. A selector has now arrived. It takes one pulse and sends it down one of two paths, and which path is decided by a shaft rather than by a spanner.`,
+ objective:'Make the ADD operation deposit the input number into register 1 or register 2, according to the lever.',
+ constraints:['One transfer arm only. The same arm must serve both registers.','The lever must be able to change between additions.'],
+ fixed:[{type:'crank',id:'setB',label:'Set input',x:20,y:20},
+        {type:'wheel',id:'B',label:'Input wheel',N:10,x:200,y:10},
+        {type:'readout',id:'dB',label:'Input readout',x:430,y:40},
+        {type:'crank',id:'add',label:'ADD',x:20,y:250},
+        {type:'transfer',id:'arm',label:'Transfer arm',x:200,y:250},
+        {type:'selector',id:'sel',label:'Selector',x:410,y:245},
+        {type:'lever',id:'pick',label:'Destination lever',x:410,y:420},
+        {type:'wheel',id:'R1',label:'Register 1',N:10,x:630,y:150},
+        {type:'readout',id:'dR1',label:'Register 1 readout',x:850,y:180},
+        {type:'wheel',id:'R2',label:'Register 2',N:10,x:630,y:390},
+        {type:'readout',id:'dR2',label:'Register 2 readout',x:850,y:420}],
+ parts:[],
+ tests:[
+  {label:'Lever down: 4 goes to register 1',actions:[{lever:'pick',to:0},T('setB',4),T('add',1)],expect:[{comp:'dR1',prop:'value',eq:4},{comp:'dR2',prop:'value',eq:0}]},
+  {label:'Lever up: 3 goes to register 2',actions:[{lever:'pick',to:1},T('setB',3),T('add',1)],expect:[{comp:'dR1',prop:'value',eq:0},{comp:'dR2',prop:'value',eq:3}]},
+  {label:'The same number sent to each in turn',actions:[{lever:'pick',to:0},T('setB',2),T('add',1),{lever:'pick',to:1},T('add',1)],expect:[{comp:'dR1',prop:'value',eq:2},{comp:'dR2',prop:'value',eq:2}]},
+  {label:'Adding twice into register 2',actions:[{lever:'pick',to:1},T('setB',3),T('add',2)],expect:[{comp:'dR2',prop:'value',eq:6},{comp:'dR1',prop:'value',eq:0}]},
+  {label:'Adding nothing changes nothing',actions:[{lever:'pick',to:0},T('setB',0),T('add',1)],expect:[{comp:'dR1',prop:'value',eq:0},{comp:'dR2',prop:'value',eq:0}]}
+ ],
+ hints:[
+  'The arm still needs a reading and a trigger, exactly as before. What changes is where its pulses go afterwards.',
+  'The selector sits between the arm and the registers. It has one pulse input and two pulse outputs.',
+  'PICK is a square port: it wants a reading, and the lever is the only part here that produces one without being a wheel.',
+  'Input crank → B STEP+. B VALUE → arm COUNT and to the input readout. ADD → arm TRIGGER. Arm OUT → selector IN. Lever STATE → selector PICK. Selector OUT-0 → R1 STEP+, OUT-1 → R2 STEP+. Both registers to their readouts.'
+ ],
+ explain:`The lever is not data. Nothing is added to it and nothing is read out of it as a quantity. It exists purely to steer another part — and that makes it a <b>control signal</b>.
+
+This is the first real division in your machine. Some shafts carry numbers the clerk cares about; some carry decisions about what the machine should do with those numbers. The same distinction runs through every computer as the split between the data path and the control unit, and keeping the two straight is most of the work of designing one.
+
+Notice also what you no longer have to do: to send a number somewhere else you throw a lever instead of rebuilding the machine.`,
+ reflect:'One lever chooses between two destinations. How many destinations could two levers choose between, and why that number?'
+},
+{
+ id:'p17', chapter:'Chapter 4 · Storage', title:'Four Boxes', concept:'memory',
+ problem:`One register is storage. Four registers, with a way of choosing which one an operation lands in, is something else — the clerk can put a figure down in one place, work on another, and come back to the first with it untouched. You have four wheels, two levers and three selectors.`,
+ objective:'Make each turn of the TICK crank add one to exactly one of the four boxes, chosen by the two levers.',
+ constraints:['The three unselected boxes must not move at all.','Levers down-down must reach box 0, and up-up must reach box 3.'],
+ fixed:[{type:'crank',id:'tick',label:'TICK',x:20,y:200},
+        {type:'lever',id:'L1',label:'Lever A',x:180,y:20},
+        {type:'selector',id:'S1',label:'Selector 1',x:180,y:200},
+        {type:'lever',id:'L2',label:'Lever B',x:180,y:400},
+        {type:'selector',id:'S2',label:'Selector 2',x:370,y:80},
+        {type:'selector',id:'S3',label:'Selector 3',x:370,y:330},
+        {type:'wheel',id:'C0',label:'Box 0',N:10,x:560,y:10},
+        {type:'wheel',id:'C1',label:'Box 1',N:10,x:560,y:180},
+        {type:'wheel',id:'C2',label:'Box 2',N:10,x:560,y:350},
+        {type:'wheel',id:'C3',label:'Box 3',N:10,x:560,y:520},
+        {type:'readout',id:'d0',label:'Box 0 readout',x:790,y:40},
+        {type:'readout',id:'d1',label:'Box 1 readout',x:790,y:210},
+        {type:'readout',id:'d2',label:'Box 2 readout',x:790,y:380},
+        {type:'readout',id:'d3',label:'Box 3 readout',x:790,y:550}],
+ parts:[],
+ tests:[
+  {label:'Down, down → box 0 gets 3',actions:[{lever:'L1',to:0},{lever:'L2',to:0},T('tick',3)],
+   expect:[{comp:'d0',prop:'value',eq:3},{comp:'d1',prop:'value',eq:0},{comp:'d2',prop:'value',eq:0},{comp:'d3',prop:'value',eq:0}]},
+  {label:'Down, up → box 1 gets 2',actions:[{lever:'L1',to:0},{lever:'L2',to:1},T('tick',2)],
+   expect:[{comp:'d1',prop:'value',eq:2},{comp:'d0',prop:'value',eq:0},{comp:'d2',prop:'value',eq:0},{comp:'d3',prop:'value',eq:0}]},
+  {label:'Up, down → box 2 gets 5',actions:[{lever:'L1',to:1},{lever:'L2',to:0},T('tick',5)],
+   expect:[{comp:'d2',prop:'value',eq:5},{comp:'d0',prop:'value',eq:0},{comp:'d1',prop:'value',eq:0},{comp:'d3',prop:'value',eq:0}]},
+  {label:'Up, up → box 3 gets 4',actions:[{lever:'L1',to:1},{lever:'L2',to:1},T('tick',4)],
+   expect:[{comp:'d3',prop:'value',eq:4},{comp:'d0',prop:'value',eq:0},{comp:'d1',prop:'value',eq:0},{comp:'d2',prop:'value',eq:0}]},
+  {label:'Two boxes filled in one session',actions:[{lever:'L1',to:0},{lever:'L2',to:0},T('tick',2),{lever:'L1',to:1},{lever:'L2',to:1},T('tick',3)],
+   expect:[{comp:'d0',prop:'value',eq:2},{comp:'d3',prop:'value',eq:3},{comp:'d1',prop:'value',eq:0},{comp:'d2',prop:'value',eq:0}]}
+ ],
+ hints:[
+  'One selector splits the path in two. You have four destinations and three selectors, which is not a coincidence.',
+  'Let the first selector decide between the top pair of boxes and the bottom pair. Then a second selector decides within each pair.',
+  'Both of the second-rank selectors are answering the same question, so they can share one lever — an output shaft may feed as many inputs as you like.',
+  'TICK → S1 IN. Lever A → S1 PICK. S1 OUT-0 → S2 IN, S1 OUT-1 → S3 IN. Lever B → S2 PICK and also → S3 PICK. S2 OUT-0 → Box 0, OUT-1 → Box 1. S3 OUT-0 → Box 2, OUT-1 → Box 3. Then each box to its readout.'
+ ],
+ explain:`Two levers, four boxes. Three levers would give eight, four would give sixteen: each lever doubles the number of places you can name, because it splits every path that reached it.
+
+That doubling is why addresses are written in binary even in machines that count in decimal. A pattern of up-and-down levers is not a number the clerk cares about — it is a <b>name</b> for a location, and the tree of selectors is what turns that name into a physical path.
+
+What you have built is <b>memory</b>: not one number held still, but many, each independently reachable, with hardware deciding which one an operation lands on.`,
+ reflect:'The levers say where to write. Nothing yet says where to read. Would the same tree of selectors work for reading, or does a reading shaft need something different?'
+},
+{
+ id:'p18', chapter:'Chapter 4 · Storage', title:'By Number', concept:'addressing',
+ problem:`Your four boxes can be written to, but reading them means four separate dials and a clerk who knows which to look at. A picker has arrived: four reading shafts go in, one comes out, and a shaft marked ADDR decides which of the four is passed through. There is also a four-notch wheel, which you last saw in Chapter 1.`,
+ objective:'Make the single data readout show the contents of whichever box the address wheel is pointing at.',
+ constraints:['One readout for the data, one for the address.','Turning the address wheel must not disturb any box.'],
+ fixed:[{type:'crank',id:'f0',label:'Fill box 0',x:20,y:20},
+        {type:'wheel',id:'C0',label:'Box 0',N:10,x:180,y:10},
+        {type:'crank',id:'f1',label:'Fill box 1',x:20,y:180},
+        {type:'wheel',id:'C1',label:'Box 1',N:10,x:180,y:170},
+        {type:'crank',id:'f2',label:'Fill box 2',x:20,y:340},
+        {type:'wheel',id:'C2',label:'Box 2',N:10,x:180,y:330},
+        {type:'crank',id:'f3',label:'Fill box 3',x:20,y:500},
+        {type:'wheel',id:'C3',label:'Box 3',N:10,x:180,y:490},
+        {type:'picker',id:'pick',label:'Picker',x:410,y:190},
+        {type:'crank',id:'addrTurn',label:'Address crank',x:20,y:650},
+        {type:'wheel',id:'addr',label:'Address wheel',N:4,x:180,y:640},
+        {type:'readout',id:'dAddr',label:'Address readout',x:410,y:660},
+        {type:'readout',id:'dOut',label:'Data readout',x:630,y:220}],
+ parts:[],
+ tests:[
+  {label:'Address 0 shows box 0',actions:[T('f0',3),T('f2',7)],expect:[{comp:'dOut',prop:'value',eq:3},{comp:'dAddr',prop:'value',eq:0}]},
+  {label:'Address 2 shows box 2',actions:[T('f0',3),T('f2',7),T('addrTurn',2)],expect:[{comp:'dOut',prop:'value',eq:7},{comp:'dAddr',prop:'value',eq:2}]},
+  {label:'Address 1 shows an empty box',actions:[T('f0',3),T('f2',7),T('addrTurn',1)],expect:[{comp:'dOut',prop:'value',eq:0}]},
+  {label:'Address 3 shows box 3',actions:[T('f3',9),T('addrTurn',3)],expect:[{comp:'dOut',prop:'value',eq:9},{comp:'dAddr',prop:'value',eq:3}]},
+  {label:'Four turns of the address wheel come back round',actions:[T('f0',5),T('addrTurn',4)],expect:[{comp:'dOut',prop:'value',eq:5},{comp:'dAddr',prop:'value',eq:0}]},
+  {label:'Reading does not disturb the boxes',actions:[T('f1',6),T('addrTurn',1),T('addrTurn',2)],expect:[{comp:'dOut',prop:'value',eq:0},{comp:'dAddr',prop:'value',eq:3}]}
+ ],
+ hints:[
+  'Each box needs its own filling crank, and each box needs to offer its reading to the picker.',
+  'The picker\u2019s four inputs are numbered. Box 0 belongs on IN-0 if the addresses are to mean anything sensible.',
+  'ADDR is a reading, and the address wheel produces one. Four notches, four boxes — that is why this is not a ten-notch wheel.',
+  'Each fill crank → its box STEP+. Each box VALUE → the matching picker IN-0…IN-3. Address crank → address wheel STEP+. Address wheel VALUE → picker ADDR and → address readout. Picker VALUE → data readout.'
+ ],
+ explain:`An <b>address</b> is a number whose meaning is not a quantity but a place.
+
+The address wheel holds 2 exactly as a box holds 7 — the same kind of part, the same kind of shaft. What makes it an address is only what it is wired to. Remember that the next time somebody says a computer distinguishes between kinds of data: at the level of the mechanism it does not. Meaning comes from wiring.
+
+The four-notch wheel is doing real work here. Its range and the number of boxes must agree, which is why a machine\u2019s address width and its memory size are two ways of saying the same thing. Turn the wheel four times and you are back at box 0 — an address that runs off the end of memory wraps rather than reaching anything new.`,
+ reflect:'Writing is chosen by two levers; reading is chosen by a four-notch wheel. Both name one of four places. Could one of them drive the other, and what would you gain if it did?'
+},
+
+/* ---------------- Chapter 5 ---------------- */
+{
+ id:'p19', chapter:'Chapter 5 · Sequencing', title:'In the Right Order', concept:'instruction sequencing',
+ problem:`You solved copying, but only because you pressed CLEAR and then COPY, in that order, by hand. Press them the other way round and the answer is zero. That order is not in the machine — it is in your head. A distributor has arrived: it deals the first pulse to one output, the next to another, then starts again.`,
+ objective:'Make two presses of the STEP crank clear register 2 and then copy register 1 into it, in that order, every time.',
+ constraints:['Only the STEP crank may be pressed. There is no separate CLEAR or COPY.','Two presses must always leave register 2 equal to register 1.'],
+ fixed:[{type:'crank',id:'setR1',label:'Set register 1',x:20,y:20},
+        {type:'wheel',id:'R1',label:'Register 1',N:10,x:200,y:10},
+        {type:'readout',id:'dR1',label:'Register 1 readout',x:430,y:40},
+        {type:'crank',id:'step',label:'STEP',x:20,y:250},
+        {type:'seq2',id:'seq',label:'Distributor',x:190,y:250},
+        {type:'transfer',id:'armClear',label:'Clearing arm',x:390,y:210},
+        {type:'transfer',id:'armCopy',label:'Copying arm',x:390,y:390},
+        {type:'wheel',id:'R2',label:'Register 2',N:10,x:610,y:270},
+        {type:'readout',id:'dR2',label:'Register 2 readout',x:840,y:300}],
+ parts:[],
+ tests:[
+  {label:'Set 6, two steps → 6',actions:[T('setR1',6),T('step',2)],expect:[{comp:'dR2',prop:'value',eq:6},{comp:'dR1',prop:'value',eq:6}]},
+  {label:'Four steps: the cycle repeats cleanly',actions:[T('setR1',4),T('step',4)],expect:[{comp:'dR2',prop:'value',eq:4}]},
+  {label:'One step alone only clears',actions:[T('setR1',7),T('step',1)],expect:[{comp:'dR2',prop:'value',eq:0}]},
+  {label:'Six steps still give 3',actions:[T('setR1',3),T('step',6)],expect:[{comp:'dR2',prop:'value',eq:3}]},
+  {label:'Copying a zero',actions:[T('setR1',0),T('step',2)],expect:[{comp:'dR2',prop:'value',eq:0}]}
+ ],
+ hints:[
+  'The two arms are wired to registers exactly as they were in Chapter 4. Only their triggers change.',
+  'The distributor turns a stream of identical pulses into a fixed rotation of different ones.',
+  'The clearing arm must be triggered on the distributor\u2019s first output, the copying arm on its second — that is what puts the order into the metal.',
+  'STEP → distributor IN. Distributor OUT-0 → clearing arm TRIGGER. OUT-1 → copying arm TRIGGER. R2 VALUE → clearing arm COUNT, clearing arm OUT → R2 STEP−. R1 VALUE → copying arm COUNT and its readout, copying arm OUT → R2 STEP+. R2 VALUE → its readout.'
+ ],
+ explain:`The order has moved out of the operator and into the mechanism.
+
+That is the whole idea of a <b>sequence of instructions</b>. The distributor does not know what clearing or copying are; it only knows first, second, first, second. The meaning comes from what each of its outputs is wired to. Change the wiring and the same distributor performs a different pair of operations in the same order.
+
+Note the price. Press STEP an odd number of times and you catch the machine mid-operation, holding a half-finished result. A machine that works in steps has states that are not answers, and knowing when it is safe to read the output becomes part of using it.`,
+ reflect:'Two presses do one complete job. What would you have to add so that one press did the whole job instead — and what would you lose by doing that?'
+},
+{
+ id:'p20', chapter:'Chapter 5 · Sequencing', title:'One Thing at a Time', concept:'synchronised execution',
+ problem:`A four-way distributor is on the bench, with a shaft that reports which step it is on. Think of each press of the crank as one tick of a clock: at every tick exactly one thing is allowed to happen, and the machine always knows which. Your job is a four-phase cycle that leaves the accumulator holding twice the input.`,
+ objective:'Build a four-tick cycle: clear the accumulator, add the input, add the input again, then rest — with the phase shown on a readout.',
+ constraints:['One crank only.','Exactly one operation per tick.','After four ticks the phase readout must be back at 0.'],
+ fixed:[{type:'crank',id:'setB',label:'Set input',x:20,y:20},
+        {type:'wheel',id:'B',label:'Input wheel',N:10,x:200,y:10},
+        {type:'crank',id:'tick',label:'CLOCK',x:20,y:250},
+        {type:'seq4',id:'seq',label:'Phase distributor',x:190,y:250},
+        {type:'readout',id:'dPhase',label:'Phase readout',x:190,y:430},
+        {type:'transfer',id:'armClear',label:'Clearing arm',x:400,y:190},
+        {type:'transfer',id:'armAdd',label:'Adding arm',x:400,y:370},
+        {type:'wheel',id:'A',label:'Accumulator',N:10,x:640,y:250},
+        {type:'readout',id:'dA',label:'Accumulator readout',x:870,y:280}],
+ parts:[],
+ tests:[
+  {label:'Input 3, four ticks → 6',actions:[T('setB',3),T('tick',4)],expect:[{comp:'dA',prop:'value',eq:6},{comp:'dPhase',prop:'value',eq:0}]},
+  {label:'Input 4, four ticks → 8',actions:[T('setB',4),T('tick',4)],expect:[{comp:'dA',prop:'value',eq:8}]},
+  {label:'Phase readout counts the ticks',actions:[T('tick',2)],expect:[{comp:'dPhase',prop:'value',eq:2}]},
+  {label:'A second cycle gives the same answer',actions:[T('setB',3),T('tick',8)],expect:[{comp:'dA',prop:'value',eq:6},{comp:'dPhase',prop:'value',eq:0}]},
+  {label:'Stopping halfway leaves an unfinished figure',actions:[T('setB',3),T('tick',2)],expect:[{comp:'dA',prop:'value',eq:3}]},
+  {label:'Input 0 gives 0',actions:[T('setB',0),T('tick',4)],expect:[{comp:'dA',prop:'value',eq:0}]}
+ ],
+ hints:[
+  'Four outputs, four phases. Decide what each phase should do before you wire anything.',
+  'Phase 0 clears. Phases 1 and 2 both add the input. Phase 3 does nothing at all — and a phase that does nothing still needs to exist.',
+  'Two different outputs of the distributor can trigger the same adding arm; an output feeding one input, twice over, is just two rods.',
+  'CLOCK → distributor IN. OUT-0 → clearing arm TRIGGER. OUT-1 and OUT-2 → adding arm TRIGGER. OUT-3 → nothing. A VALUE → clearing arm COUNT, clearing arm OUT → A STEP−. B VALUE → adding arm COUNT, adding arm OUT → A STEP+. Distributor STEP → phase readout, A VALUE → accumulator readout.'
+ ],
+ explain:`Your machine now has a notion of <i>now</i>.
+
+Before this puzzle, an operation happened whenever somebody pressed the right crank. Now every operation is assigned to a phase, and the phase counter decides which one is live. Nothing can happen at the wrong moment, because nothing is connected to a moment it does not own.
+
+This is <b>synchronised execution</b>, and the fourth phase — the one that does nothing — is not waste. It is there because the cycle must return to a known state, and because a machine usually needs a moment when nothing is moving and everything can be safely read. Real processors do the same thing: idle phases exist so that the parts have somewhere quiet to settle.`,
+ reflect:'To make this machine compute three times the input instead of twice, you would rewire a distributor output. Where else could the description of what to do at each phase live, so that changing it did not mean touching the wiring?'
+},
+{
+ id:'p21', chapter:'Chapter 5 · Sequencing', title:'The Program Drum', concept:'a program as encoded data',
+ problem:`Changing what the machine does still means changing rods. A drum has been fitted: a barrel with four slots, each carrying pegs in two tracks. Two tracks means four possible patterns, and you have four operations. The drum names one operation per slot — but nothing is listening to it yet.`,
+ objective:'Wire the drum through the selector tree so that pressing EXECUTE performs whichever operation the current slot names, and ADVANCE turns the drum to the next slot.',
+ constraints:['No peg in either track means add the input. Track B alone means clear. Track A alone means add one. Both pegs mean do nothing.','The drum must be advanced only by the ADVANCE crank.'],
+ fixed:[{type:'crank',id:'setB',label:'Set input',x:20,y:20},
+        {type:'wheel',id:'B',label:'Input wheel',N:10,x:190,y:10},
+        {type:'drum',id:'drum',label:'Program drum',program:[[0,1],[0,0],[1,0],[0,0]],x:20,y:210},
+        {type:'crank',id:'adv',label:'ADVANCE',x:20,y:390},
+        {type:'crank',id:'exec',label:'EXECUTE',x:20,y:550},
+        {type:'selector',id:'S1',label:'Selector 1',x:270,y:400},
+        {type:'selector',id:'S2',label:'Selector 2',x:470,y:290},
+        {type:'selector',id:'S3',label:'Selector 3',x:470,y:520},
+        {type:'transfer',id:'armAdd',label:'Adding arm',x:680,y:200},
+        {type:'transfer',id:'armClear',label:'Clearing arm',x:680,y:390},
+        {type:'wheel',id:'A',label:'Accumulator',N:10,x:920,y:290},
+        {type:'readout',id:'dA',label:'Accumulator readout',x:1150,y:320},
+        {type:'readout',id:'dSlot',label:'Slot readout',x:270,y:600}],
+ parts:[],
+ tests:[
+  {label:'Slot 0 clears the accumulator',actions:[T('setB',5),T('exec',1)],expect:[{comp:'dA',prop:'value',eq:0},{comp:'dSlot',prop:'value',eq:0}]},
+  {label:'Slot 1 adds the input',actions:[T('setB',3),T('exec',1),T('adv',1),T('exec',1)],expect:[{comp:'dA',prop:'value',eq:3}]},
+  {label:'Slot 2 adds one',actions:[T('setB',3),T('exec',1),T('adv',1),T('exec',1),T('adv',1),T('exec',1)],expect:[{comp:'dA',prop:'value',eq:4},{comp:'dSlot',prop:'value',eq:2}]},
+  {label:'The whole drum: 2×input + 1',actions:[T('setB',3),T('exec',1),T('adv',1),T('exec',1),T('adv',1),T('exec',1),T('adv',1),T('exec',1)],expect:[{comp:'dA',prop:'value',eq:7}]},
+  {label:'The same drum with input 4 → 9',actions:[T('setB',4),T('exec',1),T('adv',1),T('exec',1),T('adv',1),T('exec',1),T('adv',1),T('exec',1)],expect:[{comp:'dA',prop:'value',eq:9}]},
+  {label:'Advancing alone changes nothing but the slot',actions:[T('setB',6),T('adv',3)],expect:[{comp:'dA',prop:'value',eq:0},{comp:'dSlot',prop:'value',eq:3}]}
+ ],
+ hints:[
+  'You built this tree of selectors in Chapter 4, when two hand levers chose one of four boxes. Nothing about the tree has changed.',
+  'What has changed is where the two levers come from. The drum has two track shafts and they read exactly like levers.',
+  'Track A decides between the top pair of operations and the bottom pair; track B decides within the pair. The EXECUTE pulse is what travels down the tree.',
+  'EXECUTE → S1 IN. Drum TRACK-A → S1 PICK. S1 OUT-0 → S2 IN, S1 OUT-1 → S3 IN. Drum TRACK-B → S2 PICK and S3 PICK. S2 OUT-0 → adding arm TRIGGER, S2 OUT-1 → clearing arm TRIGGER, S3 OUT-0 → A STEP+, S3 OUT-1 → nothing. B VALUE → adding arm COUNT, A VALUE → clearing arm COUNT, arms into A, ADVANCE → drum ADVANCE, drum SLOT → slot readout.'
+ ],
+ explain:`The instructions are no longer built into the machine. They are pegs.
+
+That is the step that separates a calculating machine from a computer. Everything the drum can order was already possible before — the difference is that the order now comes from something you can change without a spanner. A pattern of pegs is a <b>program</b>, and the selector tree is what <b>decodes</b> it: it turns a pattern into a physical path.
+
+Joseph Marie Jacquard drove looms from punched cards in 1804, and barrel organs had been playing pinned cylinders long before that. Babbage\u2019s Analytical Engine, designed from 1837 onward, was to be directed by cards in exactly this spirit. What none of those had, and what you are about to build, is a machine that turns its own drum.`,
+ reflect:'You still press EXECUTE and then ADVANCE, in that order, by hand. Where have you seen that problem before, and what part solved it?'
+},
+{
+ id:'p22', chapter:'Chapter 5 · Sequencing', title:'Round and Round', concept:'the instruction cycle',
+ problem:`Everything for a working programmable machine is on this bench, and one job is still being done by your hand: pressing EXECUTE, then ADVANCE, then EXECUTE, then ADVANCE. That is a fixed order of two operations, repeated forever — and you have a part for that.`,
+ objective:'Make one press of RUN perform the current instruction and then move the drum on, so that four presses run the whole four-slot program.',
+ constraints:['Only the RUN crank may be pressed.','One press must both carry out the instruction and move the drum on.','After four presses the drum must be back at slot 0.','The program on this drum is: clear, add the input, add one, add one.'],
+ fixed:[{type:'crank',id:'setB',label:'Set input',x:20,y:20},
+        {type:'wheel',id:'B',label:'Input wheel',N:10,x:190,y:10},
+        {type:'crank',id:'run',label:'RUN',x:20,y:220},
+        {type:'repeater',id:'cam',label:'Cam · ×2',times:2,x:190,y:220},
+        {type:'seq2',id:'cycle',label:'Cycle distributor',x:390,y:220},
+        {type:'drum',id:'drum',label:'Program drum',program:[[0,1],[0,0],[1,0],[1,0]],x:20,y:400},
+        {type:'readout',id:'dSlot',label:'Slot readout',x:190,y:420},
+        {type:'selector',id:'S1',label:'Selector 1',x:590,y:230},
+        {type:'selector',id:'S2',label:'Selector 2',x:780,y:110},
+        {type:'selector',id:'S3',label:'Selector 3',x:780,y:350},
+        {type:'transfer',id:'armAdd',label:'Adding arm',x:970,y:30},
+        {type:'transfer',id:'armClear',label:'Clearing arm',x:970,y:220},
+        {type:'wheel',id:'A',label:'Accumulator',N:10,x:1200,y:130},
+        {type:'readout',id:'dA',label:'Accumulator readout',x:1420,y:160}],
+ parts:[],
+ tests:[
+  {label:'Input 3, four presses → 5',actions:[T('setB',3),T('run',4)],expect:[{comp:'dA',prop:'value',eq:5},{comp:'dSlot',prop:'value',eq:0}]},
+  {label:'Input 6, four presses → 8',actions:[T('setB',6),T('run',4)],expect:[{comp:'dA',prop:'value',eq:8}]},
+  {label:'Input 0, four presses → 2',actions:[T('setB',0),T('run',4)],expect:[{comp:'dA',prop:'value',eq:2}]},
+  {label:'Running the program twice gives the same answer',actions:[T('setB',3),T('run',8)],expect:[{comp:'dA',prop:'value',eq:5},{comp:'dSlot',prop:'value',eq:0}]},
+  {label:'One press only clears',actions:[T('setB',7),T('run',1)],expect:[{comp:'dA',prop:'value',eq:0},{comp:'dSlot',prop:'value',eq:1}]},
+  {label:'Two presses: cleared, then the input added',actions:[T('setB',7),T('run',2)],expect:[{comp:'dA',prop:'value',eq:7},{comp:'dSlot',prop:'value',eq:2}]}
+ ],
+ hints:[
+  'One press must cause two things, in a fixed order. The distributor deals one pulse per output, so a single pulse from the crank can only ever do half a cycle.',
+  'Which comes first? If the drum turned before the operation ran, every instruction would be performed one slot too late.',
+  'The distributor\u2019s first output should carry out the instruction; its second should turn the drum.',
+  'RUN → cam IN. Cam OUT → cycle distributor IN. Distributor OUT-0 → S1 IN (the execute path, wired exactly as before). Distributor OUT-1 → drum ADVANCE. Everything else stays as it was in the previous puzzle.'
+ ],
+ explain:`What you have built has a name: the <b>instruction cycle</b>. Fetch what the drum currently says, carry it out, move on, repeat.
+
+Every computer since has run this loop, and the parts have kept their names. The drum is program memory. The slot number is the program counter. The selector tree is the instruction decoder. The distributor is the control unit that says which part of the cycle is happening now. The accumulator is where the arithmetic lands.
+
+The machine still cannot decide anything — it performs slot 0, 1, 2, 3, 0, 1, 2, 3 for ever, whatever the numbers turn out to be. Chapter 6 is about the part that is missing: something that can look at a result and change which slot comes next.`,
+ reflect:'The drum always advances by exactly one slot. If a peg could instead send it back to slot 0, what could this machine do that it cannot do now?'
+},
+
+/* ---------------- Chapter 6 ---------------- */
+{
+ id:'p23', chapter:'Chapter 6 · Decisions', title:'Is It Empty?', concept:'a status flag',
+ problem:`Your machine can add, store, address and run a program, and it has never once looked at a number. A zero detector has arrived: a feeler that drops into a notch cut only at position zero. It reports 1 when the wheel it watches is empty and 0 when it is not — and it has a second shaft that says the opposite.`,
+ objective:'Make the flag readout show 1 whenever the register is resting at zero, and 0 at every other position.',
+ constraints:['The register must still be driven by the crank.','Both readouts must be live at all times.'],
+ fixed:[{type:'crank',id:'turn',label:'Crank',x:20,y:120},
+        {type:'wheel',id:'R',label:'Register',N:10,x:200,y:90},
+        {type:'readout',id:'dR',label:'Register readout',x:430,y:30},
+        {type:'zero',id:'z',label:'Zero detector',x:430,y:250},
+        {type:'readout',id:'dFlag',label:'Zero flag',x:660,y:260}],
+ parts:[],
+ tests:[
+  {label:'At rest the flag is raised',actions:[],expect:[{comp:'dFlag',prop:'value',eq:1},{comp:'dR',prop:'value',eq:0}]},
+  {label:'Three turns: not zero',actions:[T('turn',3)],expect:[{comp:'dFlag',prop:'value',eq:0},{comp:'dR',prop:'value',eq:3}]},
+  {label:'Nine turns: still not zero',actions:[T('turn',9)],expect:[{comp:'dFlag',prop:'value',eq:0}]},
+  {label:'Ten turns: back to zero, flag raised again',actions:[T('turn',10)],expect:[{comp:'dFlag',prop:'value',eq:1},{comp:'dR',prop:'value',eq:0}]},
+  {label:'Twenty-three turns: not zero',actions:[T('turn',23)],expect:[{comp:'dFlag',prop:'value',eq:0}]}
+ ],
+ hints:[
+  'The detector needs something to feel. Its input is square, so it wants a reading, not a push.',
+  'The register\u2019s VALUE shaft can feed more than one part at once — the readout and the detector both want it.',
+  'IS-ZERO is a reading of 1 or 0, which is exactly what a readout can display.',
+  'Crank → register STEP+. Register VALUE → its readout, and register VALUE → detector WATCH. Detector IS-ZERO → flag readout.'
+ ],
+ explain:`The flag reports a <b>state</b>, not a history.
+
+Look at the fourth test. After ten turns the flag is raised again — the machine cannot tell "never touched" from "went all the way round". The detector answers one question about the present moment and nothing else, which is what makes it cheap and what makes it dangerous to over-read.
+
+This is a <b>status flag</b>, and it is the first thing in your machine that is a fact <i>about</i> the data rather than the data itself. Every processor has a small set of these — zero, carry, sign, overflow — and they exist for exactly one purpose: to be looked at by something that must choose what to do next.`,
+ reflect:'The flag is a reading of 0 or 1, the same shape as a hand lever\u2019s output. What could you now feed with it that you previously had to set by hand?'
+},
+{
+ id:'p24', chapter:'Chapter 6 · Decisions', title:'Two Paths', concept:'conditional control',
+ problem:`In Chapter 4 a hand lever decided which register an operation landed in. The lever produced a reading of 0 or 1 — and so does the zero detector. If a fact about the numbers can steer a selector, the machine stops needing an operator to make the decision.`,
+ objective:'Make the ticks land in register 1 while the watched wheel is at zero, and in register 2 whenever it is not.',
+ constraints:['No hand lever is on this bench, and none is allowed.','Changing the watched wheel must change where the next tick goes.'],
+ fixed:[{type:'crank',id:'setW',label:'Set watched wheel',x:20,y:20},
+        {type:'wheel',id:'W',label:'Watched wheel',N:10,x:200,y:10},
+        {type:'zero',id:'z',label:'Zero detector',x:430,y:40},
+        {type:'crank',id:'tick',label:'TICK',x:20,y:280},
+        {type:'selector',id:'sel',label:'Selector',x:230,y:275},
+        {type:'wheel',id:'R1',label:'Register 1',N:10,x:450,y:200},
+        {type:'readout',id:'dR1',label:'Register 1 readout',x:680,y:230},
+        {type:'wheel',id:'R2',label:'Register 2',N:10,x:450,y:420},
+        {type:'readout',id:'dR2',label:'Register 2 readout',x:680,y:450}],
+ parts:[],
+ tests:[
+  {label:'Watched wheel empty: three ticks into register 1',actions:[T('tick',3)],expect:[{comp:'dR1',prop:'value',eq:3},{comp:'dR2',prop:'value',eq:0}]},
+  {label:'Watched wheel at 2: four ticks into register 2',actions:[T('setW',2),T('tick',4)],expect:[{comp:'dR2',prop:'value',eq:4},{comp:'dR1',prop:'value',eq:0}]},
+  {label:'The route changes mid-session',actions:[T('tick',2),T('setW',5),T('tick',3)],expect:[{comp:'dR1',prop:'value',eq:2},{comp:'dR2',prop:'value',eq:3}]},
+  {label:'Winding the watched wheel right round sends ticks back to register 1',actions:[T('setW',10),T('tick',2)],expect:[{comp:'dR1',prop:'value',eq:2},{comp:'dR2',prop:'value',eq:0}]},
+  {label:'Watched wheel at 9',actions:[T('setW',9),T('tick',1)],expect:[{comp:'dR2',prop:'value',eq:1},{comp:'dR1',prop:'value',eq:0}]}
+ ],
+ hints:[
+  'The selector is wired exactly as it was in Chapter 4. The only question is what holds its PICK shaft.',
+  'PICK reads 1 or 0. The detector produces 1 or 0. Nothing else is required.',
+  'PICK of 1 sends the pulse to OUT-1, and IS-ZERO reads 1 when the wheel is empty — so decide carefully which register belongs on which output.',
+  'Set crank → W STEP+. W VALUE → detector WATCH. Detector IS-ZERO → selector PICK. TICK → selector IN. Selector OUT-1 → R1 STEP+, OUT-0 → R2 STEP+. Both registers to their readouts.'
+ ],
+ explain:`This is a <b>conditional</b>: the machine takes one of two paths, and which one is decided by the numbers rather than by a person.
+
+Nothing new was built. The selector is the Chapter 4 part; the detector is the Chapter 6 part; the wire between them is the whole idea. What has changed is where authority lives. Until this puzzle, every decision in your machine was made by you, either at the workbench with a spanner or at the lever with your hand. Now a decision is made by the machine, at the moment the pulse arrives, from a fact it worked out for itself.
+
+Note that the condition is tested afresh on every single tick. There is no memory of the previous decision — which is sometimes exactly what you want, and sometimes the source of a very confusing bug.`,
+ reflect:'This machine chooses where a pulse goes. What would have to be steered instead for the machine to choose which instruction runs next?'
+},
+{
+ id:'p25', chapter:'Chapter 6 · Decisions', title:'Until It Runs Out', concept:'a loop with a termination condition',
+ problem:`Multiplication by repeated addition needs the machine to keep going until it has added enough times, and then to stop. A gate can shut off the drive; a zero detector knows when the count is finished. The counter wheel holds how many additions remain.`,
+ objective:'Make the machine add the input into the accumulator once per pass, count the pass off, and stop entirely once the counter reaches zero — however many more times the crank is turned.',
+ constraints:['One press of RUN is half a pass: the two operations alternate.','Once the counter is empty, further presses must change nothing at all.','With a counter of 3 and an input of 2 the accumulator must finish on 6.'],
+ fixed:[{type:'crank',id:'setB',label:'Set input',x:20,y:20},
+        {type:'wheel',id:'B',label:'Input wheel',N:10,x:190,y:10},
+        {type:'readout',id:'dB',label:'Input readout',x:420,y:40},
+        {type:'crank',id:'setC',label:'Set counter',x:20,y:210},
+        {type:'wheel',id:'C',label:'Counter',N:10,x:190,y:200},
+        {type:'zero',id:'z',label:'Zero detector',x:420,y:230},
+        {type:'crank',id:'run',label:'RUN',x:20,y:430},
+        {type:'gate',id:'g',label:'Drive gate',x:190,y:420},
+        {type:'seq2',id:'cycle',label:'Distributor',x:400,y:430},
+        {type:'transfer',id:'armAdd',label:'Adding arm',x:620,y:400},
+        {type:'wheel',id:'A',label:'Accumulator',N:10,x:850,y:380},
+        {type:'readout',id:'dA',label:'Accumulator readout',x:1080,y:410},
+        {type:'readout',id:'dC',label:'Counter readout',x:620,y:200}],
+ parts:[],
+ tests:[
+  {label:'Counter 3, input 2, plenty of turns → 6',actions:[T('setB',2),T('setC',3),T('run',20)],expect:[{comp:'dA',prop:'value',eq:6},{comp:'dC',prop:'value',eq:0}]},
+  {label:'Counter 4, input 2 → 8',actions:[T('setB',2),T('setC',4),T('run',20)],expect:[{comp:'dA',prop:'value',eq:8}]},
+  {label:'Counter 2, input 3 → 6',actions:[T('setB',3),T('setC',2),T('run',20)],expect:[{comp:'dA',prop:'value',eq:6}]},
+  {label:'Counter 5, input 1 → 5',actions:[T('setB',1),T('setC',5),T('run',20)],expect:[{comp:'dA',prop:'value',eq:5}]},
+  {label:'Counter already empty: nothing happens at all',actions:[T('setB',5),T('run',12)],expect:[{comp:'dA',prop:'value',eq:0},{comp:'dC',prop:'value',eq:0}]},
+  {label:'Stopping halfway through',actions:[T('setB',3),T('setC',4),T('run',3)],expect:[{comp:'dA',prop:'value',eq:6},{comp:'dC',prop:'value',eq:3}]}
+ ],
+ hints:[
+  'Two operations alternate: add the input, then take one off the counter. You built that alternation in Chapter 5.',
+  'Something must be able to switch the whole machine off. A gate standing between the crank and everything else can do it.',
+  'The gate opens while the counter is not empty. The detector has a shaft that says exactly that, and it is not IS-ZERO.',
+  'RUN → gate IN. Counter VALUE → detector WATCH and its readout. Detector NOT-ZERO → gate ENABLE. Gate OUT → distributor IN. Distributor OUT-0 → adding arm TRIGGER, OUT-1 → counter STEP−. Input VALUE → adding arm COUNT and its readout. Adding arm OUT → accumulator STEP+, accumulator VALUE → its readout.'
+ ],
+ explain:`A <b>loop</b> is three things wired together: a body that does the work, a counter that changes each pass, and a test that decides whether to go round again.
+
+Your machine has all three, and it stops on its own. That last point is worth dwelling on. Nothing tells the machine how many times to run — you set 3 in the counter and turned the crank twenty times, and it did the right thing and then quietly ignored you. The number of repetitions has become <i>data</i> rather than something built into a cam.
+
+Compare this with Chapter 3, where multiplying by four meant fetching a four-notch cam from the drawer. This machine multiplies by whatever number happens to be sitting in the counter. That is the difference between a mechanism and a program.
+
+Get the test wrong and the counter never reaches zero: the machine runs for ever and produces nothing. Mechanical or electronic, an infinite loop is the same mistake.`,
+ reflect:'The gate stops the machine dead. A real program usually needs to carry on with the next instruction instead of halting. What would the gate have to be feeding for that to happen?'
+},
+{
+ id:'p26', chapter:'Chapter 6 · Decisions', title:'Which Is Larger', concept:'comparison as an algorithm',
+ problem:`The clerk wants to know which of two figures is bigger. Nothing on the bench compares anything. But you have subtraction, and you have a wheel that announces a borrow when it is stepped below zero — and a latch, which stays where it is knocked until something knocks it back.`,
+ objective:'One press of COMPARE must raise the flag when B is larger than A, and leave it down otherwise, for any pair of digits.',
+ constraints:['One press of COMPARE does the whole comparison: four phases in order.','The comparison must be repeatable — pressing COMPARE again must give the same answer.','Registers A and B must be left exactly as they were.'],
+ fixed:[{type:'crank',id:'setA',label:'Set A',x:20,y:20},
+        {type:'wheel',id:'A',label:'Register A',N:10,x:190,y:10},
+        {type:'readout',id:'dA',label:'A readout',x:410,y:40},
+        {type:'crank',id:'setB',label:'Set B',x:20,y:200},
+        {type:'wheel',id:'B',label:'Register B',N:10,x:190,y:190},
+        {type:'readout',id:'dB',label:'B readout',x:410,y:220},
+        {type:'crank',id:'cmp',label:'COMPARE',x:20,y:400},
+        {type:'repeater',id:'cam',label:'Cam · ×4',times:4,x:190,y:400},
+        {type:'seq4',id:'seq',label:'Phase distributor',x:370,y:390},
+        {type:'transfer',id:'armWipe',label:'Wiping arm',x:590,y:330},
+        {type:'transfer',id:'armA',label:'A arm',x:590,y:500},
+        {type:'transfer',id:'armB',label:'B arm',x:590,y:660},
+        {type:'wheel',id:'D',label:'Difference wheel',N:10,x:820,y:450},
+        {type:'latch',id:'flag',label:'Borrow latch',x:1050,y:470},
+        {type:'readout',id:'dFlag',label:'B is larger',x:1250,y:480}],
+ parts:[],
+ tests:[
+  {label:'A 3, B 5 → B is larger',actions:[T('setA',3),T('setB',5),T('cmp',1)],expect:[{comp:'dFlag',prop:'value',eq:1}]},
+  {label:'A 7, B 2 → B is not larger',actions:[T('setA',7),T('setB',2),T('cmp',1)],expect:[{comp:'dFlag',prop:'value',eq:0}]},
+  {label:'Equal figures do not count as larger',actions:[T('setA',4),T('setB',4),T('cmp',1)],expect:[{comp:'dFlag',prop:'value',eq:0}]},
+  {label:'A 0, B 1 → B is larger',actions:[T('setA',0),T('setB',1),T('cmp',1)],expect:[{comp:'dFlag',prop:'value',eq:1}]},
+  {label:'A 9, B 0 → B is not larger',actions:[T('setA',9),T('setB',0),T('cmp',1)],expect:[{comp:'dFlag',prop:'value',eq:0}]},
+  {label:'Comparing twice gives the same answer',actions:[T('setA',6),T('setB',2),T('cmp',2)],expect:[{comp:'dFlag',prop:'value',eq:0}]},
+  {label:'A previous answer is wiped before the next',actions:[T('setA',1),T('setB',8),T('cmp',1),T('setA',7),T('cmp',1)],expect:[{comp:'dFlag',prop:'value',eq:0}]},
+  {label:'The registers survive the comparison',actions:[T('setA',3),T('setB',5),T('cmp',1)],expect:[{comp:'dA',prop:'value',eq:3},{comp:'dB',prop:'value',eq:5}]}
+ ],
+ hints:[
+  'A minus B is negative exactly when B is larger. You cannot hold a negative number, but you can notice the moment a wheel is stepped below zero.',
+  'Work out the four phases before touching a rod. Phase 0 must put the machine back into a known state; phases 1 and 2 do the subtraction; phase 3 has nothing to do.',
+  'Phase 0 has two jobs — empty the difference wheel and drop the latch — and one distributor output may push both. The difference wheel\u2019s BORROW is what raises the latch.',
+  'COMPARE → cam IN, cam OUT → distributor IN. OUT-0 → wiping arm TRIGGER and → latch CLEAR. D VALUE → wiping arm COUNT, wiping arm OUT → D STEP−. OUT-1 → A arm TRIGGER, A VALUE → A arm COUNT and its readout, A arm OUT → D STEP+. OUT-2 → B arm TRIGGER, B VALUE → B arm COUNT and its readout, B arm OUT → D STEP−. D BORROW → latch SET. Latch STATE → the flag readout.'
+ ],
+ explain:`Your machine compares two numbers without owning anything that compares.
+
+It subtracts, and it watches for the moment the difference wheel runs off the bottom of its range. That borrow is a momentary event — it exists for an instant during phase 2 and is gone. The latch is what makes it useful: it catches the event and holds it long enough for something else to read it.
+
+This is exactly how a processor does it. A comparison instruction is a subtraction whose numeric result is thrown away, performed for no reason except the flags it leaves behind. And the flags live in a register precisely because the events that set them do not last.
+
+The wiping phase matters as much as the arithmetic. Without it, the latch would still be holding the answer to the previous question, and the machine would confidently report yesterday\u2019s comparison. Clearing the state you are about to depend on is not tidiness — it is correctness.`,
+ reflect:'You now have a flag that answers a question about the data, and a drum that decides which instruction runs next. Sketch how you would connect the two so that a program could take one route when B is larger and another when it is not.'
+},
+
+/* ---------------- Chapter 7 ---------------- */
+{
+ id:'p27', chapter:'Chapter 7 · The mechanical computer', title:'The Arithmetic Unit', concept:'one unit, several operations',
+ problem:`Every arithmetic machine you have built so far did one thing, because the direction was decided by where a rod was bolted. The clerk wants a single unit that takes two figures, performs whichever operation a lever calls for, and reports both the answer and whether it came out empty. No new parts have been delivered — everything needed is already here.`,
+ objective:'One press of GO must leave the difference wheel holding A plus B when the lever is down, and A minus B when it is up, with the zero flag raised only when the answer is nought.',
+ constraints:['One press does the whole job: four phases in order.','Registers A and B must be left exactly as they were.','Pressing GO twice must give the same answer as pressing it once.'],
+ fixed:[{type:'crank',id:'setA',label:'Set A',x:20,y:20},
+        {type:'wheel',id:'A',label:'Register A',N:10,x:190,y:10},
+        {type:'readout',id:'dA',label:'A readout',x:410,y:40},
+        {type:'crank',id:'setB',label:'Set B',x:20,y:200},
+        {type:'wheel',id:'B',label:'Register B',N:10,x:190,y:190},
+        {type:'readout',id:'dB',label:'B readout',x:410,y:220},
+        {type:'crank',id:'go',label:'GO',x:20,y:400},
+        {type:'repeater',id:'cam',label:'Cam · ×4',times:4,x:190,y:400},
+        {type:'seq4',id:'seq',label:'Phase distributor',x:370,y:390},
+        {type:'transfer',id:'armWipe',label:'Wiping arm',x:580,y:320},
+        {type:'transfer',id:'armA',label:'A arm',x:580,y:490},
+        {type:'transfer',id:'armB',label:'B arm',x:580,y:650},
+        {type:'lever',id:'op',label:'Operation lever',x:800,y:660},
+        {type:'selector',id:'sel',label:'Operation selector',x:800,y:480},
+        {type:'wheel',id:'D',label:'Result wheel',N:10,x:1020,y:330},
+        {type:'readout',id:'dD',label:'Result readout',x:1250,y:300},
+        {type:'zero',id:'z',label:'Zero detector',x:1250,y:470},
+        {type:'readout',id:'dZero',label:'Zero flag',x:1450,y:480}],
+ parts:[],
+ tests:[
+  {label:'Lever down: 3 + 4 = 7',actions:[{lever:'op',to:0},T('setA',3),T('setB',4),T('go',1)],expect:[{comp:'dD',prop:'value',eq:7},{comp:'dZero',prop:'value',eq:0}]},
+  {label:'Lever up: 7 − 2 = 5',actions:[{lever:'op',to:1},T('setA',7),T('setB',2),T('go',1)],expect:[{comp:'dD',prop:'value',eq:5}]},
+  {label:'Lever up: 4 − 4 = 0 and the flag rises',actions:[{lever:'op',to:1},T('setA',4),T('setB',4),T('go',1)],expect:[{comp:'dD',prop:'value',eq:0},{comp:'dZero',prop:'value',eq:1}]},
+  {label:'Lever down: 2 + 3 = 5',actions:[{lever:'op',to:0},T('setA',2),T('setB',3),T('go',1)],expect:[{comp:'dD',prop:'value',eq:5}]},
+  {label:'Pressing GO twice gives the same answer',actions:[{lever:'op',to:1},T('setA',6),T('setB',2),T('go',2)],expect:[{comp:'dD',prop:'value',eq:4}]},
+  {label:'Changing the lever changes the operation',actions:[{lever:'op',to:0},T('setA',5),T('setB',3),T('go',1),{lever:'op',to:1},T('go',1)],expect:[{comp:'dD',prop:'value',eq:2}]},
+  {label:'The operands survive',actions:[{lever:'op',to:0},T('setA',3),T('setB',4),T('go',1)],expect:[{comp:'dA',prop:'value',eq:3},{comp:'dB',prop:'value',eq:4}]}
+ ],
+ hints:[
+  'You built the four-phase skeleton in the previous puzzle. Phase 0 wipes the result wheel, phase 1 brings A in, phase 2 brings B in, phase 3 rests.',
+  'Only phase 2 differs from the comparison machine: B must be able to arrive either forwards or backwards.',
+  'The B arm has one output, and the result wheel has two inputs. A selector between them, steered by the lever, is the whole difference.',
+  'GO → cam IN, cam OUT → distributor IN. OUT-0 → wiping arm TRIGGER, D VALUE → wiping arm COUNT, wiping arm OUT → D STEP−. OUT-1 → A arm TRIGGER, A VALUE → A arm COUNT and its readout, A arm OUT → D STEP+. OUT-2 → B arm TRIGGER, B VALUE → B arm COUNT and its readout, B arm OUT → selector IN. Lever STATE → selector PICK, selector OUT-0 → D STEP+, OUT-1 → D STEP−. D VALUE → result readout and → detector WATCH, detector IS-ZERO → zero flag.'
+ ],
+ explain:`This is an <b>arithmetic and logic unit</b>: two operands in, an operation chosen by a control signal, one result out, and a flag describing that result.
+
+Everything in it is a part you already had. What makes it a unit rather than a pile of parts is that the operation is now an <i>input</i>. Nothing has to be rebuilt to switch between adding and subtracting — the machine is told, at the moment of use, which of its abilities to exercise.
+
+Try the lever up with A smaller than B. The wheel runs off the bottom and comes round to the top, and the answer looks wrong because a wheel with ten positions cannot hold a negative number. The unit is not broken; it is reporting the only thing it can. Deciding what that wrapped figure means, and noticing the borrow that produced it, is the job of whatever reads the result — as it still is inside every processor today.`,
+ reflect:'The lever chooses the operation. In Chapter 5 a drum told the machine what to do at each slot. What would you have to join to what, so a program could choose the operation instead of your hand?'
+},
+{
+ id:'p28', chapter:'Chapter 7 · The mechanical computer', title:'The Control Unit', concept:'fetch, decode, execute, repeat',
+ problem:`In Chapter 6 the machine multiplied by looping, but the two operations were bolted straight onto the distributor — the loop was wiring, not a program. This bench has the drum back. Its two slots say "add the input" and "take one off the counter", and the machine must fetch that instruction, work out what it means, carry it out, and keep going until the counter is spent.`,
+ objective:'Make the machine multiply the input by the counter, with the operations read from the drum, stopping of its own accord when the counter is empty.',
+ constraints:['No operation may be wired directly to the distributor. Everything goes through the drum and the selectors.','Turning the crank after the counter is empty must change nothing.','A counter of 3 and an input of 2 must finish on 6.'],
+ fixed:[{type:'crank',id:'setB',label:'Set input',x:20,y:20},
+        {type:'wheel',id:'B',label:'Input wheel',N:10,x:190,y:10},
+        {type:'readout',id:'dB',label:'Input readout',x:410,y:40},
+        {type:'crank',id:'setC',label:'Set counter',x:20,y:200},
+        {type:'wheel',id:'C',label:'Counter',N:10,x:190,y:190},
+        {type:'zero',id:'z',label:'Zero detector',x:410,y:220},
+        {type:'readout',id:'dC',label:'Counter readout',x:600,y:190},
+        {type:'crank',id:'run',label:'RUN',x:20,y:400},
+        {type:'gate',id:'g',label:'Drive gate',x:190,y:390},
+        {type:'repeater',id:'cam',label:'Cam · ×2',times:2,x:370,y:400},
+        {type:'seq2',id:'cycle',label:'Cycle distributor',x:540,y:400},
+        {type:'drum',id:'drum',label:'Program drum',program:[[0,0],[0,1]],x:190,y:580},
+        {type:'readout',id:'dSlot',label:'Slot readout',x:410,y:600},
+        {type:'selector',id:'S1',label:'Selector 1',x:740,y:400},
+        {type:'selector',id:'S2',label:'Selector 2',x:930,y:300},
+        {type:'selector',id:'S3',label:'Selector 3',x:930,y:530},
+        {type:'transfer',id:'armAdd',label:'Adding arm',x:1130,y:230},
+        {type:'wheel',id:'A',label:'Accumulator',N:10,x:1350,y:180},
+        {type:'readout',id:'dA',label:'Accumulator readout',x:1570,y:210}],
+ parts:[],
+ tests:[
+  {label:'Input 2, counter 3 → 6',actions:[T('setB',2),T('setC',3),T('run',20)],expect:[{comp:'dA',prop:'value',eq:6},{comp:'dC',prop:'value',eq:0}]},
+  {label:'Input 3, counter 3 → 9',actions:[T('setB',3),T('setC',3),T('run',20)],expect:[{comp:'dA',prop:'value',eq:9}]},
+  {label:'Input 1, counter 5 → 5',actions:[T('setB',1),T('setC',5),T('run',20)],expect:[{comp:'dA',prop:'value',eq:5}]},
+  {label:'Input 4, counter 2 → 8',actions:[T('setB',4),T('setC',2),T('run',20)],expect:[{comp:'dA',prop:'value',eq:8}]},
+  {label:'Counter already empty: the machine never starts',actions:[T('setB',6),T('run',12)],expect:[{comp:'dA',prop:'value',eq:0},{comp:'dSlot',prop:'value',eq:0}]},
+  {label:'Halfway through: one addition done',actions:[T('setB',3),T('setC',3),T('run',2)],expect:[{comp:'dA',prop:'value',eq:3},{comp:'dC',prop:'value',eq:2}]}
+ ],
+ hints:[
+  'The decode tree is the one from Chapter 5, unchanged: the drum\u2019s two tracks steer three selectors.',
+  'Slot 0 carries no pegs and means "add the input". Slot 1 carries a peg in track B and means "take one off the counter". Work out which selector output each of those lands on.',
+  'The stopping mechanism is the gate from Chapter 6, standing between the crank and everything else, opened by the detector\u2019s NOT-ZERO shaft.',
+  'RUN → gate IN, counter VALUE → detector WATCH, detector NOT-ZERO → gate ENABLE. Gate OUT → cam IN, cam OUT → cycle distributor IN. Cycle OUT-0 → S1 IN, OUT-1 → drum ADVANCE. Drum TRACK-A → S1 PICK, S1 OUT-0 → S2 IN, S1 OUT-1 → S3 IN, drum TRACK-B → S2 PICK and S3 PICK. S2 OUT-0 → adding arm TRIGGER, S2 OUT-1 → counter STEP−. Input VALUE → adding arm COUNT, adding arm OUT → accumulator STEP+. Then the four readouts.'
+ ],
+ explain:`Everything that decides what happens next is now in one place, and it has the parts a textbook would name.
+
+The drum is <b>program memory</b>. The slot number is the <b>program counter</b>. The three selectors are the <b>instruction decoder</b>. The cycle distributor is the thing that says whether the machine is currently carrying out an instruction or moving to the next one. Together they are a <b>control unit</b>, and the loop they run — fetch what the drum says, decode it, execute it, advance — is the instruction cycle every computer has used since.
+
+Compare this bench with the loop you built in Chapter 6. The behaviour is identical and the difference is total: there, the two operations were bolted to two distributor outputs, and changing the program meant changing rods. Here they are pegs. Pull the drum out, put a different one in, and the same machine does something else.
+
+The gate is the one piece a modern processor writes differently. Yours stops the machine dead; a real one would let the program counter carry on to an instruction that says halt. The idea is the same: a condition, tested by the control unit, that decides whether there is a next step.`,
+ reflect:'The drum can name four operations and you have used three. What would the fourth have to do for the program itself to decide when to stop, instead of the gate?'
+},
+{
+ id:'p29', chapter:'Chapter 7 · The mechanical computer', title:'A Path for the Data', concept:'a shared data path',
+ problem:`Four figures are stored in four boxes, and the clerk wants any of them added into the accumulator. Building four adding arms, one per box, would work and would be an absurd way to build a machine — the arms would sit idle three-quarters of the time. There is one arm on this bench, and a picker to decide which box it is looking at.`,
+ objective:'Make one press of ADD bring the currently addressed box into the accumulator, whichever box that is.',
+ constraints:['One adding arm only.','The address wheel chooses the operand; nothing else may.','Adding must not disturb the box it reads.'],
+ fixed:[{type:'crank',id:'f0',label:'Fill box 0',x:20,y:20},
+        {type:'wheel',id:'C0',label:'Box 0',N:10,x:180,y:10},
+        {type:'crank',id:'f1',label:'Fill box 1',x:20,y:180},
+        {type:'wheel',id:'C1',label:'Box 1',N:10,x:180,y:170},
+        {type:'crank',id:'f2',label:'Fill box 2',x:20,y:340},
+        {type:'wheel',id:'C2',label:'Box 2',N:10,x:180,y:330},
+        {type:'crank',id:'f3',label:'Fill box 3',x:20,y:500},
+        {type:'wheel',id:'C3',label:'Box 3',N:10,x:180,y:490},
+        {type:'picker',id:'pick',label:'Picker',x:410,y:190},
+        {type:'crank',id:'addrTurn',label:'Address crank',x:20,y:660},
+        {type:'wheel',id:'addr',label:'Address wheel',N:4,x:180,y:650},
+        {type:'readout',id:'dAddr',label:'Address readout',x:410,y:670},
+        {type:'crank',id:'add',label:'ADD',x:640,y:430},
+        {type:'transfer',id:'arm',label:'Adding arm',x:640,y:230},
+        {type:'wheel',id:'A',label:'Accumulator',N:10,x:880,y:180},
+        {type:'readout',id:'dA',label:'Accumulator readout',x:1110,y:210}],
+ parts:[],
+ tests:[
+  {label:'Address 0 brings box 0 in',actions:[T('f0',3),T('add',1)],expect:[{comp:'dA',prop:'value',eq:3}]},
+  {label:'Address 2 brings box 2 in',actions:[T('f2',5),T('addrTurn',2),T('add',1)],expect:[{comp:'dA',prop:'value',eq:5},{comp:'dAddr',prop:'value',eq:2}]},
+  {label:'Two boxes added in turn',actions:[T('f0',3),T('f1',4),T('add',1),T('addrTurn',1),T('add',1)],expect:[{comp:'dA',prop:'value',eq:7}]},
+  {label:'The same box added twice',actions:[T('f3',2),T('addrTurn',3),T('add',2)],expect:[{comp:'dA',prop:'value',eq:4}]},
+  {label:'An empty box adds nothing',actions:[T('f0',6),T('addrTurn',1),T('add',1)],expect:[{comp:'dA',prop:'value',eq:0}]},
+  {label:'Reading a box does not empty it',actions:[T('f2',5),T('addrTurn',2),T('add',1),T('add',1)],expect:[{comp:'dA',prop:'value',eq:0},{comp:'dAddr',prop:'value',eq:2}]}
+ ],
+ hints:[
+  'Only one shaft may reach the arm\u2019s COUNT, and it must be able to mean any of four boxes.',
+  'That is exactly what the picker was built for. It sits between the boxes and the arm.',
+  'The address wheel has four notches because there are four boxes; its reading tells the picker which shaft to pass through.',
+  'Each fill crank → its box STEP+. Each box VALUE → the matching picker IN-0…IN-3. Address crank → address wheel STEP+, address wheel VALUE → picker ADDR and → address readout. Picker VALUE → arm COUNT. ADD → arm TRIGGER, arm OUT → accumulator STEP+, accumulator VALUE → its readout.'
+ ],
+ explain:`One arm now serves four boxes, and it would serve four hundred just as well.
+
+This is a <b>data path</b>: a set of routes along which numbers travel between storage and the units that work on them, shared rather than duplicated. The reason a computer does not need separate hardware for every variable in a program is exactly the reason your bench does not need four adding arms — the operand is <i>selected</i> at the moment of use.
+
+Notice what that costs. The picker must be told which box, so every operation now carries an address as well as an instruction. Sharing the hardware means naming the data, and a large part of what a program actually says is not what to do but what to do it to.
+
+The last test is the quiet one. Adding box 2 twice gives ten, and a wheel of ten positions shows nought — the box was never emptied, the accumulator simply ran out of room. Your machine still has a width, and it still says nothing when it exceeds it.`,
+ reflect:'The address comes from a crank you turn. In the next puzzle the machine will turn it. What has to happen, and in what order, for a program to walk through all four boxes on its own?'
+},
+{
+ id:'p30', chapter:'Chapter 7 · The mechanical computer', title:'Run the Program', concept:'a programmable mechanical computer',
+ problem:`This is the last bench. Four boxes hold four figures, and the clerk wants their total. Not a total worked out by pulling levers in the right order — a total worked out by a machine that is handed a drum and left to get on with it. Every part on this bench is one you have built with before. Nothing new has been delivered, and nothing new is needed.\n\nThe drum has three slots: add the addressed box into the accumulator, move the address on by one, take one off the pass counter.`,
+ objective:'Set the pass counter to four and turn RUN until the machine stops. The accumulator must hold the sum of all four boxes.',
+ constraints:['Only RUN may be turned once the figures and the counter are set.','The machine must stop by itself when the counter is spent.','Every operation must come from the drum, through the selectors.'],
+ fixed:[{type:'crank',id:'f0',label:'Fill box 0',x:20,y:20},
+        {type:'wheel',id:'C0',label:'Box 0',N:10,x:180,y:10},
+        {type:'crank',id:'f1',label:'Fill box 1',x:20,y:180},
+        {type:'wheel',id:'C1',label:'Box 1',N:10,x:180,y:170},
+        {type:'crank',id:'f2',label:'Fill box 2',x:20,y:340},
+        {type:'wheel',id:'C2',label:'Box 2',N:10,x:180,y:330},
+        {type:'crank',id:'f3',label:'Fill box 3',x:20,y:500},
+        {type:'wheel',id:'C3',label:'Box 3',N:10,x:180,y:490},
+        {type:'picker',id:'pick',label:'Picker',x:410,y:180},
+        {type:'wheel',id:'addr',label:'Address wheel',N:4,x:410,y:430},
+        {type:'readout',id:'dAddr',label:'Address readout',x:410,y:660},
+        {type:'crank',id:'setC',label:'Set pass counter',x:20,y:680},
+        {type:'wheel',id:'C',label:'Pass counter',N:10,x:180,y:670},
+        {type:'zero',id:'z',label:'Zero detector',x:180,y:860},
+        {type:'readout',id:'dC',label:'Counter readout',x:410,y:870},
+        {type:'crank',id:'run',label:'RUN',x:640,y:700},
+        {type:'gate',id:'g',label:'Drive gate',x:640,y:860},
+        {type:'repeater',id:'cam',label:'Cam · ×2',times:2,x:840,y:790},
+        {type:'seq2',id:'cycle',label:'Cycle distributor',x:1030,y:790},
+        {type:'drum',id:'drum',label:'Program drum',program:[[0,0],[0,1],[1,0]],x:640,y:520},
+        {type:'readout',id:'dSlot',label:'Slot readout',x:900,y:560},
+        {type:'selector',id:'S1',label:'Selector 1',x:1240,y:700},
+        {type:'selector',id:'S2',label:'Selector 2',x:1440,y:560},
+        {type:'selector',id:'S3',label:'Selector 3',x:1440,y:840},
+        {type:'transfer',id:'arm',label:'Adding arm',x:900,y:200},
+        {type:'wheel',id:'A',label:'Accumulator',N:10,x:1140,y:150},
+        {type:'readout',id:'dA',label:'Accumulator readout',x:1370,y:180}],
+ parts:[],
+ tests:[
+  {label:'Boxes 2, 1, 3, 1 → total 7',actions:[T('f0',2),T('f1',1),T('f2',3),T('f3',1),T('setC',4),T('run',40)],
+   expect:[{comp:'dA',prop:'value',eq:7},{comp:'dC',prop:'value',eq:0},{comp:'dAddr',prop:'value',eq:0}]},
+  {label:'Boxes 4, 0, 0, 2 → total 6',actions:[T('f0',4),T('f3',2),T('setC',4),T('run',40)],expect:[{comp:'dA',prop:'value',eq:6}]},
+  {label:'Boxes 1, 2, 3, 3 → total 9',actions:[T('f0',1),T('f1',2),T('f2',3),T('f3',3),T('setC',4),T('run',40)],expect:[{comp:'dA',prop:'value',eq:9}]},
+  {label:'All boxes empty → total 0',actions:[T('setC',4),T('run',40)],expect:[{comp:'dA',prop:'value',eq:0},{comp:'dC',prop:'value',eq:0}]},
+  {label:'Two passes only: the first two boxes',actions:[T('f0',3),T('f1',4),T('f2',9),T('setC',2),T('run',40)],expect:[{comp:'dA',prop:'value',eq:7},{comp:'dAddr',prop:'value',eq:2}]},
+  {label:'The machine never starts with an empty counter',actions:[T('f0',5),T('run',20)],expect:[{comp:'dA',prop:'value',eq:0},{comp:'dSlot',prop:'value',eq:0}]},
+  {label:'Four presses: one addition and one step of the address',actions:[T('f0',2),T('f1',5),T('setC',4),T('run',4)],expect:[{comp:'dA',prop:'value',eq:7},{comp:'dAddr',prop:'value',eq:1}]}
+ ],
+ hints:[
+  'Build it in three pieces and test each by hand before joining them: the data path from the boxes to the accumulator, the drive from RUN to the decoder, and the decoder itself.',
+  'The data path is the previous puzzle exactly: boxes into the picker, picker into the arm\u2019s COUNT, arm into the accumulator. The address wheel no longer has a crank, because the program turns it.',
+  'The drum\u2019s three slots are no pegs, a peg in track B, and a peg in track A. Those are three of the four paths out of the selector tree, and they must land on the adding arm\u2019s TRIGGER, the address wheel\u2019s STEP+, and the pass counter\u2019s STEP−.',
+  'Data: each fill crank → its box; each box VALUE → picker IN-0…IN-3; address wheel VALUE → picker ADDR and → address readout; picker VALUE → arm COUNT; arm OUT → accumulator STEP+. Drive: RUN → gate IN; counter VALUE → detector WATCH and → counter readout; detector NOT-ZERO → gate ENABLE; gate OUT → cam IN; cam OUT → cycle IN; cycle OUT-0 → S1 IN; cycle OUT-1 → drum ADVANCE. Decode: drum TRACK-A → S1 PICK; S1 OUT-0 → S2 IN; S1 OUT-1 → S3 IN; drum TRACK-B → S2 PICK and S3 PICK; S2 OUT-0 → arm TRIGGER; S2 OUT-1 → address wheel STEP+; S3 OUT-0 → counter STEP−. Then the accumulator and slot readouts.'
+ ],
+ explain:`You have built a programmable computer out of wheels, rods and pegs, and it has just run a program.
+
+Look at what is on the bench and what each thing is called. The boxes and the picker are addressable memory. The address wheel is a pointer that the program itself moves. The accumulator and the adding arm are the arithmetic unit. The drum is program storage; its slot number is the program counter; the selector tree is the instruction decoder; the cycle distributor and the gate are the control unit, and the zero detector is the flag that tells the control unit whether to keep going. None of these were designed for this puzzle — every one of them arrived to solve a problem that had nothing to do with computing, and they have been sitting on your bench for chapters.
+
+The program is not the machine. The three slots on that drum say <i>add, step the address, count the pass</i>, and pulling them out and pegging a different pattern would make the same iron do something else entirely. That separation — a fixed machine that reads a changeable description of what to do — is the whole idea, and it is the reason a single design can serve purposes its builder never imagined.
+
+Be clear about what this is not. It is not a physically accurate mechanical simulation: nothing here models force, friction, backlash or the terrifying problem of nine wheels carrying at once, which is what actually defeated most nineteenth-century builders. Babbage designed an Analytical Engine along these lines from 1837 and never finished one; the machines that did get built, from the Pascaline to the arithmometer, were calculators rather than programmable computers. What you have built is the logic those designs were reaching for, laid out where you can see it work.`,
+ reflect:'The drum walks the address forward through memory and stops after a counted number of passes. What would you have to change — on the drum alone, without touching a single rod — to make this machine find the largest of the four figures instead of their total?'
+}
+];
+
+/* One worked answer per puzzle. Other arrangements may pass the tests just as
+   well — this is the one the game will show if the player asks for it. */
+const SOLUTIONS={
+ p1:{wires:[['turn','OUT','units','STEP+']]},
+ p2:{add:[{type:'crank',id:'rev',label:'Backward crank'}],
+     wires:[['fwd','OUT','units','STEP+'],['rev','OUT','units','STEP-']]},
+ p3:{wires:[['turn','OUT','ten','STEP+'],['turn','OUT','four','STEP+']]},
+ p4:{wires:[['turn','OUT','units','STEP+'],['units','VALUE','panel','IN']]},
+ p5:{add:[{type:'crank',id:'c',label:'Crank'},{type:'wheel',id:'w',N:10,label:'Number wheel'},
+          {type:'readout',id:'r',label:'Readout'}],
+     wires:[['c','OUT','w','STEP+'],['w','VALUE','r','IN']]},
+ p6:{wires:[['fwd','OUT','units','STEP+'],['back','OUT','units','STEP-'],['units','CARRY','bell','IN']]},
+ p7:{wires:[['turn','OUT','units','STEP+'],['units','CARRY','tens','STEP+'],
+            ['units','VALUE','dUnits','IN'],['tens','VALUE','dTens','IN']]},
+ p8:{wires:[['turn','OUT','units','STEP+'],['units','CARRY','tens','STEP+'],['tens','CARRY','huns','STEP+'],
+            ['huns','CARRY','bell','IN'],['units','VALUE','dUnits','IN'],['tens','VALUE','dTens','IN'],
+            ['huns','VALUE','dHuns','IN']]},
+ p9:{wires:[['turn','OUT','cam','IN'],['cam','OUT','units','STEP+'],['units','CARRY','tens','STEP+'],
+            ['units','VALUE','dUnits','IN'],['tens','VALUE','dTens','IN']]},
+ p10:{wires:[['setB','OUT','B','STEP+'],['B','VALUE','arm','COUNT'],['B','VALUE','dB','IN'],
+             ['add','OUT','arm','TRIGGER'],['arm','OUT','A','STEP+'],['A','CARRY','At','STEP+'],
+             ['A','VALUE','dA','IN'],['At','VALUE','dAt','IN']]},
+ p11:{wires:[['up','OUT','units','STEP+'],['down','OUT','units','STEP-'],['units','CARRY','tens','STEP+'],
+             ['units','BORROW','tens','STEP-'],['units','VALUE','dUnits','IN'],['tens','VALUE','dTens','IN']]},
+ p12:{wires:[['setB','OUT','B','STEP+'],['B','VALUE','arm','COUNT'],['sub','OUT','arm','TRIGGER'],
+             ['arm','OUT','A','STEP-'],['A','BORROW','At','STEP-'],['fill','OUT','A','STEP+'],
+             ['A','CARRY','At','STEP+'],['A','VALUE','dA','IN'],['At','VALUE','dAt','IN']]},
+ p13:{wires:[['setB','OUT','B','STEP+'],['go','OUT','cam','IN'],['cam','OUT','arm','TRIGGER'],
+             ['B','VALUE','arm','COUNT'],['arm','OUT','A','STEP+'],['A','CARRY','At','STEP+'],
+             ['A','VALUE','dA','IN'],['At','VALUE','dAt','IN']]},
+ p14:{wires:[['drive','OUT','g','IN'],['hold','STATE','g','ENABLE'],['g','OUT','R','STEP+'],
+             ['R','VALUE','dR','IN']]},
+ p15:{wires:[['setR1','OUT','R1','STEP+'],['R1','VALUE','dR1','IN'],['R1','VALUE','armCopy','COUNT'],
+             ['clear','OUT','armClear','TRIGGER'],['R2','VALUE','armClear','COUNT'],['armClear','OUT','R2','STEP-'],
+             ['copy','OUT','armCopy','TRIGGER'],['armCopy','OUT','R2','STEP+'],['R2','VALUE','dR2','IN']]},
+ p16:{wires:[['setB','OUT','B','STEP+'],['B','VALUE','dB','IN'],['B','VALUE','arm','COUNT'],
+             ['add','OUT','arm','TRIGGER'],['arm','OUT','sel','IN'],['pick','STATE','sel','PICK'],
+             ['sel','OUT-0','R1','STEP+'],['sel','OUT-1','R2','STEP+'],
+             ['R1','VALUE','dR1','IN'],['R2','VALUE','dR2','IN']]},
+ p17:{wires:[['tick','OUT','S1','IN'],['L1','STATE','S1','PICK'],['S1','OUT-0','S2','IN'],['S1','OUT-1','S3','IN'],
+             ['L2','STATE','S2','PICK'],['L2','STATE','S3','PICK'],
+             ['S2','OUT-0','C0','STEP+'],['S2','OUT-1','C1','STEP+'],
+             ['S3','OUT-0','C2','STEP+'],['S3','OUT-1','C3','STEP+'],
+             ['C0','VALUE','d0','IN'],['C1','VALUE','d1','IN'],['C2','VALUE','d2','IN'],['C3','VALUE','d3','IN']]},
+ p18:{wires:[['f0','OUT','C0','STEP+'],['f1','OUT','C1','STEP+'],['f2','OUT','C2','STEP+'],['f3','OUT','C3','STEP+'],
+             ['C0','VALUE','pick','IN-0'],['C1','VALUE','pick','IN-1'],
+             ['C2','VALUE','pick','IN-2'],['C3','VALUE','pick','IN-3'],
+             ['addrTurn','OUT','addr','STEP+'],['addr','VALUE','pick','ADDR'],
+             ['addr','VALUE','dAddr','IN'],['pick','VALUE','dOut','IN']]},
+ p19:{wires:[['setR1','OUT','R1','STEP+'],['R1','VALUE','dR1','IN'],['R1','VALUE','armCopy','COUNT'],
+             ['step','OUT','seq','IN'],['seq','OUT-0','armClear','TRIGGER'],['seq','OUT-1','armCopy','TRIGGER'],
+             ['R2','VALUE','armClear','COUNT'],['armClear','OUT','R2','STEP-'],
+             ['armCopy','OUT','R2','STEP+'],['R2','VALUE','dR2','IN']]},
+ p20:{wires:[['setB','OUT','B','STEP+'],['tick','OUT','seq','IN'],['seq','STEP','dPhase','IN'],
+             ['seq','OUT-0','armClear','TRIGGER'],['seq','OUT-1','armAdd','TRIGGER'],['seq','OUT-2','armAdd','TRIGGER'],
+             ['A','VALUE','armClear','COUNT'],['armClear','OUT','A','STEP-'],
+             ['B','VALUE','armAdd','COUNT'],['armAdd','OUT','A','STEP+'],['A','VALUE','dA','IN']]},
+ p21:{wires:[['setB','OUT','B','STEP+'],['exec','OUT','S1','IN'],['drum','TRACK-A','S1','PICK'],
+             ['S1','OUT-0','S2','IN'],['S1','OUT-1','S3','IN'],
+             ['drum','TRACK-B','S2','PICK'],['drum','TRACK-B','S3','PICK'],
+             ['S2','OUT-0','armAdd','TRIGGER'],['S2','OUT-1','armClear','TRIGGER'],['S3','OUT-0','A','STEP+'],
+             ['B','VALUE','armAdd','COUNT'],['armAdd','OUT','A','STEP+'],
+             ['A','VALUE','armClear','COUNT'],['armClear','OUT','A','STEP-'],
+             ['adv','OUT','drum','ADVANCE'],['drum','SLOT','dSlot','IN'],['A','VALUE','dA','IN']]},
+ p22:{wires:[['setB','OUT','B','STEP+'],['run','OUT','cam','IN'],['cam','OUT','cycle','IN'],
+             ['cycle','OUT-0','S1','IN'],['cycle','OUT-1','drum','ADVANCE'],
+             ['drum','TRACK-A','S1','PICK'],['S1','OUT-0','S2','IN'],['S1','OUT-1','S3','IN'],
+             ['drum','TRACK-B','S2','PICK'],['drum','TRACK-B','S3','PICK'],
+             ['S2','OUT-0','armAdd','TRIGGER'],['S2','OUT-1','armClear','TRIGGER'],['S3','OUT-0','A','STEP+'],
+             ['B','VALUE','armAdd','COUNT'],['armAdd','OUT','A','STEP+'],
+             ['A','VALUE','armClear','COUNT'],['armClear','OUT','A','STEP-'],
+             ['drum','SLOT','dSlot','IN'],['A','VALUE','dA','IN']]},
+ p23:{wires:[['turn','OUT','R','STEP+'],['R','VALUE','dR','IN'],['R','VALUE','z','WATCH'],
+             ['z','IS-ZERO','dFlag','IN']]},
+ p24:{wires:[['setW','OUT','W','STEP+'],['W','VALUE','z','WATCH'],['z','IS-ZERO','sel','PICK'],
+             ['tick','OUT','sel','IN'],['sel','OUT-1','R1','STEP+'],['sel','OUT-0','R2','STEP+'],
+             ['R1','VALUE','dR1','IN'],['R2','VALUE','dR2','IN']]},
+ p25:{wires:[['setB','OUT','B','STEP+'],['B','VALUE','dB','IN'],['B','VALUE','armAdd','COUNT'],
+             ['setC','OUT','C','STEP+'],['C','VALUE','z','WATCH'],['C','VALUE','dC','IN'],
+             ['run','OUT','g','IN'],['z','NOT-ZERO','g','ENABLE'],['g','OUT','cycle','IN'],
+             ['cycle','OUT-0','armAdd','TRIGGER'],['cycle','OUT-1','C','STEP-'],
+             ['armAdd','OUT','A','STEP+'],['A','VALUE','dA','IN']]},
+ p26:{wires:[['setA','OUT','A','STEP+'],['A','VALUE','dA','IN'],['A','VALUE','armA','COUNT'],
+             ['setB','OUT','B','STEP+'],['B','VALUE','dB','IN'],['B','VALUE','armB','COUNT'],
+             ['cmp','OUT','cam','IN'],['cam','OUT','seq','IN'],
+             ['seq','OUT-0','armWipe','TRIGGER'],['seq','OUT-0','flag','CLEAR'],
+             ['D','VALUE','armWipe','COUNT'],['armWipe','OUT','D','STEP-'],
+             ['seq','OUT-1','armA','TRIGGER'],['armA','OUT','D','STEP+'],
+             ['seq','OUT-2','armB','TRIGGER'],['armB','OUT','D','STEP-'],
+             ['D','BORROW','flag','SET'],['flag','STATE','dFlag','IN']]},
+ p27:{wires:[['setA','OUT','A','STEP+'],['A','VALUE','dA','IN'],['A','VALUE','armA','COUNT'],
+             ['setB','OUT','B','STEP+'],['B','VALUE','dB','IN'],['B','VALUE','armB','COUNT'],
+             ['go','OUT','cam','IN'],['cam','OUT','seq','IN'],
+             ['seq','OUT-0','armWipe','TRIGGER'],['D','VALUE','armWipe','COUNT'],['armWipe','OUT','D','STEP-'],
+             ['seq','OUT-1','armA','TRIGGER'],['armA','OUT','D','STEP+'],
+             ['seq','OUT-2','armB','TRIGGER'],['armB','OUT','sel','IN'],
+             ['op','STATE','sel','PICK'],['sel','OUT-0','D','STEP+'],['sel','OUT-1','D','STEP-'],
+             ['D','VALUE','dD','IN'],['D','VALUE','z','WATCH'],['z','IS-ZERO','dZero','IN']]},
+ p28:{wires:[['setB','OUT','B','STEP+'],['B','VALUE','dB','IN'],['B','VALUE','armAdd','COUNT'],
+             ['setC','OUT','C','STEP+'],['C','VALUE','z','WATCH'],['C','VALUE','dC','IN'],
+             ['run','OUT','g','IN'],['z','NOT-ZERO','g','ENABLE'],['g','OUT','cam','IN'],['cam','OUT','cycle','IN'],
+             ['cycle','OUT-0','S1','IN'],['cycle','OUT-1','drum','ADVANCE'],
+             ['drum','TRACK-A','S1','PICK'],['S1','OUT-0','S2','IN'],['S1','OUT-1','S3','IN'],
+             ['drum','TRACK-B','S2','PICK'],['drum','TRACK-B','S3','PICK'],
+             ['S2','OUT-0','armAdd','TRIGGER'],['S2','OUT-1','C','STEP-'],
+             ['armAdd','OUT','A','STEP+'],['A','VALUE','dA','IN'],['drum','SLOT','dSlot','IN']]},
+ p29:{wires:[['f0','OUT','C0','STEP+'],['f1','OUT','C1','STEP+'],['f2','OUT','C2','STEP+'],['f3','OUT','C3','STEP+'],
+             ['C0','VALUE','pick','IN-0'],['C1','VALUE','pick','IN-1'],
+             ['C2','VALUE','pick','IN-2'],['C3','VALUE','pick','IN-3'],
+             ['addrTurn','OUT','addr','STEP+'],['addr','VALUE','pick','ADDR'],['addr','VALUE','dAddr','IN'],
+             ['pick','VALUE','arm','COUNT'],['add','OUT','arm','TRIGGER'],
+             ['arm','OUT','A','STEP+'],['A','VALUE','dA','IN']]},
+ p30:{wires:[['f0','OUT','C0','STEP+'],['f1','OUT','C1','STEP+'],['f2','OUT','C2','STEP+'],['f3','OUT','C3','STEP+'],
+             ['C0','VALUE','pick','IN-0'],['C1','VALUE','pick','IN-1'],
+             ['C2','VALUE','pick','IN-2'],['C3','VALUE','pick','IN-3'],
+             ['addr','VALUE','pick','ADDR'],['addr','VALUE','dAddr','IN'],
+             ['pick','VALUE','arm','COUNT'],['arm','OUT','A','STEP+'],['A','VALUE','dA','IN'],
+             ['setC','OUT','C','STEP+'],['C','VALUE','z','WATCH'],['C','VALUE','dC','IN'],
+             ['run','OUT','g','IN'],['z','NOT-ZERO','g','ENABLE'],['g','OUT','cam','IN'],['cam','OUT','cycle','IN'],
+             ['cycle','OUT-0','S1','IN'],['cycle','OUT-1','drum','ADVANCE'],
+             ['drum','TRACK-A','S1','PICK'],['S1','OUT-0','S2','IN'],['S1','OUT-1','S3','IN'],
+             ['drum','TRACK-B','S2','PICK'],['drum','TRACK-B','S3','PICK'],
+             ['S2','OUT-0','arm','TRIGGER'],['S2','OUT-1','addr','STEP+'],['S3','OUT-0','C','STEP-'],
+             ['drum','SLOT','dSlot','IN']]}
+};
+PUZZLES.forEach(p=>{ p.solution=SOLUTIONS[p.id]||null; });
+
+/* Behaviour-based grading: clone the machine, reset every part, drive the cranks, read the result. */
+function resolveRef(m,ref){
+  if(ref[0]!=='#') return m.comps[ref]?ref:null;
+  const type=ref.slice(1);
+  const found=Object.keys(m.comps).filter(id=>m.comps[id].type===type);
+  return found.length?found[0]:null;
+}
+function runTest(machine,puzzle,test){
+  const m=cloneMachine(machine);
+  resetState(m);
+  for(const act of test.actions){
+    if(act.lever){
+      const lid=resolveRef(m,act.lever);
+      if(!lid) return {ok:false,detail:'no lever named '+act.lever};
+      m.comps[lid].pos=act.to?1:0;
+      continue;
+    }
+    let id=act.crank||null;
+    if(act.crankIdx==='added'){
+      const cranks=Object.keys(m.comps).filter(k=>m.comps[k].type==='crank'&&!m.comps[k].fixed);
+      id=cranks[0]||null;
+    } else if(act.crankIdx&&act.crankIdx[0]==='#') id=resolveRef(m,act.crankIdx);
+    if(!id||!m.comps[id]) return {ok:false,detail:'no crank to turn'};
+    for(let i=0;i<act.times;i++) firePulse(m,id,'OUT');
+  }
+  for(const e of test.expect){
+    const id=resolveRef(m,e.comp);
+    if(!id) return {ok:false,detail:'missing '+e.comp.replace('#','')};
+    const got=e.prop==='value'?readValue(m,id):m.comps[id][e.prop];
+    if(got!==e.eq) return {ok:false,detail:'expected '+e.eq+', got '+(got===null?'blank':got)};
+  }
+  return {ok:true,detail:'as expected'};
+}
+function gradePuzzle(machine,puzzle){
+  return puzzle.tests.map(t=>Object.assign({label:t.label},runTest(machine,puzzle,t)));
+}
+/* =================== PUZZLES-END =================== */
+
+if(typeof module!=='undefined'&&module.exports){
+  module.exports={DEFS,PUZZLES,makeMachine,addComp,removeComp,addWire,canWire,firePulse,readValue,readPort,
+                  resetState,cloneMachine,gradePuzzle,runTest};
+}
+</script>
+
+<script>
+/* ============ LAYER 3 — USER INTERFACE ============
+   Draws parts, handles dragging, zoom, wiring and tests.
+   It reads the model and calls into it. The model never calls back. */
+(function(){
+if(typeof document==='undefined') return;
+
+const SAVE_KEY='mechanical-computer/save', SAVE_VERSION=2;
+const Store=(function(){
+  let usable=true, mem={};
+  try{ localStorage.setItem('__probe','1'); localStorage.removeItem('__probe'); }catch(e){ usable=false; }
+  return {
+    read(){ try{ return usable?localStorage.getItem(SAVE_KEY):mem[SAVE_KEY]; }catch(e){ return null; } },
+    write(v){ try{ usable?localStorage.setItem(SAVE_KEY,v):mem[SAVE_KEY]=v; }catch(e){} },
+    drop(){ try{ usable?localStorage.removeItem(SAVE_KEY):delete mem[SAVE_KEY]; }catch(e){} },
+    usable };
+})();
+function freshSave(){
+  return {version:SAVE_VERSION,current:PUZZLES[0].id,completed:[],unlocked:[PUZZLES[0].id],
+          hintsUsed:{},solutions:{},revealed:{},settings:{zoom:1}};
+}
+function loadSave(){
+  const raw=Store.read(); if(!raw) return freshSave();
+  let d; try{ d=JSON.parse(raw); }catch(e){ return freshSave(); }
+  if(!d||typeof d!=='object') return freshSave();
+  /* Version 1 stored part positions that no longer apply. Keep the player's
+     progress, throw away the old layouts. Anything older or unknown: start fresh. */
+  if(d.version===1){ d={version:SAVE_VERSION,current:d.current,completed:d.completed,
+                        unlocked:d.unlocked,hintsUsed:d.hintsUsed,solutions:{},revealed:{},settings:{}}; }
+  if(d.version!==SAVE_VERSION) return freshSave();
+  const ids=PUZZLES.map(p=>p.id), s=freshSave();
+  s.completed=Array.isArray(d.completed)?d.completed.filter(i=>ids.includes(i)):[];
+  s.unlocked=Array.isArray(d.unlocked)?d.unlocked.filter(i=>ids.includes(i)):[];
+  if(!s.unlocked.includes(PUZZLES[0].id)) s.unlocked.push(PUZZLES[0].id);
+  s.current=ids.includes(d.current)?d.current:PUZZLES[0].id;
+  if(d.hintsUsed&&typeof d.hintsUsed==='object') s.hintsUsed=d.hintsUsed;
+  if(d.solutions&&typeof d.solutions==='object') s.solutions=d.solutions;
+  if(d.revealed&&typeof d.revealed==='object') s.revealed=d.revealed;
+  if(d.settings&&typeof d.settings==='object'){
+    const z=Number(d.settings.zoom);
+    s.settings.zoom=(isFinite(z)&&z>=.4&&z<=2)?z:1;
+  }
+  return s;
+}
+let save=loadSave();
+let puzzle=PUZZLES.find(p=>p.id===save.current)||PUZZLES[0];
+let machine, armed=null, hintsShown=0, zoom=save.settings.zoom||1;
+const $=s=>document.querySelector(s);
+
+function persist(){
+  save.solutions[puzzle.id]={
+    comps:Object.keys(machine.comps).map(id=>{
+      const c=machine.comps[id];
+      return {id,type:c.type,N:c.N,times:c.times,fixed:c.fixed,x:c.x,y:c.y};
+    }),
+    wires:machine.wires
+  };
+  save.settings.zoom=zoom;
+  Store.write(JSON.stringify(save));
+}
+
+function openPuzzle(id){
+  puzzle=PUZZLES.find(p=>p.id===id)||PUZZLES[0];
+  save.current=puzzle.id;
+  machine=makeMachine(puzzle);
+  armed=null;
+  hintsShown=save.hintsUsed[puzzle.id]||0;
+  const stored=save.solutions[puzzle.id];
+  if(stored){
+    (stored.comps||[]).forEach(c=>{
+      if(!DEFS[c.type]) return;
+      if(machine.comps[c.id]){ machine.comps[c.id].x=c.x; machine.comps[c.id].y=c.y; }
+      else if(!c.fixed) addComp(machine,c.type,c,false);
+    });
+    (stored.wires||[]).forEach(w=>addWire(machine,w.from,w.fromPort,w.to,w.toPort));
+  }
+  $('#test-results').innerHTML='';
+  renderAll(); persist();
+  requestAnimationFrame(()=>requestAnimationFrame(zoomToFit));
+}
+
+function renderAll(){ renderBrief(); renderMap(); renderBench(); renderParts(); renderHints(); applyZoom(); }
+
+function renderBrief(){
+  const i=PUZZLES.indexOf(puzzle)+1;
+  $('#locator').textContent='Puzzle '+i+' of '+PUZZLES.length+' · '+puzzle.concept;
+  $('#p-eyebrow').textContent=puzzle.chapter;
+  $('#p-title').textContent=puzzle.title;
+  $('#p-problem').innerHTML='<p>'+puzzle.problem+'</p>';
+  $('#p-objective').innerHTML='<b>Goal.</b> '+puzzle.objective;
+  $('#p-constraints').innerHTML=puzzle.constraints.map(c=>'<li>'+c+'</li>').join('');
+}
+function renderMap(){
+  const box=$('#map'); box.innerHTML=''; let ch=null;
+  PUZZLES.forEach((p,i)=>{
+    if(p.chapter!==ch){ ch=p.chapter;
+      const h=document.createElement('div'); h.className='map-ch'; h.textContent=ch; box.appendChild(h); }
+    const b=document.createElement('button');
+    const un=save.unlocked.includes(p.id), done=save.completed.includes(p.id);
+    b.className='map-row'+(done?' done':'')+(p.id===puzzle.id?' active':'');
+    b.disabled=!un;
+    b.innerHTML='<span class="map-num">'+String(i+1).padStart(2,'0')+'</span><span class="map-dot"></span>'+
+                '<span>'+(un?p.title:'Locked')+'</span>';
+    b.onclick=()=>{ persist(); openPuzzle(p.id); };
+    box.appendChild(b);
+  });
+}
+
+/* The digits orbit with the wheel but each one counter-rotates so it always
+   reads upright, the way a printed number band does on a real counter. */
+function dialSVG(c){
+  const N=c.N, r=33, spin=(c.pos/N)*360;
+  let digits='';
+  for(let i=0;i<N;i++){
+    const a=(i/N)*2*Math.PI-Math.PI/2;
+    const x=(50+r*Math.cos(a)).toFixed(1), y=(50+r*Math.sin(a)).toFixed(1);
+    digits+='<text class="digit'+(i===c.pos?' on':'')+'" x="'+x+'" y="'+y+'" '+
+            'style="transform:rotate('+spin+'deg);transform-box:fill-box;transform-origin:center">'+i+'</text>';
+  }
+  /* The viewBox starts above the rim so the pointer can sit clear of the
+     digits, tip downwards, the way an index finger sits over a dial. */
+  return '<svg class="dial" viewBox="0 -12 100 112" width="84" height="94" aria-label="wheel showing '+c.pos+'">'+
+    '<circle class="face" cx="50" cy="50" r="44"/><circle class="ring" cx="50" cy="50" r="23"/>'+
+    '<g class="rotor" style="transform:rotate('+(-spin)+'deg)">'+digits+'</g>'+
+    '<polygon class="pointer" points="50,2 44,-9 56,-9"/></svg>'+
+    '<div class="readchip">'+c.pos+'</div>';
+}
+function bodyHTML(id,c){
+  if(c.type==='wheel') return dialSVG(c);
+  if(c.type==='crank') return '<button class="crank-btn" data-crank="'+id+'">TURN</button>';
+  if(c.type==='bell') return '<div class="bell'+(c.count>0?' lit':'')+'">'+(c.count||0)+'</div>';
+  if(c.type==='repeater') return '<div class="cam">×'+c.times+'</div>';
+  if(c.type==='transfer'){ const n=readPort(machine,id,'COUNT');
+    return '<div class="arm">sends '+(n===null?'—':n)+'</div>'; }
+  if(c.type==='lever')
+    return '<button class="lever'+(c.pos?' up':'')+'" data-lever="'+id+'">'+
+           '<span class="lever-arm"></span><b>'+(c.pos?'1':'0')+'</b></button>';
+  if(c.type==='gate'){ const on=readPort(machine,id,'ENABLE');
+    return '<div class="chip'+(on?' on':'')+'">'+(on?'OPEN':'SHUT')+'</div>'; }
+  if(c.type==='selector'){ const p=readPort(machine,id,'PICK');
+    return '<div class="chip on">path '+(p?'1':'0')+'</div>'; }
+  if(c.type==='picker'){ const a=readPort(machine,id,'ADDR')||0, v=valueOf(machine,id,'VALUE');
+    return '<div class="picker"><span>addr '+a+'</span><b>'+(v===null?'—':v)+'</b></div>'; }
+  if(c.type==='zero'){ const v=readPort(machine,id,'WATCH');
+    return '<div class="chip'+(v===0?' on':'')+'">'+(v===null?'nothing to feel':(v===0?'AT ZERO':'not zero'))+'</div>'; }
+  if(c.type==='latch')
+    return '<div class="chip'+(c.pos?' on':'')+'">'+(c.pos?'SET · 1':'clear · 0')+'</div>';
+  if(c.type==='seq2'||c.type==='seq4')
+    return '<div class="chip on">step '+c.step+'</div>';
+  if(c.type==='drum')
+    return '<div class="drum">'+c.program.map((ins,i)=>
+      '<div class="slot'+(i===c.slot?' on':'')+'"><i class="pg'+(ins[0]?' on':'')+'"></i>'+
+      '<i class="pg'+(ins[1]?' on':'')+'"></i><u>'+i+'</u></div>').join('')+'</div>';
+  if(c.type==='readout'){ const v=readValue(machine,id);
+    return '<div class="screen'+(v===null?' blank':'')+'">'+(v===null?'—':v)+'</div>'; }
+  return '';
+}
+function renderBench(){
+  const canvas=$('#canvas');
+  [...canvas.querySelectorAll('.comp')].forEach(n=>n.remove());
+  Object.keys(machine.comps).forEach(id=>{
+    const c=machine.comps[id], def=DEFS[c.type];
+    const el=document.createElement('div');
+    el.className='comp'; el.dataset.id=id;
+    el.style.left=c.x+'px'; el.style.top=c.y+'px';
+    el.innerHTML='<div class="grip" data-grip="'+id+'">'+c.label+'</div>'+bodyHTML(id,c)+
+                 (c.fixed?'':'<button class="comp-kill" title="Remove part" data-kill="'+id+'">×</button>');
+    def.ins.forEach((p,i)=>addPort(el,id,'in',p,i,def.ins.length));
+    def.outs.forEach((p,i)=>addPort(el,id,'out',p,i,def.outs.length));
+    canvas.appendChild(el);
+  });
+  requestAnimationFrame(()=>{ fitCanvas(); drawWires(); paintSelection(); });
+  $('#wirecount').textContent=machine.wires.length+' rod'+(machine.wires.length===1?'':'s')+
+    (armed?' · now pick an input':'');
+}
+function addPort(el,compId,dir,p,i,total){
+  const top=26+((100-26)/(total+1))*(i+1)*0.9;
+  const b=document.createElement('button');
+  b.className='port '+dir+' '+p.kind+
+    (armed&&armed.id===compId&&armed.port===p.id&&armed.dir===dir?' armed':'');
+  b.style.top=top+'%';
+  b.dataset.comp=compId; b.dataset.port=p.id; b.dataset.dir=dir;
+  b.title=p.id+' · '+p.kind;
+  b.setAttribute('aria-label',p.id+' '+p.kind+' '+dir+'put');
+  const lab=document.createElement('span');
+  lab.className='plabel '+dir; lab.style.top=top+'%'; lab.textContent=p.id;
+  el.appendChild(b); el.appendChild(lab);
+}
+function portCentre(compId,dir,portId){
+  const el=document.querySelector('.comp[data-id="'+compId+'"]');
+  if(!el) return null;
+  const p=[...el.querySelectorAll('.port')].find(n=>n.dataset.port===portId&&n.dataset.dir===dir);
+  if(!p) return null;
+  /* The port is shifted up by half its height with translateY(-50%), and
+     offsetTop reports the position before that transform. So the visual
+     centre sits exactly at offsetTop, not offsetTop + height/2. */
+  return {x:el.offsetLeft+p.offsetLeft+p.offsetWidth/2, y:el.offsetTop+p.offsetTop};
+}
+function drawWires(){
+  const svg=$('#wires'); svg.innerHTML='';
+  machine.wires.forEach((w,i)=>{
+    const a=portCentre(w.from,'out',w.fromPort), b=portCentre(w.to,'in',w.toPort);
+    if(!a||!b) return;
+    const dx=Math.max(40,Math.abs(b.x-a.x)*0.45);
+    const d='M '+a.x+' '+a.y+' C '+(a.x+dx)+' '+a.y+', '+(b.x-dx)+' '+b.y+', '+b.x+' '+b.y;
+    const kind=portDef(machine.comps[w.from].type,'out',w.fromPort).kind;
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',d); path.setAttribute('fill','none');
+    path.setAttribute('stroke',kind==='value'?'#5FBFA6':'#D8A63D');
+    path.setAttribute('stroke-width','2'); path.setAttribute('opacity','.8');
+    if(kind==='value') path.setAttribute('stroke-dasharray','5 4');
+    path.dataset.wire=i; svg.appendChild(path);
+    const hit=document.createElementNS('http://www.w3.org/2000/svg','path');
+    hit.setAttribute('d',d); hit.setAttribute('class','hit'); hit.dataset.wire=i;
+    hit.addEventListener('click',()=>{ machine.wires.splice(i,1); persist(); renderBench(); });
+    svg.appendChild(hit);
+  });
+}
+function animatePulse(trace){
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches||!trace.length) return;
+  const svg=$('#wires'), seen=new Map();
+  trace.forEach(t=>{
+    const idx=machine.wires.indexOf(t.wire);
+    if(seen.has(idx)&&seen.get(idx)>3) return;
+    seen.set(idx,(seen.get(idx)||0)+1);
+    const path=svg.querySelector('path[data-wire="'+idx+'"]:not(.hit)');
+    if(!path) return;
+    const bead=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    bead.setAttribute('r','4'); bead.setAttribute('fill','#EFE8D7'); svg.appendChild(bead);
+    const len=path.getTotalLength(), t0=performance.now()+t.depth*140;
+    (function tick(now){
+      const p=Math.min(1,Math.max(0,(now-t0)/260));
+      const pt=path.getPointAtLength(len*p);
+      bead.setAttribute('cx',pt.x); bead.setAttribute('cy',pt.y);
+      if(p<1) requestAnimationFrame(tick); else bead.remove();
+    })(performance.now());
+  });
+}
+
+function renderParts(){
+  const box=$('#parts');
+  if(!puzzle.parts.length){
+    box.innerHTML='<div class="prose" style="font-size:13px;color:var(--muted)">Everything you need is already on the bench. This puzzle is about how the parts are joined, not which parts you have.</div>';
+    return;
+  }
+  box.innerHTML='';
+  puzzle.parts.forEach(spec=>{
+    const have=Object.keys(machine.comps).filter(id=>machine.comps[id].type===spec.type&&!machine.comps[id].fixed).length;
+    const def=DEFS[spec.type];
+    const b=document.createElement('button');
+    b.className='part'; b.disabled=have>=spec.max;
+    b.innerHTML='<span><b>'+def.label+(spec.N?' · '+spec.N:'')+'</b><small>'+def.blurb+'</small></span>'+
+                '<span class="qty">'+(spec.max-have)+' left</span>';
+    b.onclick=()=>{
+      const base=puzzle.dropAt||{x:60,y:60};
+      const n=Object.keys(machine.comps).filter(k=>!machine.comps[k].fixed).length;
+      addComp(machine,spec.type,{N:spec.N||10,times:spec.times,x:base.x+n*230,y:base.y},false);
+      persist(); renderBench(); renderParts();
+    };
+    box.appendChild(b);
+  });
+}
+const HINT_TITLES=['Where to look','A strategy','How the parts relate','Almost the whole answer'];
+function partName(id){
+  if(machine.comps[id]) return machine.comps[id].label;
+  const s=puzzle.solution&&(puzzle.solution.add||[]).find(a=>a.id===id);
+  return s?(s.label||DEFS[s.type].label):id;
+}
+function solutionLines(){
+  const s=puzzle.solution; if(!s) return [];
+  const add=(s.add||[]).map(a=>
+    '<div class="step">Take a '+(a.label||DEFS[a.type].label).toLowerCase()+' from the parts bin.</div>');
+  return add.concat(s.wires.map(w=>
+    '<div class="row"><span class="from">'+partName(w[0])+' <b>'+w[1]+'</b></span>'+
+    '<span class="to">→ '+partName(w[2])+' <b>'+w[3]+'</b></span></div>'));
+}
+function buildSolution(){
+  const s=puzzle.solution; if(!s) return;
+  Object.keys(machine.comps).forEach(id=>{ if(!machine.comps[id].fixed) removeComp(machine,id); });
+  machine.wires=[];
+  const base=puzzle.dropAt||{x:60,y:60};
+  (s.add||[]).forEach((a,i)=>addComp(machine,a.type,
+    {id:a.id,label:a.label,N:a.N,times:a.times,x:base.x+i*230,y:base.y},false));
+  s.wires.forEach(w=>addWire(machine,w[0],w[1],w[2],w[3]));
+  armed=null; persist(); renderBench(); renderParts();
+  requestAnimationFrame(()=>requestAnimationFrame(zoomToFit));
+}
+function renderHints(){
+  const box=$('#hints'), done=hintsShown>=puzzle.hints.length;
+  let html=hintsShown===0
+    ? '<div class="prose" style="font-size:13px;color:var(--muted)">Hints arrive one at a time and never solve the puzzle for you. Using them costs nothing.</div>'
+    : puzzle.hints.slice(0,hintsShown).map((h,i)=>'<div class="hint"><b>Hint '+(i+1)+' · '+HINT_TITLES[i]+'</b>'+h+'</div>').join('');
+  if(done&&puzzle.solution){
+    html+= save.revealed[puzzle.id]
+      ? '<div class="hint"><b>The answer</b><div class="answer">'+
+        solutionLines().join('')+'</div>'+
+        '<button class="btn" id="btn-build" style="width:100%;margin-top:9px">Build it on the bench</button></div>'
+      : '<button class="btn" id="btn-reveal" style="width:100%;margin-top:4px">Show me the answer</button>';
+  }
+  box.innerHTML=html;
+  const rv=$('#btn-reveal');
+  if(rv) rv.onclick=()=>{ save.revealed[puzzle.id]=true; persist(); renderHints(); };
+  const bd=$('#btn-build');
+  if(bd) bd.onclick=buildSolution;
+  const btn=$('#btn-hint');
+  btn.disabled=done;
+  btn.textContent=done?'No hints left':'Ask for a hint';
+}
+
+function runAllTests(){
+  const results=gradePuzzle(machine,puzzle), box=$('#test-results');
+  box.innerHTML=results.map(r=>
+    '<div class="trow"><span class="tmark '+(r.ok?'pass':'fail')+'">'+(r.ok?'✓':'✗')+'</span><span>'+r.label+
+    '</span><span class="tdetail">'+r.detail+'</span></div>').join('');
+  const passed=results.every(r=>r.ok);
+  const v=document.createElement('div');
+  v.className='verdict '+(passed?'pass':'fail');
+  v.textContent=passed?'Every test passes. The machine behaves as ordered.'
+                      :'Not there yet. Read the first failing line — it says what the bench expected.';
+  box.appendChild(v);
+  if(passed) complete();
+}
+function complete(){
+  if(!save.completed.includes(puzzle.id)) save.completed.push(puzzle.id);
+  const i=PUZZLES.indexOf(puzzle), next=PUZZLES[i+1];
+  if(next&&!save.unlocked.includes(next.id)) save.unlocked.push(next.id);
+  persist(); renderMap(); showModal(next);
+}
+function showModal(next){
+  $('#modal').className='modal';
+  const used=save.hintsUsed[puzzle.id]||0;
+  $('#modal').innerHTML=
+    '<div class="eyebrow">Solved · '+puzzle.concept+'</div><h2>'+puzzle.title+'</h2>'+
+    '<div class="prose">'+puzzle.explain.split('\n\n').map(p=>'<p>'+p+'</p>').join('')+'</div>'+
+    '<div class="reflect"><b>Think it over</b>'+puzzle.reflect+'</div>'+
+    (used?'<div class="prose" style="font-size:12px;color:var(--muted)">Hints opened: '+used+'. They are there to be used.</div>':'')+
+    '<div class="modal-actions"><button class="btn" id="m-stay">Stay on this bench</button>'+
+    (next?'<button class="btn primary" id="m-next">Next: '+next.title+'</button>'
+         :'<button class="btn primary" id="m-stay2">That is the last puzzle so far</button>')+'</div>';
+  $('#veil').hidden=false;
+  ['#m-stay','#m-stay2'].forEach(s=>{ const b=$(s); if(b) b.onclick=closeModal; });
+  const n=$('#m-next'); if(n) n.onclick=()=>{ closeModal(); openPuzzle(next.id); };
+}
+/* ---------- parts library ----------
+   Drawings of what each part would be if it were made of metal. They are
+   sketches to think with, not engineering drawings: the simulation models the
+   logic of these mechanisms, never their forces, friction or tolerances. */
+function ratchetTeeth(cx,cy,r,n){
+  let d='';
+  for(let i=0;i<n;i++){
+    const a=(i/n)*2*Math.PI, b=((i+.55)/n)*2*Math.PI;
+    d+='M '+(cx+r*Math.cos(a)).toFixed(1)+' '+(cy+r*Math.sin(a)).toFixed(1)+
+       ' L '+(cx+(r+6)*Math.cos(b)).toFixed(1)+' '+(cy+(r+6)*Math.sin(b)).toFixed(1)+
+       ' L '+(cx+r*Math.cos(b)).toFixed(1)+' '+(cy+r*Math.sin(b)).toFixed(1)+' Z ';
+  }
+  return d;
+}
+function lobePath(cx,cy,lobes){
+  let pts=[];
+  for(let i=0;i<=120;i++){
+    const t=(i/120)*2*Math.PI, rr=20+7*Math.cos(lobes*t);
+    pts.push((cx+rr*Math.cos(t)).toFixed(1)+','+(cy+rr*Math.sin(t)).toFixed(1));
+  }
+  return pts.join(' ');
+}
+const LIBRARY=[
+{ type:'crank', name:'Crank',
+  real:'A handle on an axle. One full turn of the handle drives a connecting rod forward once — the same linkage that works a well pump or a sewing machine treadle.',
+  game:'One press of TURN sends exactly one pulse. The game does not model the force needed, only that a push happened.',
+  svg:'<svg viewBox="0 0 200 110" width="212" height="116">'+
+      '<line class="lib-stroke" x1="40" y1="62" x2="196" y2="62"/>'+
+      '<g class="a-spin" style="transform-origin:40px 62px">'+
+        '<line class="lib-brass" x1="40" y1="62" x2="40" y2="26"/>'+
+        '<circle class="lib-brass-f" cx="40" cy="26" r="7"/></g>'+
+      '<circle class="lib-metal" cx="40" cy="62" r="9"/>'+
+      '<g class="a-nudge"><polygon class="lib-brass-f" points="150,62 138,55 138,69"/>'+
+        '<rect class="lib-brass-f" x="112" y="59" width="28" height="6"/></g>'+
+      '<text class="lib-txt" x="176" y="86" style="font-size:9px;fill:#7C9799">one push</text></svg>' },
+
+{ type:'wheel', name:'Number wheel',
+  real:'A disc with ten numbers around its rim and ten ratchet teeth cut into it. A spring-loaded pawl drops into each tooth, so the wheel can only rest at a numbered position — never between two.',
+  game:'A position from 0 to 9, changed one step at a time. The detent is a rule, not a spring: the wheel simply cannot hold an in-between value.',
+  svg:'<svg viewBox="0 0 200 130" width="212" height="138">'+
+      '<g class="a-spin-step" style="transform-origin:80px 65px">'+
+        '<circle class="lib-metal" cx="80" cy="65" r="40"/>'+
+        '<path class="lib-metal" d="'+ratchetTeeth(80,65,40,10)+'"/>'+
+        '<line class="lib-stroke" x1="80" y1="30" x2="80" y2="42"/></g>'+
+      '<circle class="lib-metal" cx="80" cy="65" r="13"/>'+
+      '<g class="a-pawl" style="transform-origin:150px 30px">'+
+        '<line class="lib-brass" x1="150" y1="30" x2="118" y2="52"/>'+
+        '<circle class="lib-brass-f" cx="118" cy="52" r="4"/></g>'+
+      '<circle class="lib-brass-f" cx="150" cy="30" r="3"/>'+
+      '<text class="lib-txt" x="80" y="66" data-tick="digit">0</text>'+
+      '<text class="lib-txt" x="152" y="16" style="font-size:9px;fill:#7C9799">pawl</text></svg>' },
+
+{ type:'repeater', name:'Cam',
+  real:'A disc whose edge is not round. As it turns, each bump lifts a follower once. Four bumps, four lifts per revolution — the number is cut permanently into the metal.',
+  game:'One pulse in, a fixed number of pulses out. The count is a property of the part, so changing it means fetching a different cam.',
+  svg:'<svg viewBox="0 0 200 120" width="212" height="128">'+
+      '<g class="a-spin" style="transform-origin:70px 60px">'+
+        '<polygon class="lib-metal" points="'+lobePath(70,60,4)+'"/></g>'+
+      '<circle class="lib-brass-f" cx="70" cy="60" r="4"/>'+
+      '<g class="a-follow"><circle class="lib-brass-f" cx="99" cy="60" r="6"/>'+
+        '<rect class="lib-brass-f" x="104" y="57" width="46" height="5"/></g>'+
+      '<line class="lib-stroke" x1="150" y1="42" x2="150" y2="78"/>'+
+      '<text class="lib-txt" x="172" y="60" style="font-size:9px;fill:#7C9799">out</text>'+
+      '<text class="lib-txt" x="70" y="112" style="font-size:9px;fill:#7C9799">four bumps</text></svg>' },
+
+{ type:'transfer', name:'Transfer arm',
+  real:'A toothed arm that swings across a wheel. A stop pin, positioned by the wheel being read, decides how far it can travel — so the arm carries across exactly as many teeth as that wheel holds.',
+  game:'It reads a wheel through COUNT and, when triggered, emits that many pulses. Reading does not disturb the wheel it reads.',
+  svg:'<svg viewBox="0 0 200 130" width="212" height="138">'+
+      '<line class="lib-stroke" x1="30" y1="100" x2="180" y2="100"/>'+
+      [0,1,2,3,4,5,6].map(i=>'<line class="lib-stroke" x1="'+(44+i*20)+'" y1="100" x2="'+(44+i*20)+'" y2="90"/>').join('')+
+      '<g class="a-swing" style="transform-origin:40px 30px">'+
+        '<line class="lib-brass" x1="40" y1="30" x2="40" y2="86"/>'+
+        '<polygon class="lib-brass-f" points="34,86 46,86 40,96"/></g>'+
+      '<circle class="lib-metal" cx="40" cy="30" r="7"/>'+
+      '<line class="lib-brass" x1="124" y1="24" x2="124" y2="76" stroke-dasharray="4 4"/>'+
+      '<circle class="lib-brass-f" cx="124" cy="24" r="4"/>'+
+      '<text class="lib-txt" x="140" y="18" style="font-size:9px;fill:#7C9799">stop pin</text>'+
+      '<text class="lib-txt" x="100" y="118" style="font-size:9px;fill:#7C9799">teeth carried across</text></svg>' },
+
+{ type:'bell', name:'Signal bell',
+  real:'A hammer on a spring. Anything that pushes its lever makes it strike once — the standard way a mechanism tells a human that something happened.',
+  game:'It counts the pulses that reach it. Nothing else on the bench can read that count; it exists for you, not for the machine.',
+  svg:'<svg viewBox="0 0 200 120" width="212" height="128">'+
+      '<path class="lib-metal" d="M70 78 L70 56 A26 26 0 0 1 122 56 L122 78 Z"/>'+
+      '<line class="lib-stroke" x1="62" y1="78" x2="130" y2="78"/>'+
+      '<circle class="lib-brass-f" cx="96" cy="30" r="4"/>'+
+      '<g class="a-tap" style="transform-origin:160px 44px">'+
+        '<line class="lib-brass" x1="160" y1="44" x2="132" y2="62"/>'+
+        '<circle class="lib-brass-f" cx="132" cy="62" r="6"/></g>'+
+      '<g class="a-ring"><path class="lib-brass" d="M52 46 A22 22 0 0 0 52 76"/>'+
+        '<path class="lib-brass" d="M42 38 A34 34 0 0 0 42 84"/></g>'+
+      '<text class="lib-txt" x="96" y="106" style="font-size:9px;fill:#7C9799">rings once per pulse</text></svg>' },
+
+{ type:'readout', name:'Readout',
+  real:'A window cut in the casing with the number band showing through it. Reading the machine does not touch the mechanism, which is why a clerk can copy a figure down without spoiling it.',
+  game:'It displays the value of whatever shaft feeds it, continuously. A dashed rod carries a reading; a solid rod carries a push.',
+  svg:'<svg viewBox="0 0 200 110" width="212" height="116">'+
+      '<rect class="lib-metal" x="46" y="26" width="108" height="58" rx="3"/>'+
+      '<rect x="82" y="38" width="36" height="34" fill="#08191B" stroke="#20454A"/>'+
+      '<text class="lib-txt" x="100" y="55" style="font-size:20px" data-tick="digit">0</text>'+
+      '<line class="lib-stroke" x1="10" y1="55" x2="46" y2="55" stroke-dasharray="5 4"/>'+
+      '<text class="lib-txt" x="100" y="96" style="font-size:9px;fill:#7C9799">reading, not a push</text></svg>' },
+
+{ type:'lever', name:'Lever',
+  real:'A hand lever falling into one of two notches. It carries no number and drives nothing by itself — its whole job is to hold a decision where other parts can feel it.',
+  game:'Two positions, 0 and 1, changed by clicking. Its STATE is a reading, so it can only be wired to square ports.',
+  svg:'<svg viewBox="0 0 200 120" width="212" height="128">'+
+      '<rect class="lib-metal" x="52" y="86" width="96" height="12" rx="2"/>'+
+      '<text class="lib-txt" x="66" y="112" style="font-size:10px;fill:#7C9799">0</text>'+
+      '<text class="lib-txt" x="134" y="112" style="font-size:10px;fill:#7C9799">1</text>'+
+      '<g class="a-swing" style="transform-origin:100px 86px">'+
+        '<line class="lib-brass" x1="100" y1="86" x2="70" y2="28"/>'+
+        '<circle class="lib-brass-f" cx="70" cy="28" r="7"/></g>'+
+      '<circle class="lib-metal" cx="100" cy="86" r="7"/></svg>' },
+
+{ type:'gate', name:'Gate',
+  real:'A shutter across a channel. While it is raised the push travels through; while it is dropped the push stops dead against it. A separate linkage lifts the shutter.',
+  game:'A pulse on IN reaches OUT only while ENABLE reads as raised. Nothing is queued or remembered: a blocked pulse is simply lost.',
+  svg:'<svg viewBox="0 0 200 120" width="212" height="128">'+
+      '<line class="lib-stroke" x1="14" y1="70" x2="186" y2="70"/>'+
+      '<g class="a-shutter"><rect class="lib-brass-f" x="94" y="18" width="10" height="44"/></g>'+
+      '<line class="lib-brass" x1="99" y1="18" x2="99" y2="8"/>'+
+      '<text class="lib-txt" x="140" y="14" style="font-size:9px;fill:#7C9799">enable</text>'+
+      '<g class="a-travel"><circle class="lib-brass-f" cx="30" cy="70" r="6"/></g>'+
+      '<text class="lib-txt" x="100" y="104" style="font-size:9px;fill:#7C9799">a blocked push is lost</text></svg>' },
+
+{ type:'selector', name:'Selector',
+  real:'A points blade, exactly as on a railway. The push always arrives from the same place; the blade decides which of two tracks it leaves by.',
+  game:'One pulse in, one pulse out — never both outputs, never neither. PICK reads 0 or 1 and chooses the path.',
+  svg:'<svg viewBox="0 0 200 120" width="212" height="128">'+
+      '<line class="lib-stroke" x1="12" y1="60" x2="86" y2="60"/>'+
+      '<line class="lib-stroke" x1="86" y1="60" x2="186" y2="24"/>'+
+      '<line class="lib-stroke" x1="86" y1="60" x2="186" y2="96"/>'+
+      '<g class="a-flip" style="transform-origin:86px 60px">'+
+        '<line class="lib-brass" x1="86" y1="60" x2="132" y2="43"/></g>'+
+      '<circle class="lib-brass-f" cx="86" cy="60" r="4"/>'+
+      '<text class="lib-txt" x="176" y="14" style="font-size:9px;fill:#7C9799">out-1</text>'+
+      '<text class="lib-txt" x="176" y="110" style="font-size:9px;fill:#7C9799">out-0</text></svg>' },
+
+{ type:'seq', name:'Distributor',
+  real:'A commutator: a rotating brush that touches each contact in turn. Every push it receives goes to the next contact round, so a stream of identical pushes becomes a fixed rotation of different ones.',
+  game:'One pulse in, one pulse out — but to a different output each time, in order, for ever. Its STEP shaft reports which output is next.',
+  svg:'<svg viewBox="0 0 200 130" width="212" height="138">'+
+      '<circle class="lib-metal" cx="86" cy="64" r="42"/>'+
+      '<path class="lib-brass" d="M86 64 L86 22 A42 42 0 0 1 128 64 Z" opacity=".25"/>'+
+      '<circle class="lib-brass-f" cx="86" cy="26" r="5"/><circle class="lib-brass-f" cx="124" cy="64" r="5"/>'+
+      '<circle class="lib-brass-f" cx="86" cy="102" r="5"/><circle class="lib-brass-f" cx="48" cy="64" r="5"/>'+
+      '<g class="a-wipe" style="transform-origin:86px 64px">'+
+        '<line class="lib-brass" x1="86" y1="64" x2="86" y2="30"/>'+
+        '<circle class="lib-brass-f" cx="86" cy="34" r="4"/></g>'+
+      '<circle class="lib-metal" cx="86" cy="64" r="8"/>'+
+      '<text class="lib-txt" x="86" y="124" style="font-size:9px;fill:#7C9799">next contact, every push</text></svg>' },
+
+{ type:'drum', name:'Program drum',
+  real:'A barrel with pegs driven into it, like a musical box or a barrel organ. Followers ride against two tracks; where a peg stands proud the follower is lifted. The pattern of pegs is the instruction.',
+  game:'Four slots, two tracks. ADVANCE turns it one slot on, and its two track shafts read out as 0 or 1 — the same kind of reading a hand lever gives.',
+  svg:'<svg viewBox="0 0 220 130" width="212" height="126">'+
+      '<rect class="lib-metal" x="24" y="34" width="150" height="60" rx="8"/>'+
+      '<line class="lib-stroke" x1="24" y1="64" x2="174" y2="64" stroke-dasharray="4 5"/>'+
+      '<g class="a-drumroll">'+
+      '<circle class="lib-brass-f" cx="52" cy="50" r="5"/><circle class="lib-brass-f" cx="96" cy="78" r="5"/>'+
+      '<circle class="lib-brass-f" cx="140" cy="50" r="5"/><circle class="lib-brass-f" cx="140" cy="78" r="5"/></g>'+
+      '<line class="lib-brass" x1="186" y1="50" x2="200" y2="50"/><line class="lib-brass" x1="186" y1="78" x2="200" y2="78"/>'+
+      '<text class="lib-txt" x="203" y="42" style="font-size:8px;fill:#7C9799">A</text>'+
+      '<text class="lib-txt" x="203" y="90" style="font-size:8px;fill:#7C9799">B</text>'+
+      '<text class="lib-txt" x="99" y="116" style="font-size:9px;fill:#7C9799">pegs are the program</text></svg>' },
+
+{ type:'zero', name:'Zero detector',
+  real:'A feeler riding on the rim of a wheel. One notch is cut deeper than the rest, at position zero, and the feeler drops into it — so the arm stands low for zero and high for everything else.',
+  game:'It watches a wheel and reports 1 or 0. IS-ZERO and NOT-ZERO are the same fact stated both ways round; nothing is remembered between readings.',
+  svg:'<svg viewBox="0 0 200 130" width="212" height="138">'+
+      '<g class="a-spin-step" style="transform-origin:74px 68px">'+
+        '<circle class="lib-metal" cx="74" cy="68" r="40"/>'+
+        '<path class="lib-metal" d="M74 28 L66 20 L82 20 Z"/></g>'+
+      '<circle class="lib-metal" cx="74" cy="68" r="12"/>'+
+      '<g class="a-feel" style="transform-origin:154px 24px">'+
+        '<line class="lib-brass" x1="154" y1="24" x2="96" y2="40"/>'+
+        '<circle class="lib-brass-f" cx="96" cy="40" r="5"/></g>'+
+      '<circle class="lib-brass-f" cx="154" cy="24" r="3"/>'+
+      '<text class="lib-txt" x="120" y="118" style="font-size:9px;fill:#7C9799">one notch cut deeper</text></svg>' },
+
+{ type:'latch', name:'Latch',
+  real:'A pawl over a spring, of the sort that holds a door. Knock it one way and it stays; knock it the other way and it stays there instead. It holds a fact after the event that caused it has finished.',
+  game:'SET raises it, CLEAR drops it, and STATE reads 1 or 0 in between. It is the only part that turns a momentary pulse into a lasting reading.',
+  svg:'<svg viewBox="0 0 200 120" width="212" height="128">'+
+      '<rect class="lib-metal" x="40" y="74" width="120" height="12" rx="2"/>'+
+      '<g class="a-latch" style="transform-origin:100px 74px">'+
+        '<line class="lib-brass" x1="100" y1="74" x2="128" y2="30"/>'+
+        '<circle class="lib-brass-f" cx="128" cy="30" r="6"/></g>'+
+      '<circle class="lib-metal" cx="100" cy="74" r="7"/>'+
+      '<text class="lib-txt" x="52" y="24" style="font-size:9px;fill:#7C9799">set</text>'+
+      '<text class="lib-txt" x="150" y="106" style="font-size:9px;fill:#7C9799">and it stays</text></svg>' },
+
+{ type:'picker', name:'Picker',
+  real:'A rotary switch. Four shafts come in from the storage boxes, a wiper rests on one of the four contacts, and only that one is passed to the output.',
+  game:'Four readings in, one out, chosen by ADDR. It moves nothing and disturbs nothing — reading a box leaves the box exactly as it was.',
+  svg:'<svg viewBox="0 0 200 130" width="212" height="138">'+
+      '<circle class="lib-metal" cx="86" cy="64" r="42"/>'+
+      '<circle class="lib-brass-f" cx="86" cy="26" r="5"/><circle class="lib-brass-f" cx="124" cy="64" r="5"/>'+
+      '<circle class="lib-brass-f" cx="86" cy="102" r="5"/><circle class="lib-brass-f" cx="48" cy="64" r="5"/>'+
+      '<g class="a-wipe" style="transform-origin:86px 64px">'+
+        '<line class="lib-brass" x1="86" y1="64" x2="86" y2="30"/></g>'+
+      '<circle class="lib-metal" cx="86" cy="64" r="8"/>'+
+      '<line class="lib-stroke" x1="128" y1="64" x2="180" y2="64" stroke-dasharray="5 4"/>'+
+      '<text class="lib-txt" x="170" y="50" style="font-size:9px;fill:#7C9799">out</text>'+
+      '<text class="lib-txt" x="86" y="124" style="font-size:9px;fill:#7C9799">one contact at a time</text></svg>' }
+];
+let libTicker=null;
+function openLibrary(){
+  $('#modal').className='modal wide';
+  $('#modal').innerHTML=
+    '<div class="eyebrow">Reference</div><h2>Parts library</h2>'+
+    '<div class="prose"><p>What these parts would be if the workshop actually built them. The game simulates how each one behaves, not the metal it is made of — there is no friction, no backlash and no force in this model.</p></div>'+
+    '<div class="lib">'+LIBRARY.map(l=>
+      '<div class="lib-card"><h3>'+l.name+'</h3>'+l.svg+
+      '<p><b>In the workshop.</b> '+l.real+'</p><p><b>On your bench.</b> '+l.game+'</p></div>').join('')+
+    '</div><div class="modal-actions"><button class="btn primary" id="m-close">Back to the bench</button></div>';
+  $('#veil').hidden=false;
+  $('#m-close').onclick=closeModal;
+  let n=0;
+  clearInterval(libTicker);
+  libTicker=setInterval(()=>{
+    n=(n+1)%10;
+    document.querySelectorAll('[data-tick="digit"]').forEach(e=>e.textContent=n);
+  },600);
+}
+function closeModal(){ $('#veil').hidden=true; clearInterval(libTicker); libTicker=null; }
+
+function toast(msg){
+  const t=$('#toast'); t.textContent=msg; t.hidden=false;
+  clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,2400);
+}
+
+/* ---------- zoom and canvas size ----------
+   The canvas is never bigger than the machine standing on it, so the scrollbars
+   only appear when there is genuinely something out of sight. */
+function fitCanvas(){
+  const canvas=$('#canvas'); let w=320,h=180;
+  canvas.querySelectorAll('.comp').forEach(el=>{
+    w=Math.max(w,el.offsetLeft+el.offsetWidth);
+    h=Math.max(h,el.offsetTop+el.offsetHeight);
+  });
+  w+=40; h+=30;
+  canvas.style.width=w+'px'; canvas.style.height=h+'px';
+  /* A CSS transform does not change how much room an element takes up, so the
+     sizer carries the scaled footprint. Without it the scrollbars would stay
+     even when the machine has been zoomed down to nothing. */
+  const sz=$('#sizer');
+  sz.style.width=Math.ceil(w*zoom)+'px'; sz.style.height=Math.ceil(h*zoom)+'px';
+  if(!document.fullscreenElement)
+    $('#viewport').style.height=Math.min(620,Math.max(200,Math.ceil(h*zoom)+6))+'px';
+  return {w,h};
+}
+function applyZoom(){
+  $('#canvas').style.transform='scale('+zoom+')';
+  $('#z-label').textContent=Math.round(zoom*100)+'%';
+  fitCanvas();
+}
+function setZoom(z){ zoom=Math.min(1.8,Math.max(.35,Math.round(z*100)/100)); applyZoom(); persist(); }
+function zoomToFit(){
+  const {w}=fitCanvas();
+  const vpw=$('#viewport').clientWidth-4;
+  if(vpw>60) setZoom(Math.min(1,vpw/w));
+}
+$('#z-in').onclick=()=>setZoom(zoom+.1);
+$('#z-out').onclick=()=>setZoom(zoom-.1);
+$('#z-fit').onclick=zoomToFit;
+$('#z-full').onclick=()=>{
+  const w=$('#bench-wrap');
+  if(document.fullscreenElement) document.exitFullscreen();
+  else if(w.requestFullscreen) w.requestFullscreen();
+};
+$('#viewport').addEventListener('wheel',e=>{
+  if(!e.ctrlKey&&!e.metaKey) return;
+  e.preventDefault(); setZoom(zoom+(e.deltaY<0?.08:-.08));
+},{passive:false});
+
+/* ---------- dragging parts, panning the bench ---------- */
+let drag=null, pan=null;
+const selected=new Set();
+function paintSelection(){
+  document.querySelectorAll('.comp').forEach(el=>
+    el.classList.toggle('sel',selected.has(el.dataset.id)));
+}
+function clearSelection(){ selected.clear(); paintSelection(); }
+/* Shift-click a name plate to add or remove a part from the selection.
+   Dragging any selected part moves the whole group together. */
+$('#canvas').addEventListener('pointerdown',e=>{
+  const grip=e.target.closest('[data-grip]'); if(!grip) return;
+  const id=grip.dataset.grip;
+  if(!machine.comps[id]) return;
+  if(e.shiftKey){
+    selected.has(id)?selected.delete(id):selected.add(id);
+    paintSelection(); e.preventDefault(); return;
+  }
+  if(!selected.has(id)){ selected.clear(); selected.add(id); }
+  paintSelection();
+  const ids=[...selected].filter(i=>machine.comps[i]);
+  drag={ids,sx:e.clientX,sy:e.clientY,
+        start:ids.map(i=>({i,x:machine.comps[i].x,y:machine.comps[i].y})),
+        els:ids.map(i=>document.querySelector('.comp[data-id="'+i+'"]'))};
+  drag.els.forEach(el=>el&&el.classList.add('dragging'));
+  e.preventDefault();
+});
+window.addEventListener('pointermove',e=>{
+  if(drag){
+    const dx=(e.clientX-drag.sx)/zoom, dy=(e.clientY-drag.sy)/zoom;
+    drag.start.forEach((st,k)=>{
+      const c=machine.comps[st.i]; if(!c) return;
+      c.x=Math.max(0,Math.round(st.x+dx)); c.y=Math.max(0,Math.round(st.y+dy));
+      const el=drag.els[k]; if(el){ el.style.left=c.x+'px'; el.style.top=c.y+'px'; }
+    });
+    drawWires();
+  } else if(pan){
+    const vp=$('#viewport');
+    vp.scrollLeft=pan.sl-(e.clientX-pan.x);
+    vp.scrollTop=pan.st-(e.clientY-pan.y);
+  }
+});
+window.addEventListener('pointerup',()=>{
+  if(drag){ drag.els.forEach(el=>el&&el.classList.remove('dragging')); drag=null; persist(); fitCanvas(); }
+  pan=null;
+});
+document.addEventListener('fullscreenchange',()=>{
+  if(document.fullscreenElement) $('#viewport').style.height='';
+  else fitCanvas();
+});
+$('#viewport').addEventListener('pointerdown',e=>{
+  if(e.target.closest('.comp')) return;
+  if(!e.shiftKey) clearSelection();
+  const vp=$('#viewport');
+  pan={x:e.clientX,y:e.clientY,sl:vp.scrollLeft,st:vp.scrollTop};
+});
+
+/* ---------- wiring and cranks ---------- */
+$('#canvas').addEventListener('click',e=>{
+  const kill=e.target.closest('[data-kill]');
+  if(kill){ removeComp(machine,kill.dataset.kill); armed=null; persist(); renderBench(); renderParts(); return; }
+  const lev=e.target.closest('[data-lever]');
+  if(lev){ const c=machine.comps[lev.dataset.lever]; c.pos=c.pos?0:1; persist(); renderBench(); return; }
+  const crank=e.target.closest('[data-crank]');
+  if(crank){ const trace=firePulse(machine,crank.dataset.crank,'OUT'); renderBench();
+             requestAnimationFrame(()=>animatePulse(trace)); return; }
+  const port=e.target.closest('.port'); if(!port) return;
+  const ref={id:port.dataset.comp,port:port.dataset.port,dir:port.dataset.dir};
+  if(!armed){
+    if(ref.dir!=='out'){ toast('Start from an output — the right-hand edge of a part.'); return; }
+    armed=ref; renderBench(); return;
+  }
+  if(armed.id===ref.id&&armed.port===ref.port&&armed.dir===ref.dir){ armed=null; renderBench(); return; }
+  if(ref.dir!=='in'){ armed=ref; renderBench(); return; }
+  const bad=addWire(machine,armed.id,armed.port,ref.id,ref.port);
+  if(bad) toast('Cannot connect: '+bad);
+  armed=null; persist(); renderBench();
+});
+
+$('#btn-hint').onclick=()=>{
+  if(hintsShown>=puzzle.hints.length) return;
+  hintsShown++; save.hintsUsed[puzzle.id]=hintsShown; persist(); renderHints();
+};
+$('#btn-test').onclick=runAllTests;
+$('#btn-clear').onclick=()=>{ machine.wires=[]; armed=null; persist(); renderBench(); };
+$('#btn-tidy').onclick=()=>{
+  const fresh=makeMachine(puzzle);
+  Object.keys(machine.comps).forEach(id=>{
+    if(fresh.comps[id]){ machine.comps[id].x=fresh.comps[id].x; machine.comps[id].y=fresh.comps[id].y; }
+  });
+  persist(); renderBench();
+};
+$('#btn-reset').onclick=()=>{
+  if(!confirm('Erase all progress and start again from the first puzzle?')) return;
+  Store.drop(); save=freshSave(); zoom=1; openPuzzle(PUZZLES[0].id);
+};
+$('#btn-library').onclick=openLibrary;
+$('#veil').addEventListener('click',e=>{ if(e.target.id==='veil') closeModal(); });
+window.addEventListener('resize',()=>requestAnimationFrame(drawWires));
+window.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){ armed=null; clearSelection(); closeModal(); renderBench(); }
+  if((e.key==='Delete'||e.key==='Backspace')&&selected.size&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName)){
+    let removed=0;
+    selected.forEach(id=>{ if(machine.comps[id]&&!machine.comps[id].fixed){ removeComp(machine,id); removed++; } });
+    clearSelection();
+    if(removed){ e.preventDefault(); persist(); renderBench(); renderParts(); }
+  }
+});
+
+openPuzzle(save.current);
+if(!Store.usable) toast('This preview cannot save to the browser. Download the file to keep progress.');
+})();
+</script>
+</body>
+</html>
